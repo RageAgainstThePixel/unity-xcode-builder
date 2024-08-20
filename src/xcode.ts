@@ -5,6 +5,7 @@ import path = require('path');
 import fs = require('fs');
 
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
+const xcodebuild = '/usr/bin/xcodebuild';
 
 async function ArchiveXcodeProject(): Promise<string> {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
@@ -31,7 +32,7 @@ async function ArchiveXcodeProject(): Promise<string> {
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.info(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
-    await exec.exec('xcodebuild', ['-list', '-project', projectPath], {
+    await exec.exec(xcodebuild, ['-list', '-project', projectPath], {
         listeners: {
             stdout: (data: Buffer) => {
                 schemeListOutput += data.toString();
@@ -49,7 +50,7 @@ async function ArchiveXcodeProject(): Promise<string> {
     core.info(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
-    await exec.exec('xcodebuild', [
+    await exec.exec(xcodebuild, [
         '-project', projectPath,
         '-scheme', scheme,
         '-configuration', configuration,
