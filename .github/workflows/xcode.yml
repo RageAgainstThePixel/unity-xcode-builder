@@ -8,7 +8,7 @@ on:
         description: 'The OS to build the Xcode project for.'
         required: true
         type: string
-      build-target:
+      build_target:
         description: 'The build target to build the Xcode project for.'
         required: true
         type: string
@@ -16,12 +16,12 @@ on:
         description: 'The artifact to download.'
         required: true
         type: string
-      run-id:
+      run_id:
         description: 'The run id that triggered this workflow'
         required: true
         type: number
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.inputs.build-target }}-${{ github.event.inputs.run-id }}-${{ github.event.inputs.artifact }}
+  group: ${{ github.workflow }}-${{ github.event.inputs.build_target }}-${{ github.event.inputs.run_id }}-${{ github.event.inputs.artifact }}
   cancel-in-progress: true
 jobs:
   xcode:
@@ -32,7 +32,7 @@ jobs:
         with:
           path: ${{ github.workspace }}
           name: ${{ github.event.inputs.artifact }}
-          run-id: ${{ github.event.inputs.run-id }}
+          run-id: ${{ github.event.inputs.run_id }}
       - name: Build Xcode Project
         id: excode-build
         uses: ./ # RageAgainstThePixel/unity-xcode-builder
@@ -45,4 +45,4 @@ jobs:
       - name: print outputs
         run: |
           echo "Archive: ${{ steps.excode-build.outputs.archive }}"
-          echo "Executable: ${{ steps.excode-build.outputs.executable }}"
+
