@@ -30,25 +30,28 @@ async function ArchiveXcodeProject(): Promise<string> {
     core.info(`Archiving Xcode project: ${projectName}`);
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.info(`Archive path: ${archivePath}`);
-    const scheme = core.getInput('scheme') || `${projectDirectory}/${projectName}.xcodeproj/xcshareddata/xcschemes/*.xcscheme`;
-    core.info(`Scheme input: ${scheme}`);
-    let schemePath = undefined;
-    const schemeGlobber = await glob.create(scheme);
-    const schemeFiles = await schemeGlobber.glob();
-    for (const file of schemeFiles) {
-        if (file.endsWith('.xcscheme')) {
-            core.info(`Found Xcode scheme: ${file}`);
-            schemePath = file;
-            break;
+    let schemeListOutput = '';
+    await exec.exec('xcodebuild', ['-list', '-project', projectPath], {
+        listeners: {
+            stdout: (data: Buffer) => {
+                schemeListOutput += data.toString();
+            }
         }
+    });
+    const schemeMatch = schemeListOutput.match(/Schemes:\n([\s\S]*?)\n\n/);
+    if (!schemeMatch) {
+        throw new Error('Unable to list schemes for the project');
     }
-    core.info(`Scheme path: ${schemePath}`);
-    await fs.promises.access(schemePath, fs.constants.R_OK);
+    const schemes = schemeMatch[1].split('\n').map(s => s.trim()).filter(s => s);
+    core.info(`Available schemes: ${schemes.join(', ')}`);
+    const schemeInput = core.getInput('scheme');
+    const scheme = schemeInput && schemes.includes(schemeInput) ? schemeInput : schemes[0];
+    core.info(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
     await exec.exec('xcodebuild', [
         '-project', projectPath,
-        '-scheme', schemePath,
+        '-scheme', scheme,
         '-configuration', configuration,
         '-archivePath', archivePath,
         '-allowProvisioningUpdates'
