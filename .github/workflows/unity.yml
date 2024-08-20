@@ -11,6 +11,9 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+permissions:
+    contents: read
+    actions: write
 jobs:
   unity-build:
     env:
@@ -61,8 +64,8 @@ jobs:
           path: |
             ${{ github.workspace }}/**/*.log
             ${{ github.workspace }}/**/*.xml
-            ${{ env.UNITY_PROJECT_PATH || github.workspace }}/Builds/${{ matrix.build-target }}/**/*
-            !${{ env.UNITY_PROJECT_PATH || github.workspace }}/Library/**/*
+            ${{ env.UNITY_PROJECT_PATH }}/Builds/${{ matrix.build-target }}/**/*
+            !${{ env.UNITY_PROJECT_PATH }}/Library/**/*
             !/**/*_BackUpThisFolder_ButDontShipItWithYourGame/**
             !/**/*_BurstDebugInformation_DoNotShip/**
       - name: Trigger xcode build

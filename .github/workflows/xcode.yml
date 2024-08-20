@@ -1,6 +1,6 @@
 name: Xcode Build
 # This workflow is only meant to be triggered from unity.yml
-run-name: (${{ inputs.os }}) ${{ inputs.build-target }} Xcode Build
+run-name: (${{ inputs.os }}) ${{ inputs.build_target }} Xcode Build
 on:
   workflow_dispatch:
     inputs:
@@ -23,6 +23,8 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.inputs.build_target }}-${{ github.event.inputs.run_id_trigger }}-${{ github.event.inputs.artifact_id }}
   cancel-in-progress: true
+permissions:
+  contents: read
 jobs:
   xcode:
     runs-on: ${{ github.event.inputs.os }}
