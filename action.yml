@@ -1,5 +1,8 @@
 name: unity-xcode-builder
-description: 'A GitHub Actions template repository for JavaScript based Actions'
+description: A GitHub Action to build and archive Unity exported xcode projects.
+branding:
+  icon: 'command'
+  color: 'blue'
 inputs:
   project-path:
     description: The directory that contains the exported xcode project from Unity.

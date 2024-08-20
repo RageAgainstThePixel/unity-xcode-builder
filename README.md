@@ -33,7 +33,7 @@ steps:
 | `team-id` | The team ID to use for signing the Xcode project. Overrides the value in the exported Unity project. | false |
 | `bundle-id` | The bundle ID of the Xcode project. Overrides the value in the exported Unity project. | false |
 | `configuration` | The configuration to build the Xcode project with. | Defaults to `Release`. |
-| `xcscheme` | The path to the xcscheme to build the Xcode project with. Overrides the value in the exported Unity project. | false |
+| `xcscheme` | The path to the custom `.xcscheme` to build the Xcode project with. Overrides the value in the exported Unity project. | false |
 
 ### outputs
 

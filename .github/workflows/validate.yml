@@ -11,9 +11,6 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-permissions:
-    contents: read
-    actions: write
 jobs:
   unity-build:
     env:
@@ -69,7 +66,7 @@ jobs:
             !/**/*_BackUpThisFolder_ButDontShipItWithYourGame/**
             !/**/*_BurstDebugInformation_DoNotShip/**
 
-      - uses: ./ # RageAgainstThePixel/unity-xcode-builder
+      - uses: ./action.yml # RageAgainstThePixel/unity-xcode-builder
         id: xcode-build
         with:
           project-path: ${{ env.UNITY_PROJECT_PATH }}/Builds/${{ matrix.build-target }}/**/*.xcodeproj
