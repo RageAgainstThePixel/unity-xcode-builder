@@ -77,9 +77,12 @@ jobs:
                 workflow_id: '.github/workflows/xcode.yml',
                 ref: '${{ github.event.pull_request.head.ref || github.head_ref || github.ref }}',
                 inputs: {
-                    os: ${{ matrix.os }},
-                    build-target: ${{ matrix.build-target }},
-                    artifact: '${{ github.run_number }}.${{ github.run_attempt }}-${{ matrix.os }}-${{ matrix.unity-versions }}-${{ matrix.build-target }}-Artifacts'
-                    run-id: ${{ github.run_id }}
-                  }
+                  os: ${{ matrix.os }},
+                  build-target: ${{ matrix.build-target }},
+                  artifact: '${{ github.run_number }}.${{ github.run_attempt }}-${{ matrix.os }}-${{ matrix.unity-versions }}-${{ matrix.build-target }}-Artifacts'
+                  run-id: ${{ github.run_id }}
+                }
+              });
+            } catch (error) {
+              core.setFailed(error.stack);
             }
