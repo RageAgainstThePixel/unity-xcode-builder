@@ -36,3 +36,7 @@ steps:
 | `xcscheme` | The path to the xcscheme to build the Xcode project with. Overrides the value in the exported Unity project. | false |
 
 ### outputs
+
+- `archive`: Path to the exported archive.
+- `executable`: Path to the generated executable.
+

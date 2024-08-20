@@ -1,0 +1,48 @@
+name: Xcode Build
+# This workflow is only meant to be triggered from unity.yml
+run-name: (${{ inputs.os }}) ${{ inputs.build-target }} Xcode Build
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'The OS to build the Xcode project for.'
+        required: true
+        type: string
+      build-target:
+        description: 'The build target to build the Xcode project for.'
+        required: true
+        type: string
+      artifact:
+        description: 'The artifact to download.'
+        required: true
+        type: string
+      run-id:
+        description: 'The run id that triggered this workflow'
+        required: true
+        type: number
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.build-target }}-${{ github.event.inputs.run-id }}-${{ github.event.inputs.artifact }}
+  cancel-in-progress: true
+jobs:
+  xcode:
+    runs-on: ${{ github.event.inputs.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ github.workspace }}
+          name: ${{ github.event.inputs.artifact }}
+          run-id: ${{ github.event.inputs.run-id }}
+      - name: Build Xcode Project
+        id: excode-build
+        uses: ./ # RageAgainstThePixel/unity-xcode-builder
+        with:
+          project-path: ${{ github.workspace }}/**/*.xcodeproj
+          apple-id: ${{ secrets.APPLE_ID }}
+          apple-password: ${{ secrets.APPLE_PASSWORD }}
+          certificate: ${{ secrets.APPLE_SIGNING_CERTIFICATE }}
+          certificate-password: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+      - name: print outputs
+        run: |
+          echo "Archive: ${{ steps.excode-build.outputs.archive }}"
+          echo "Executable: ${{ steps.excode-build.outputs.executable }}"
