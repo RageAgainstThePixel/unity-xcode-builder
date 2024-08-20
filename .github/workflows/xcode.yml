@@ -16,12 +16,12 @@ on:
         description: 'The artifact to download.'
         required: true
         type: string
-      run_id:
+      run_id_trigger:
         description: 'The run id that triggered this workflow'
         required: true
         type: number
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.inputs.build_target }}-${{ github.event.inputs.run_id }}-${{ github.event.inputs.artifact }}
+  group: ${{ github.workflow }}-${{ github.event.inputs.build_target }}-${{ github.event.inputs.run_id_trigger }}-${{ github.event.inputs.artifact }}
   cancel-in-progress: true
 jobs:
   xcode:
@@ -32,7 +32,7 @@ jobs:
         with:
           path: ${{ github.workspace }}
           name: ${{ github.event.inputs.artifact }}
-          run-id: ${{ github.event.inputs.run_id }}
+          run-id: ${{ github.event.inputs.run_id_trigger }}
       - name: Build Xcode Project
         id: excode-build
         uses: ./ # RageAgainstThePixel/unity-xcode-builder
