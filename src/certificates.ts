@@ -20,14 +20,18 @@ async function ImportCertificate() {
     await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
     await exec.exec(security, ['unlock-keychain', '-p', certificateName, keychainPath]);
     await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
-    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', certificateName, keychainPath]);
+    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', certificateName, keychainPath], { silent: !core.isDebug() });
     await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath]);
 }
 
 async function RemoveCertificate() {
+    core.info('Removing certificate...');
     const certificateName = core.getState('certificateName');
+    if (!certificateName) {
+        return;
+    }
     const keychainPath = `${temp}/${certificateName}.keychain-db`;
     await exec.exec(security, ['delete-keychain', keychainPath]);
 }
 
-export { ImportCertificate, RemoveCertificate };
+export { ImportCertificate, RemoveCertificate }
