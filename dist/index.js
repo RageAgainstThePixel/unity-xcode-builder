@@ -29577,6 +29577,7 @@ const core = __nccwpck_require__(2186);
 const exec = __nccwpck_require__(1514);
 const uuid = __nccwpck_require__(5840);
 const fs = __nccwpck_require__(7147);
+const security = '/usr/bin/security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 async function ImportCertificate() {
     core.info('Importing certificate...');
@@ -29587,17 +29588,17 @@ async function ImportCertificate() {
     const keychainPath = `${temp}/${certificateName}.keychain-db`;
     core.saveState('certificateName', certificateName);
     await fs.promises.writeFile(certificatePath, certificate, 'base64');
-    await exec.exec('security', ['create-keychain', '-p', certificateName, keychainPath]);
-    await exec.exec('security', ['set-keychain-settings', '-lut', '21600', keychainPath]);
-    await exec.exec('security', ['unlock-keychain', '-p', certificateName, keychainPath]);
-    await exec.exec('security', ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
-    await exec.exec('security', ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', certificateName, keychainPath]);
-    await exec.exec('security', ['list-keychains', '-d', 'user', '-s', keychainPath]);
+    await exec.exec(security, ['create-keychain', '-p', certificateName, keychainPath]);
+    await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
+    await exec.exec(security, ['unlock-keychain', '-p', certificateName, keychainPath]);
+    await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
+    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', certificateName, keychainPath]);
+    await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath]);
 }
 async function RemoveCertificate() {
     const certificateName = core.getState('certificateName');
     const keychainPath = `${temp}/${certificateName}.keychain-db`;
-    await exec.exec('security', ['delete-keychain', keychainPath]);
+    await exec.exec(security, ['delete-keychain', keychainPath]);
 }
 
 
@@ -29640,14 +29641,25 @@ async function ArchiveXcodeProject() {
     core.info(`Archiving Xcode project: ${projectName}`);
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.info(`Archive path: ${archivePath}`);
-    const scheme = core.getInput('scheme') || `${projectDirectory}/${projectName}.xcodeproj/xcshareddata/xcschemes/${projectName}.xcscheme`;
-    core.info(`Scheme path: ${scheme}`);
-    await fs.promises.access(scheme, fs.constants.R_OK);
+    const scheme = core.getInput('scheme') || `${projectDirectory}/${projectName}.xcodeproj/xcshareddata/xcschemes/*.xcscheme`;
+    core.info(`Scheme input: ${scheme}`);
+    let schemePath = undefined;
+    const schemeGlobber = await glob.create(scheme);
+    const schemeFiles = await schemeGlobber.glob();
+    for (const file of schemeFiles) {
+        if (file.endsWith('.xcscheme')) {
+            core.info(`Found Xcode scheme: ${file}`);
+            schemePath = file;
+            break;
+        }
+    }
+    core.info(`Scheme path: ${schemePath}`);
+    await fs.promises.access(schemePath, fs.constants.R_OK);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
     await exec.exec('xcodebuild', [
         '-project', projectPath,
-        '-scheme', scheme,
+        '-scheme', schemePath,
         '-configuration', configuration,
         '-archivePath', archivePath,
         '-allowProvisioningUpdates'

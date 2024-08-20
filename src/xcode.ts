@@ -30,14 +30,25 @@ async function ArchiveXcodeProject(): Promise<string> {
     core.info(`Archiving Xcode project: ${projectName}`);
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.info(`Archive path: ${archivePath}`);
-    const scheme = core.getInput('scheme') || `${projectDirectory}/${projectName}.xcodeproj/xcshareddata/xcschemes/${projectName}.xcscheme`;
-    core.info(`Scheme path: ${scheme}`);
-    await fs.promises.access(scheme, fs.constants.R_OK);
+    const scheme = core.getInput('scheme') || `${projectDirectory}/${projectName}.xcodeproj/xcshareddata/xcschemes/*.xcscheme`;
+    core.info(`Scheme input: ${scheme}`);
+    let schemePath = undefined;
+    const schemeGlobber = await glob.create(scheme);
+    const schemeFiles = await schemeGlobber.glob();
+    for (const file of schemeFiles) {
+        if (file.endsWith('.xcscheme')) {
+            core.info(`Found Xcode scheme: ${file}`);
+            schemePath = file;
+            break;
+        }
+    }
+    core.info(`Scheme path: ${schemePath}`);
+    await fs.promises.access(schemePath, fs.constants.R_OK);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
     await exec.exec('xcodebuild', [
         '-project', projectPath,
-        '-scheme', scheme,
+        '-scheme', schemePath,
         '-configuration', configuration,
         '-archivePath', archivePath,
         '-allowProvisioningUpdates'
