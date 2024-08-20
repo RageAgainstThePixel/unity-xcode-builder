@@ -68,20 +68,16 @@ jobs:
             !${{ env.UNITY_PROJECT_PATH }}/Library/**/*
             !/**/*_BackUpThisFolder_ButDontShipItWithYourGame/**
             !/**/*_BurstDebugInformation_DoNotShip/**
-      - name: Trigger xcode build
-        uses: actions/github-script@v7
-        if: success()
+      - name: Build Xcode Project
+        id: excode-build
+        uses: ./ # RageAgainstThePixel/unity-xcode-builder
         with:
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: '.github/workflows/xcode.yml',
-              ref: '${{ github.event.pull_request.head.ref || github.head_ref || github.ref }}',
-              inputs: {
-                os: '${{ matrix.os }}',
-                build_target: '${{ matrix.build-target }}',
-                artifact_id: '${{ github.run_number }}.${{ github.run_attempt }}-${{ matrix.os }}-${{ matrix.unity-versions }}-${{ matrix.build-target }}-Artifacts',
-                run_id_trigger: '${{ github.run_id }}'
-              }
-            });
+          project-path: ${{ env.UNITY_PROJECT_PATH }}/Builds/${{ matrix.build-target }}/**/*.xcodeproj
+          apple-id: ${{ secrets.APPLE_ID }}
+          apple-password: ${{ secrets.APPLE_PASSWORD }}
+          certificate: ${{ secrets.APPLE_SIGNING_CERTIFICATE }}
+          certificate-password: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+      - name: print outputs
+        run: |
+          echo "Archive: ${{ steps.excode-build.outputs.archive }}"
+          echo "Executable: ${{ steps.excode-build.outputs.executable }}"
