@@ -68,16 +68,17 @@ jobs:
             !${{ env.UNITY_PROJECT_PATH }}/Library/**/*
             !/**/*_BackUpThisFolder_ButDontShipItWithYourGame/**
             !/**/*_BurstDebugInformation_DoNotShip/**
-      - name: Build Xcode Project
-        id: excode-build
-        uses: ./ # RageAgainstThePixel/unity-xcode-builder
+
+      - uses: ./ # RageAgainstThePixel/unity-xcode-builder
+        id: xcode-build
         with:
           project-path: ${{ env.UNITY_PROJECT_PATH }}/Builds/${{ matrix.build-target }}/**/*.xcodeproj
           apple-id: ${{ secrets.APPLE_ID }}
           apple-password: ${{ secrets.APPLE_PASSWORD }}
           certificate: ${{ secrets.APPLE_SIGNING_CERTIFICATE }}
           certificate-password: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+
       - name: print outputs
         run: |
-          echo "Archive: ${{ steps.excode-build.outputs.archive }}"
-          echo "Executable: ${{ steps.excode-build.outputs.executable }}"
+          echo "Archive: ${{ steps.xcode-build.outputs.archive }}"
+          echo "Executable: ${{ steps.xcode-build.outputs.executable }}"
