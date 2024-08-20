@@ -27,10 +27,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: RageAgainstThePixel/com.utilities.encoder.wav
+          path: 'com.utilities.encoder.wav'
       - uses: RageAgainstThePixel/unity-setup@v1
         with:
           unity-version: ${{ matrix.unity-versions }}
           build-targets: ${{ matrix.build-target }}
+          version-file: '${{ github.workspace }}/com.utilities.encoder.wav/Utilities.Encoder.Wav/ProjectSettings/ProjectVersion.txt'
       - uses: RageAgainstThePixel/activate-unity-license@v1
         with:
           license: 'Personal'
@@ -66,7 +68,7 @@ jobs:
             !/**/*_BackUpThisFolder_ButDontShipItWithYourGame/**
             !/**/*_BurstDebugInformation_DoNotShip/**
 
-      - uses: ./action.yml # RageAgainstThePixel/unity-xcode-builder
+      - uses: ./ # RageAgainstThePixel/unity-xcode-builder
         id: xcode-build
         with:
           project-path: ${{ env.UNITY_PROJECT_PATH }}/Builds/${{ matrix.build-target }}/**/*.xcodeproj
