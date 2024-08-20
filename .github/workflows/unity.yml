@@ -78,7 +78,7 @@ jobs:
               inputs: {
                 os: '${{ matrix.os }}',
                 build_target: '${{ matrix.build-target }}',
-                artifact_id: '${{ github.run_number }}.${{ github.run_attempt }}-${{ matrix.os }}-${{ matrix.unity-versions }}-${{ matrix.build-target }}-Artifacts'
+                artifact_id: '${{ github.run_number }}.${{ github.run_attempt }}-${{ matrix.os }}-${{ matrix.unity-versions }}-${{ matrix.build-target }}-Artifacts',
                 run_id_trigger: '${{ github.run_id }}'
               }
             });
