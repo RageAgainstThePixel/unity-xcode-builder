@@ -21,11 +21,7 @@ jobs:
       matrix:
         os: [macos-13]
         unity-versions: [2021.x, 2022.x, 6000.x]
-        include:
-          - os: macos-13
-            build-target: StandaloneOSX
-          - os: macos-13
-            build-target: iOS
+        build-target: [StandaloneOSX, iOS]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
