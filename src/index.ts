@@ -1,17 +1,21 @@
-import core from '@actions/core';
+import core = require('@actions/core');
+import { ImportCertificate, RemoveCertificate } from './certificates';
+import { ArchiveXcodeProject } from './xcode';
 
 const IS_POST = !!core.getState('isPost');
 
 const main = async () => {
     try {
         if (!IS_POST) {
-            core.info('Hello World!');
             core.saveState('isPost', true);
+            await ImportCertificate();
+            const archive = await ArchiveXcodeProject();
+            core.setOutput('archive', archive);
         } else {
-            core.info('Hello World! (post)');
+            await RemoveCertificate();
         }
     } catch (error) {
-        core.setFailed(error);
+        core.setFailed(error.stack);
     }
 }
 

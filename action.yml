@@ -1,8 +1,41 @@
-name: github-action-template
+name: unity-xcode-builder
 description: 'A GitHub Actions template repository for JavaScript based Actions'
-# inputs:
-# outputs:
+inputs:
+  project-path:
+    description: The directory that contains the exported xcode project from Unity.
+    required: true
+  apple-id:
+    description: The Apple ID to use for signing the Xcode project.
+    required: true
+  apple-password:
+    description: The password for the Apple ID.
+    required: true
+  certificate:
+    description: Exported signing certificate.p12 encoded as base64 string.
+    required: true
+  certificate-password:
+    description: The password for the exported `certificate`.
+    required: true
+  team-id:
+    description: The team ID to use for signing the Xcode project. Overrides the value in the exported Unity project.
+    required: false
+  bundle-id:
+    description: The bundle ID of the Xcode project. Overrides the value in the exported Unity project.
+    required: false
+  configuration:
+    description: The configuration to build the Xcode project with.
+    required: false
+    default: 'Release'
+  xcscheme:
+    description: The path to the xcscheme to build the Xcode project with. Overrides the value in the exported Unity project.
+    required: false
+    default: ''
+outputs:
+  archive:
+    description: The path to the generated archive.
+  executable:
+    description: The path to the generated executable.
 runs:
   using: 'node20'
   main: 'dist/index.js'
-  #post: 'dist/index.js'
+  post: 'dist/index.js'
