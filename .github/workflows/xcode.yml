@@ -12,16 +12,16 @@ on:
         description: 'The build target to build the Xcode project for.'
         required: true
         type: string
-      artifact:
+      artifact_id:
         description: 'The artifact to download.'
         required: true
         type: string
       run_id_trigger:
         description: 'The run id that triggered this workflow'
         required: true
-        type: number
+        type: string
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.inputs.build_target }}-${{ github.event.inputs.run_id_trigger }}-${{ github.event.inputs.artifact }}
+  group: ${{ github.workflow }}-${{ github.event.inputs.build_target }}-${{ github.event.inputs.run_id_trigger }}-${{ github.event.inputs.artifact_id }}
   cancel-in-progress: true
 jobs:
   xcode:
@@ -31,7 +31,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: ${{ github.workspace }}
-          name: ${{ github.event.inputs.artifact }}
+          name: ${{ github.event.inputs.artifact_id }}
           run-id: ${{ github.event.inputs.run_id_trigger }}
       - name: Build Xcode Project
         id: excode-build
