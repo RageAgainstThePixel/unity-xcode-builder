@@ -28,6 +28,7 @@ jobs:
         with:
           repository: RageAgainstThePixel/com.utilities.encoder.wav
           path: 'com.utilities.encoder.wav'
+          ref: test
       - uses: RageAgainstThePixel/unity-setup@v1
         with:
           unity-version: ${{ matrix.unity-versions }}
@@ -53,7 +54,7 @@ jobs:
         name: '${{ matrix.build-target }}-Build'
         with:
           log-name: '${{ matrix.build-target }}-Build'
-          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -export'
+          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -export -appleTeamId ${{ secrets.APPLE_TEAM_ID }} -enableAppleAutomaticSigning'
       - uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
