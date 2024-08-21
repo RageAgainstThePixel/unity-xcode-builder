@@ -4,8 +4,8 @@ import glob = require('@actions/glob');
 import path = require('path');
 import fs = require('fs');
 
+const xcodebuild = 'xcodebuild';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
-const xcodebuild = '/usr/bin/xcodebuild';
 
 async function ArchiveXcodeProject(): Promise<string> {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
@@ -14,6 +14,7 @@ async function ArchiveXcodeProject(): Promise<string> {
     const globber = await glob.create(projectPathInput);
     const files = await globber.glob();
     for (const file of files) {
+        if (file.endsWith(`GameAssembly.xcodeproj`)) { continue; }
         if (file.endsWith('.xcodeproj')) {
             core.info(`Found Xcode project: ${file}`);
             projectPath = file;

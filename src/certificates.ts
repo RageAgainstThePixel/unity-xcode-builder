@@ -3,7 +3,7 @@ import exec = require('@actions/exec');
 import uuid = require('uuid');
 import fs = require('fs');
 
-const security = '/usr/bin/security';
+const security = 'security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 
 // https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow

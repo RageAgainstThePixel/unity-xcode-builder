@@ -29577,7 +29577,7 @@ const core = __nccwpck_require__(2186);
 const exec = __nccwpck_require__(1514);
 const uuid = __nccwpck_require__(5840);
 const fs = __nccwpck_require__(7147);
-const security = '/usr/bin/security';
+const security = 'security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 async function ImportCertificate() {
     core.info('Importing certificate...');
@@ -29620,6 +29620,7 @@ const exec = __nccwpck_require__(1514);
 const glob = __nccwpck_require__(8090);
 const path = __nccwpck_require__(1017);
 const fs = __nccwpck_require__(7147);
+const xcodebuild = 'xcodebuild';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 async function ArchiveXcodeProject() {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
@@ -29628,6 +29629,9 @@ async function ArchiveXcodeProject() {
     const globber = await glob.create(projectPathInput);
     const files = await globber.glob();
     for (const file of files) {
+        if (file.endsWith(`GameAssembly.xcodeproj`)) {
+            continue;
+        }
         if (file.endsWith('.xcodeproj')) {
             core.info(`Found Xcode project: ${file}`);
             projectPath = file;
@@ -29646,7 +29650,7 @@ async function ArchiveXcodeProject() {
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.info(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
-    await exec.exec('xcodebuild', ['-list', '-project', projectPath], {
+    await exec.exec(xcodebuild, ['-list', '-project', projectPath], {
         listeners: {
             stdout: (data) => {
                 schemeListOutput += data.toString();
@@ -29664,7 +29668,7 @@ async function ArchiveXcodeProject() {
     core.info(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
-    await exec.exec('xcodebuild', [
+    await exec.exec(xcodebuild, [
         '-project', projectPath,
         '-scheme', scheme,
         '-configuration', configuration,
