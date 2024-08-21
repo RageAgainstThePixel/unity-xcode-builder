@@ -29663,8 +29663,15 @@ async function ArchiveXcodeProject() {
     }
     const schemes = schemeMatch[1].split('\n').map(s => s.trim()).filter(s => s);
     core.info(`Available schemes: ${schemes.join(', ')}`);
-    const schemeInput = core.getInput('scheme');
-    const scheme = schemeInput && schemes.includes(schemeInput) ? schemeInput : schemes[0];
+    let scheme = core.getInput('scheme');
+    if (!scheme) {
+        if (schemes.includes('Unity-iPhone')) {
+            scheme = 'Unity-iPhone';
+        }
+        else {
+            scheme = schemes.find(s => !['GameAssembly', 'UnityFramework', 'Pods'].includes(s) && !s.includes('Test'));
+        }
+    }
     core.info(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
