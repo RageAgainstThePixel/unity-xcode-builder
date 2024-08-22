@@ -33,18 +33,19 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.info(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
-    await exec.exec('xcrun', ['xcodebuild', '-list', '-project', projectPath], {
+    await exec.exec('xcodebuild', ['-list', '-project', projectPath, `-json`], {
         listeners: {
             stdout: (data: Buffer) => {
                 schemeListOutput += data.toString();
             }
         }
     });
-    const schemeMatch = schemeListOutput.match(/Schemes:\n([\s\S]*?)\n\n/);
-    if (!schemeMatch) {
-        throw new Error('Unable to list schemes for the project');
+    core.info(`\n-----Scheme list output:-----\n${schemeListOutput}\n-----End Scheme list output-----\n`);
+    const schemeList = JSON.parse(schemeListOutput);
+    const schemes = schemeList.project.schemes;
+    if (!schemes) {
+        throw new Error('No schemes found in the project');
     }
-    const schemes = schemeMatch[1].split('\n').map(s => s.trim()).filter(s => s);
     core.info(`Available schemes: ${schemes.join(', ')}`);
     let scheme = core.getInput('scheme');
     if (!scheme) {
@@ -73,7 +74,8 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
         `-authenticationKeyPath`, appStoreConnectKeyPath,
         `-authenticationKeyID`, authenticationKeyID,
         `-authenticationKeyIssuerID`, authenticationKeyIssuerID,
-        `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`,
+        `-quiet`,
+        `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`
     ]);
     return archivePath;
 }
