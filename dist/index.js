@@ -29686,7 +29686,12 @@ async function ArchiveXcodeProject(credential) {
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.debug(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
-    await exec.exec('xcodebuild', ['-list', '-project', projectPath, `-json`], {
+    await exec.exec('xcodebuild', [
+        '-list',
+        '-project',
+        projectPath,
+        `-json`
+    ], {
         listeners: {
             stdout: (data) => {
                 schemeListOutput += data.toString();
@@ -29708,6 +29713,27 @@ async function ArchiveXcodeProject(credential) {
         }
     }
     core.debug(`Using scheme: ${scheme}`);
+    let destinationListOutput = '';
+    await exec.exec('xcodebuild', [
+        `-project`, projectPath,
+        '-scheme', scheme,
+        '-showdestinations',
+        `-json`
+    ], {
+        listeners: {
+            stdout: (data) => {
+                destinationListOutput += data.toString();
+            }
+        }
+    });
+    const destinationList = JSON.parse(destinationListOutput);
+    const destinations = destinationList.destinations;
+    if (!destinations) {
+        throw new Error('No destinations found');
+    }
+    const platform = destinations[0].platform;
+    core.info(`Platform: ${platform}`);
+    const destination = `generic/platform=${platform}`;
     const configuration = core.getInput('configuration') || 'Release';
     core.debug(`Configuration: ${configuration}`);
     const keychainPath = `${temp}/${credential}.keychain-db`;
@@ -29720,6 +29746,7 @@ async function ArchiveXcodeProject(credential) {
         'archive',
         '-project', projectPath,
         '-scheme', scheme,
+        '-destination', destination,
         '-configuration', configuration,
         '-archivePath', archivePath,
         '-allowProvisioningUpdates',
