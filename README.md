@@ -12,8 +12,8 @@ steps:
     id: xcode-build
     with:
       project-path: '/path/to/your/build/output/directory'
-      apple-id: ${{ secrets.APPLE_ID }}
-      apple-password: ${{ secrets.APPLE_PASSWORD }}
+      app-store-connect-key-id: ${{ secrets.APPLE_ID }}
+      app-store-connect-issuer-id: ${{ secrets.APPLE_PASSWORD }}
       certificate: ${{ APPLE_SIGNING_CERTIFICATE }}
       certificate-password: ${{ APPLE_SIGNING_CERTIFICATE_PASSWORD }}
   - run: |
@@ -26,8 +26,8 @@ steps:
 | name | description | required |
 | ---- | ----------- | -------- |
 | `project-path` | The path to the xcode project. | Defaults to searching the workspace for `.xcodeproj` |
-| `apple-id` | Apple ID email. | true |
-| `apple-password` | Apple ID password. | true |
+| `app-store-connect-key-id` | The key ID of the App Store Connect API key. | true |
+| `app-store-connect-issuer-id` | The issuer ID of the App Store Connect API key. | true |
 | `certificate` | Exported signing certificate.p12 encoded as base64 string. | true |
 | `certificate-password` | The password for the exported `certificate`. | true |
 | `team-id` | The team ID to use for signing the Xcode project. Overrides the value in the exported Unity project. | false |

@@ -60,6 +60,9 @@ async function ArchiveXcodeProject(): Promise<string> {
     core.info(`Configuration: ${configuration}`);
     const certificateName = core.getState('certificateName');
     const keychainPath = `${temp}/${certificateName}.keychain-db`;
+    const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
+    const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
+
     await exec.exec(xcodebuild, [
         '-project', projectPath,
         '-scheme', scheme,
@@ -68,6 +71,8 @@ async function ArchiveXcodeProject(): Promise<string> {
         '-archivePath', archivePath,
         '-allowProvisioningUpdates',
         `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`,
+        `-authenticationKeyID ${authenticationKeyID}`,
+        `-authenticationKeyIssuerID ${authenticationKeyIssuerID}`,
     ]);
     return archivePath;
 }

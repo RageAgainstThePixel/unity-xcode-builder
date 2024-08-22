@@ -7,7 +7,7 @@ const security = 'security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 
 // https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
-async function ImportCertificate() {
+async function ImportCredentials() {
     core.info('Importing certificate...');
     const certificate = core.getInput('certificate', { required: true });
     const certificatePassword = core.getInput('certificate-password', { required: true });
@@ -39,7 +39,7 @@ async function ImportCertificate() {
     }
 }
 
-async function RemoveCertificate() {
+async function Cleanup() {
     const certificateName = core.getState('certificateName');
     if (certificateName) {
         core.info('Removing certificate...');
@@ -53,4 +53,7 @@ async function RemoveCertificate() {
     }
 }
 
-export { ImportCertificate, RemoveCertificate }
+export {
+    ImportCredentials,
+    Cleanup,
+}

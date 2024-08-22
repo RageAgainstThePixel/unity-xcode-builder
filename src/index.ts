@@ -1,5 +1,5 @@
 import core = require('@actions/core');
-import { ImportCertificate, RemoveCertificate } from './certificates';
+import { ImportCredentials, Cleanup } from './credentials';
 import { ArchiveXcodeProject } from './xcode';
 
 const IS_POST = !!core.getState('isPost');
@@ -8,11 +8,11 @@ const main = async () => {
     try {
         if (!IS_POST) {
             core.saveState('isPost', true);
-            await ImportCertificate();
+            await ImportCredentials();
             const archive = await ArchiveXcodeProject();
             core.setOutput('archive', archive);
         } else {
-            await RemoveCertificate();
+            await Cleanup();
         }
     } catch (error) {
         core.setFailed(error.stack);

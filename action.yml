@@ -7,11 +7,11 @@ inputs:
   project-path:
     description: The directory that contains the exported xcode project from Unity.
     required: true
-  apple-id:
-    description: The Apple ID to use for signing the Xcode project.
+  app-store-connect-key-id:
+    description: The key ID of the App Store Connect API key.
     required: true
-  apple-password:
-    description: The password for the Apple ID.
+  app-store-connect-issuer-id:
+    description: The issuer ID of the App Store Connect API key.
     required: true
   certificate:
     description: Exported signing certificate.p12 encoded as base64 string.
