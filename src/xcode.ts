@@ -5,6 +5,7 @@ import path = require('path');
 import fs = require('fs');
 
 const xcodebuild = 'xcodebuild';
+const temp = process.env['RUNNER_TEMP'] || '.';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
 async function ArchiveXcodeProject(): Promise<string> {
@@ -57,13 +58,16 @@ async function ArchiveXcodeProject(): Promise<string> {
     core.info(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
+    const certificateName = core.getState('certificateName');
+    const keychainPath = `${temp}/${certificateName}.keychain-db`;
     await exec.exec(xcodebuild, [
         '-project', projectPath,
         '-scheme', scheme,
         '-configuration', configuration,
         'archive',
         '-archivePath', archivePath,
-        '-allowProvisioningUpdates'
+        '-allowProvisioningUpdates',
+        `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`,
     ]);
     return archivePath;
 }
