@@ -57,13 +57,12 @@ async function ArchiveXcodeProject(): Promise<string> {
     core.info(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
-    const sessionId = core.getState('sessionId');
-    const keychainPath = `${temp}/${sessionId}.keychain-db`;
+    const tempCredential = core.getState('tempCredential');
+    const keychainPath = `${temp}/${tempCredential}.keychain-db`;
     const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
     const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
-    const appStoreConnectKeyPath = `${temp}/${sessionId}.p8`;
-    await exec.exec('xcrun', [
-        'xcodebuild',
+    const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
+    await exec.exec('xcodebuild', [
         '-project', projectPath,
         '-scheme', scheme,
         '-configuration', configuration,

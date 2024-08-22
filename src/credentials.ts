@@ -9,22 +9,22 @@ const temp = process.env['RUNNER_TEMP'] || '.';
 // https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
 async function ImportCredentials() {
     core.info('Importing credentials...');
-    const sessionId = uuid.v4();
+    const tempCredential = uuid.v4();
     const appStoreConnectKey = core.getInput('app-store-connect-key', { required: true });
-    const appStoreConnectKeyPath = `${temp}/${sessionId}.p8`;
+    const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
     await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'base64');
     core.info('Importing certificate...');
     const certificate = core.getInput('certificate', { required: true });
     const certificatePassword = core.getInput('certificate-password', { required: true });
-    const certificatePath = `${temp}/${sessionId}.p12`;
-    const keychainPath = `${temp}/${sessionId}.keychain-db`;
-    core.saveState('sessionId', sessionId);
+    const certificatePath = `${temp}/${tempCredential}.p12`;
+    const keychainPath = `${temp}/${tempCredential}.keychain-db`;
+    core.saveState('tempCredential', tempCredential);
     await fs.promises.writeFile(certificatePath, certificate, 'base64');
-    await exec.exec(security, ['create-keychain', '-p', sessionId, keychainPath]);
+    await exec.exec(security, ['create-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
-    await exec.exec(security, ['unlock-keychain', '-p', sessionId, keychainPath]);
+    await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
-    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', sessionId, keychainPath], { silent: !core.isDebug() });
+    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', tempCredential, keychainPath], { silent: !core.isDebug() });
     await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath]);
     const provisioningProfileBase64 = core.getInput('provisioning-profile');
     if (provisioningProfileBase64) {

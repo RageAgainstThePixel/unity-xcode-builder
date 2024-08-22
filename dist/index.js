@@ -29581,22 +29581,22 @@ const security = 'security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 async function ImportCredentials() {
     core.info('Importing credentials...');
-    const sessionId = uuid.v4();
+    const tempCredential = uuid.v4();
     const appStoreConnectKey = core.getInput('app-store-connect-key', { required: true });
-    const appStoreConnectKeyPath = `${temp}/${sessionId}.p8`;
+    const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
     await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'base64');
     core.info('Importing certificate...');
     const certificate = core.getInput('certificate', { required: true });
     const certificatePassword = core.getInput('certificate-password', { required: true });
-    const certificatePath = `${temp}/${sessionId}.p12`;
-    const keychainPath = `${temp}/${sessionId}.keychain-db`;
-    core.saveState('sessionId', sessionId);
+    const certificatePath = `${temp}/${tempCredential}.p12`;
+    const keychainPath = `${temp}/${tempCredential}.keychain-db`;
+    core.saveState('tempCredential', tempCredential);
     await fs.promises.writeFile(certificatePath, certificate, 'base64');
-    await exec.exec(security, ['create-keychain', '-p', sessionId, keychainPath]);
+    await exec.exec(security, ['create-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
-    await exec.exec(security, ['unlock-keychain', '-p', sessionId, keychainPath]);
+    await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
-    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', sessionId, keychainPath], { silent: !core.isDebug() });
+    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', tempCredential, keychainPath], { silent: !core.isDebug() });
     await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath]);
     const provisioningProfileBase64 = core.getInput('provisioning-profile');
     if (provisioningProfileBase64) {
@@ -29710,13 +29710,12 @@ async function ArchiveXcodeProject() {
     core.info(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
-    const sessionId = core.getState('sessionId');
-    const keychainPath = `${temp}/${sessionId}.keychain-db`;
+    const tempCredential = core.getState('tempCredential');
+    const keychainPath = `${temp}/${tempCredential}.keychain-db`;
     const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
     const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
-    const appStoreConnectKeyPath = `${temp}/${sessionId}.p8`;
-    await exec.exec('xcrun', [
-        'xcodebuild',
+    const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
+    await exec.exec('xcodebuild', [
         '-project', projectPath,
         '-scheme', scheme,
         '-configuration', configuration,
