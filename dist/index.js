@@ -29565,21 +29565,21 @@ var _default = exports["default"] = version;
 
 /***/ }),
 
-/***/ 967:
+/***/ 8138:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ImportCertificate = ImportCertificate;
-exports.RemoveCertificate = RemoveCertificate;
+exports.ImportCredentials = ImportCredentials;
+exports.Cleanup = Cleanup;
 const core = __nccwpck_require__(2186);
 const exec = __nccwpck_require__(1514);
 const uuid = __nccwpck_require__(5840);
 const fs = __nccwpck_require__(7147);
 const security = 'security';
 const temp = process.env['RUNNER_TEMP'] || '.';
-async function ImportCertificate() {
+async function ImportCredentials() {
     core.info('Importing certificate...');
     const certificate = core.getInput('certificate', { required: true });
     const certificatePassword = core.getInput('certificate-password', { required: true });
@@ -29610,7 +29610,7 @@ async function ImportCertificate() {
         await exec.exec(security, ['import', provisioningProfilePath, '-k', keychainPath, '-A']);
     }
 }
-async function RemoveCertificate() {
+async function Cleanup() {
     const certificateName = core.getState('certificateName');
     if (certificateName) {
         core.info('Removing certificate...');
@@ -29697,6 +29697,8 @@ async function ArchiveXcodeProject() {
     core.info(`Configuration: ${configuration}`);
     const certificateName = core.getState('certificateName');
     const keychainPath = `${temp}/${certificateName}.keychain-db`;
+    const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
+    const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
     await exec.exec(xcodebuild, [
         '-project', projectPath,
         '-scheme', scheme,
@@ -29705,6 +29707,8 @@ async function ArchiveXcodeProject() {
         '-archivePath', archivePath,
         '-allowProvisioningUpdates',
         `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`,
+        `-authenticationKeyID ${authenticationKeyID}`,
+        `-authenticationKeyIssuerID ${authenticationKeyIssuerID}`,
     ]);
     return archivePath;
 }
@@ -31631,19 +31635,19 @@ var exports = __webpack_exports__;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __nccwpck_require__(2186);
-const certificates_1 = __nccwpck_require__(967);
+const credentials_1 = __nccwpck_require__(8138);
 const xcode_1 = __nccwpck_require__(9157);
 const IS_POST = !!core.getState('isPost');
 const main = async () => {
     try {
         if (!IS_POST) {
             core.saveState('isPost', true);
-            await (0, certificates_1.ImportCertificate)();
+            await (0, credentials_1.ImportCredentials)();
             const archive = await (0, xcode_1.ArchiveXcodeProject)();
             core.setOutput('archive', archive);
         }
         else {
-            await (0, certificates_1.RemoveCertificate)();
+            await (0, credentials_1.Cleanup)();
         }
     }
     catch (error) {
