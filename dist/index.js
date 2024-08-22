@@ -29711,10 +29711,15 @@ async function ArchiveXcodeProject() {
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
     const tempCredential = core.getState('tempCredential');
+    if (!tempCredential) {
+        throw new Error('Missing tempCredential state');
+    }
     const keychainPath = `${temp}/${tempCredential}.keychain-db`;
+    await fs.promises.access(keychainPath, fs.constants.R_OK);
     const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
     const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
     const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
+    await fs.promises.access(appStoreConnectKeyPath, fs.constants.R_OK);
     await exec.exec('xcodebuild', [
         '-project', projectPath,
         '-scheme', scheme,
