@@ -23,7 +23,7 @@ jobs:
         unity-versions: [2021.x, 2022.x, 6000.x]
         build-target:
           - iOS
-          # - StandaloneOSX
+          - StandaloneOSX
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -57,19 +57,6 @@ jobs:
         with:
           log-name: '${{ matrix.build-target }}-Build'
           args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -export -appleTeamId ${{ secrets.APPLE_TEAM_ID }} -enableAppleAutomaticSigning -bundleIdentifier com.rageagainstthepixel.utilities.encoder.wav'
-      - uses: actions/upload-artifact@v4
-        if: success() || failure()
-        with:
-          compression-level: 0
-          retention-days: 1
-          name: '${{ github.run_number }}.${{ github.run_attempt }}-${{ matrix.os }}-${{ matrix.unity-versions }}-${{ matrix.build-target }}-Artifacts'
-          path: |
-            ${{ github.workspace }}/**/*.log
-            ${{ github.workspace }}/**/*.xml
-            ${{ env.UNITY_PROJECT_PATH }}/Builds/${{ matrix.build-target }}/**/*
-            !${{ env.UNITY_PROJECT_PATH }}/Library/**/*
-            !/**/*_BackUpThisFolder_ButDontShipItWithYourGame/**
-            !/**/*_BurstDebugInformation_DoNotShip/**
 
       - uses: ./ # RageAgainstThePixel/unity-xcode-builder
         id: xcode-build

@@ -29,9 +29,8 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
     const projectDirectory = path.dirname(projectPath);
     core.debug(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
-    core.info(`Archiving Xcode project: ${projectName}`);
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
-    core.info(`Archive path: ${archivePath}`);
+    core.debug(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
     await exec.exec('xcodebuild', ['-list', '-project', projectPath, `-json`], {
         listeners: {
@@ -40,13 +39,11 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
             }
         }
     });
-    core.info(`\n-----Scheme list output:-----\n${schemeListOutput}\n-----End Scheme list output-----\n`);
     const schemeList = JSON.parse(schemeListOutput);
     const schemes = schemeList.project.schemes;
     if (!schemes) {
         throw new Error('No schemes found in the project');
     }
-    core.info(`Available schemes: ${schemes.join(', ')}`);
     let scheme = core.getInput('scheme');
     if (!scheme) {
         if (schemes.includes('Unity-iPhone')) {
@@ -55,9 +52,9 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
             scheme = schemes.find(s => !['GameAssembly', 'UnityFramework', 'Pods'].includes(s) && !s.includes('Test'));
         }
     }
-    core.info(`Using scheme: ${scheme}`);
+    core.debug(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
-    core.info(`Configuration: ${configuration}`);
+    core.debug(`Configuration: ${configuration}`);
     const keychainPath = `${temp}/${credential}.keychain-db`;
     await fs.promises.access(keychainPath, fs.constants.R_OK);
     const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
@@ -74,7 +71,7 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
         `-authenticationKeyPath`, appStoreConnectKeyPath,
         `-authenticationKeyID`, authenticationKeyID,
         `-authenticationKeyIssuerID`, authenticationKeyIssuerID,
-        `-quiet`,
+        `-json`,
         `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`
     ]);
     return archivePath;
