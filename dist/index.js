@@ -29580,19 +29580,23 @@ const fs = __nccwpck_require__(7147);
 const security = 'security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 async function ImportCredentials() {
+    core.info('Importing credentials...');
+    const sessionId = uuid.v4();
+    const appStoreConnectKey = core.getInput('app-store-connect-key', { required: true });
+    const appStoreConnectKeyPath = `${temp}/${sessionId}.p8`;
+    await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'base64');
     core.info('Importing certificate...');
     const certificate = core.getInput('certificate', { required: true });
     const certificatePassword = core.getInput('certificate-password', { required: true });
-    const certificateName = uuid.v4();
-    const certificatePath = `${temp}/${certificateName}.p12`;
-    const keychainPath = `${temp}/${certificateName}.keychain-db`;
-    core.saveState('certificateName', certificateName);
+    const certificatePath = `${temp}/${sessionId}.p12`;
+    const keychainPath = `${temp}/${sessionId}.keychain-db`;
+    core.saveState('sessionId', sessionId);
     await fs.promises.writeFile(certificatePath, certificate, 'base64');
-    await exec.exec(security, ['create-keychain', '-p', certificateName, keychainPath]);
+    await exec.exec(security, ['create-keychain', '-p', sessionId, keychainPath]);
     await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
-    await exec.exec(security, ['unlock-keychain', '-p', certificateName, keychainPath]);
+    await exec.exec(security, ['unlock-keychain', '-p', sessionId, keychainPath]);
     await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
-    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', certificateName, keychainPath], { silent: !core.isDebug() });
+    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', sessionId, keychainPath], { silent: !core.isDebug() });
     await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath]);
     const provisioningProfileBase64 = core.getInput('provisioning-profile');
     if (provisioningProfileBase64) {
@@ -29611,16 +29615,28 @@ async function ImportCredentials() {
     }
 }
 async function Cleanup() {
-    const certificateName = core.getState('certificateName');
-    if (certificateName) {
+    const sessionId = core.getState('sessionId');
+    if (sessionId) {
         core.info('Removing certificate...');
-        const keychainPath = `${temp}/${certificateName}.keychain-db`;
+        const keychainPath = `${temp}/${sessionId}.keychain-db`;
         await exec.exec(security, ['delete-keychain', keychainPath]);
     }
     const provisioningProfilePath = core.getState('provisioningProfilePath');
     if (provisioningProfilePath) {
         core.info('Removing provisioning profile...');
-        await fs.promises.unlink(provisioningProfilePath);
+        try {
+            await fs.promises.unlink(provisioningProfilePath);
+        }
+        catch (error) {
+            core.error(`Failed to remove provisioning profile!\n${error.stack}`);
+        }
+    }
+    core.info('Removing App Store Connect API key...');
+    try {
+        await fs.promises.unlink(`${temp}/${sessionId}.p8`);
+    }
+    catch (error) {
+        core.error(`Failed to remove app store connect key!\n${error.stack}`);
     }
 }
 
@@ -29639,7 +29655,6 @@ const exec = __nccwpck_require__(1514);
 const glob = __nccwpck_require__(8090);
 const path = __nccwpck_require__(1017);
 const fs = __nccwpck_require__(7147);
-const xcodebuild = 'xcodebuild';
 const temp = process.env['RUNNER_TEMP'] || '.';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 async function ArchiveXcodeProject() {
@@ -29670,7 +29685,7 @@ async function ArchiveXcodeProject() {
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.info(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
-    await exec.exec(xcodebuild, ['-list', '-project', projectPath], {
+    await exec.exec('xcrun', ['xcodebuild', '-list', '-project', projectPath], {
         listeners: {
             stdout: (data) => {
                 schemeListOutput += data.toString();
@@ -29695,11 +29710,13 @@ async function ArchiveXcodeProject() {
     core.info(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
-    const certificateName = core.getState('certificateName');
-    const keychainPath = `${temp}/${certificateName}.keychain-db`;
+    const sessionId = core.getState('sessionId');
+    const keychainPath = `${temp}/${sessionId}.keychain-db`;
     const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
     const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
-    await exec.exec(xcodebuild, [
+    const appStoreConnectKeyPath = `${temp}/${sessionId}.p8`;
+    await exec.exec('xcrun', [
+        'xcodebuild',
         '-project', projectPath,
         '-scheme', scheme,
         '-configuration', configuration,
@@ -29707,6 +29724,7 @@ async function ArchiveXcodeProject() {
         '-archivePath', archivePath,
         '-allowProvisioningUpdates',
         `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`,
+        `-authenticationKeyPath ${appStoreConnectKeyPath}`,
         `-authenticationKeyID ${authenticationKeyID}`,
         `-authenticationKeyIssuerID ${authenticationKeyIssuerID}`,
     ]);

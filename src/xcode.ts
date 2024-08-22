@@ -4,7 +4,6 @@ import glob = require('@actions/glob');
 import path = require('path');
 import fs = require('fs');
 
-const xcodebuild = 'xcodebuild';
 const temp = process.env['RUNNER_TEMP'] || '.';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
@@ -34,7 +33,7 @@ async function ArchiveXcodeProject(): Promise<string> {
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.info(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
-    await exec.exec(xcodebuild, ['-list', '-project', projectPath], {
+    await exec.exec('xcrun', ['xcodebuild', '-list', '-project', projectPath], {
         listeners: {
             stdout: (data: Buffer) => {
                 schemeListOutput += data.toString();
@@ -58,12 +57,13 @@ async function ArchiveXcodeProject(): Promise<string> {
     core.info(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
-    const certificateName = core.getState('certificateName');
-    const keychainPath = `${temp}/${certificateName}.keychain-db`;
+    const sessionId = core.getState('sessionId');
+    const keychainPath = `${temp}/${sessionId}.keychain-db`;
     const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
     const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
-
-    await exec.exec(xcodebuild, [
+    const appStoreConnectKeyPath = `${temp}/${sessionId}.p8`;
+    await exec.exec('xcrun', [
+        'xcodebuild',
         '-project', projectPath,
         '-scheme', scheme,
         '-configuration', configuration,
@@ -71,6 +71,7 @@ async function ArchiveXcodeProject(): Promise<string> {
         '-archivePath', archivePath,
         '-allowProvisioningUpdates',
         `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`,
+        `-authenticationKeyPath ${appStoreConnectKeyPath}`,
         `-authenticationKeyID ${authenticationKeyID}`,
         `-authenticationKeyIssuerID ${authenticationKeyIssuerID}`,
     ]);

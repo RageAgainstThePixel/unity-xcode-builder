@@ -75,6 +75,7 @@ jobs:
         id: xcode-build
         with:
           project-path: ${{ env.UNITY_PROJECT_PATH }}/Builds/${{ matrix.build-target }}/**/*.xcodeproj
+          app-store-connect-key: ${{ secrets.APP_STORE_CONNECT_KEY }}
           app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           certificate: ${{ secrets.APPLE_SIGNING_CERTIFICATE }}
