@@ -64,16 +64,16 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
     const appStoreConnectKeyPath = `${temp}/${credential}.p8`;
     await fs.promises.access(appStoreConnectKeyPath, fs.constants.R_OK);
     await exec.exec('xcodebuild', [
+        'archive',
         '-project', projectPath,
         '-scheme', scheme,
         '-configuration', configuration,
-        'archive',
         '-archivePath', archivePath,
         '-allowProvisioningUpdates',
+        `-authenticationKeyPath`, appStoreConnectKeyPath,
+        `-authenticationKeyID`, authenticationKeyID,
+        `-authenticationKeyIssuerID`, authenticationKeyIssuerID,
         `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`,
-        `-authenticationKeyPath ${appStoreConnectKeyPath}`,
-        `-authenticationKeyID ${authenticationKeyID}`,
-        `-authenticationKeyIssuerID ${authenticationKeyIssuerID}`,
     ]);
     return archivePath;
 }
