@@ -29594,15 +29594,34 @@ async function ImportCertificate() {
     await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
     await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', certificateName, keychainPath], { silent: !core.isDebug() });
     await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath]);
+    const provisioningProfileBase64 = core.getInput('provisioning-profile');
+    if (provisioningProfileBase64) {
+        core.info('Importing provisioning profile...');
+        const provisioningProfileName = core.getInput('provisioning-profile-name', { required: true });
+        if (!provisioningProfileName.endsWith('.mobileprovision') &&
+            !provisioningProfileName.endsWith('.provisionprofile')) {
+            throw new Error('Provisioning profile name must end with .mobileprovision or .provisionprofile');
+        }
+        const provisioningProfilePath = `${temp}/${provisioningProfileName}`;
+        const provisioningProfile = Buffer.from(provisioningProfileBase64, 'base64').toString('utf8');
+        core.saveState('provisioningProfilePath', provisioningProfilePath);
+        await fs.promises.writeFile(provisioningProfilePath, provisioningProfile);
+        await exec.exec(security, ['cms', '-D', '-i', provisioningProfilePath]);
+        await exec.exec(security, ['import', provisioningProfilePath, '-k', keychainPath, '-A']);
+    }
 }
 async function RemoveCertificate() {
-    core.info('Removing certificate...');
     const certificateName = core.getState('certificateName');
-    if (!certificateName) {
-        return;
+    if (certificateName) {
+        core.info('Removing certificate...');
+        const keychainPath = `${temp}/${certificateName}.keychain-db`;
+        await exec.exec(security, ['delete-keychain', keychainPath]);
     }
-    const keychainPath = `${temp}/${certificateName}.keychain-db`;
-    await exec.exec(security, ['delete-keychain', keychainPath]);
+    const provisioningProfilePath = core.getState('provisioningProfilePath');
+    if (provisioningProfilePath) {
+        core.info('Removing provisioning profile...');
+        await fs.promises.unlink(provisioningProfilePath);
+    }
 }
 
 
@@ -29624,7 +29643,7 @@ const xcodebuild = 'xcodebuild';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 async function ArchiveXcodeProject() {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
-    core.info(`Project path input: ${projectPathInput}`);
+    core.debug(`Project path input: ${projectPathInput}`);
     let projectPath = undefined;
     const globber = await glob.create(projectPathInput);
     const files = await globber.glob();
@@ -29633,7 +29652,7 @@ async function ArchiveXcodeProject() {
             continue;
         }
         if (file.endsWith('.xcodeproj')) {
-            core.info(`Found Xcode project: ${file}`);
+            core.debug(`Found Xcode project: ${file}`);
             projectPath = file;
             break;
         }
@@ -29641,10 +29660,10 @@ async function ArchiveXcodeProject() {
     if (!projectPath) {
         throw new Error('Invalid project-path! Unable to find .xcodeproj');
     }
-    core.info(`Resolved Project path: ${projectPath}`);
+    core.debug(`Resolved Project path: ${projectPath}`);
     await fs.promises.access(projectPath, fs.constants.R_OK);
     const projectDirectory = path.dirname(projectPath);
-    core.info(`Project directory: ${projectDirectory}`);
+    core.debug(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
     core.info(`Archiving Xcode project: ${projectName}`);
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
@@ -29679,6 +29698,7 @@ async function ArchiveXcodeProject() {
         '-project', projectPath,
         '-scheme', scheme,
         '-configuration', configuration,
+        'archive',
         '-archivePath', archivePath,
         '-allowProvisioningUpdates'
     ]);

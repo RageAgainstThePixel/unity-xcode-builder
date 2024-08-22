@@ -32,7 +32,16 @@ inputs:
   xcscheme:
     description: The path to the xcscheme to build the Xcode project with. Overrides the value in the exported Unity project.
     required: false
-    default: ''
+  provisioning-profile:
+    description: The provisioning profile to use for signing the Xcode project as base64 string.
+    required: false
+  provisioning-profile-name:
+    description: The name of the provisioning profile file, including the type to use for signing the Xcode project.
+    required: false
+  export-option:
+    description: The export option to use for archiving the Xcode project. Can be one of 'app-store', 'ad-hoc', 'package', 'enterprise', 'development', 'developer-id', 'mac-application'.
+    required: false
+    default: 'development'
 outputs:
   archive:
     description: The path to the generated archive.
