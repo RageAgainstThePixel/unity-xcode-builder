@@ -7,7 +7,7 @@ import fs = require('fs');
 const temp = process.env['RUNNER_TEMP'] || '.';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
-async function ArchiveXcodeProject(): Promise<string> {
+async function ArchiveXcodeProject(credential: string): Promise<string> {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
     core.debug(`Project path input: ${projectPathInput}`);
     let projectPath = undefined;
@@ -57,15 +57,11 @@ async function ArchiveXcodeProject(): Promise<string> {
     core.info(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
-    const tempCredential = core.getState('tempCredential');
-    if (!tempCredential) {
-        throw new Error('Missing tempCredential state');
-    }
-    const keychainPath = `${temp}/${tempCredential}.keychain-db`;
+    const keychainPath = `${temp}/${credential}.keychain-db`;
     await fs.promises.access(keychainPath, fs.constants.R_OK);
     const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
     const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
-    const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
+    const appStoreConnectKeyPath = `${temp}/${credential}.p8`;
     await fs.promises.access(appStoreConnectKeyPath, fs.constants.R_OK);
     await exec.exec('xcodebuild', [
         '-project', projectPath,

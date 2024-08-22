@@ -8,8 +8,8 @@ const main = async () => {
     try {
         if (!IS_POST) {
             core.saveState('isPost', true);
-            await ImportCredentials();
-            const archive = await ArchiveXcodeProject();
+            const credential = await ImportCredentials();
+            const archive = await ArchiveXcodeProject(credential);
             core.setOutput('archive', archive);
         } else {
             await Cleanup();

@@ -29613,14 +29613,9 @@ async function ImportCredentials() {
         await exec.exec(security, ['cms', '-D', '-i', provisioningProfilePath]);
         await exec.exec(security, ['import', provisioningProfilePath, '-k', keychainPath, '-A']);
     }
+    return tempCredential;
 }
 async function Cleanup() {
-    const sessionId = core.getState('sessionId');
-    if (sessionId) {
-        core.info('Removing certificate...');
-        const keychainPath = `${temp}/${sessionId}.keychain-db`;
-        await exec.exec(security, ['delete-keychain', keychainPath]);
-    }
     const provisioningProfilePath = core.getState('provisioningProfilePath');
     if (provisioningProfilePath) {
         core.info('Removing provisioning profile...');
@@ -29631,9 +29626,16 @@ async function Cleanup() {
             core.error(`Failed to remove provisioning profile!\n${error.stack}`);
         }
     }
+    const tempCredential = core.getState('tempCredential');
+    if (!tempCredential) {
+        throw new Error('Missing tempCredential state');
+    }
+    core.info('Removing certificate...');
+    const keychainPath = `${temp}/${tempCredential}.keychain-db`;
+    await exec.exec(security, ['delete-keychain', keychainPath]);
     core.info('Removing App Store Connect API key...');
     try {
-        await fs.promises.unlink(`${temp}/${sessionId}.p8`);
+        await fs.promises.unlink(`${temp}/${tempCredential}.p8`);
     }
     catch (error) {
         core.error(`Failed to remove app store connect key!\n${error.stack}`);
@@ -29657,7 +29659,7 @@ const path = __nccwpck_require__(1017);
 const fs = __nccwpck_require__(7147);
 const temp = process.env['RUNNER_TEMP'] || '.';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
-async function ArchiveXcodeProject() {
+async function ArchiveXcodeProject(credential) {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
     core.debug(`Project path input: ${projectPathInput}`);
     let projectPath = undefined;
@@ -29710,15 +29712,11 @@ async function ArchiveXcodeProject() {
     core.info(`Using scheme: ${scheme}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
-    const tempCredential = core.getState('tempCredential');
-    if (!tempCredential) {
-        throw new Error('Missing tempCredential state');
-    }
-    const keychainPath = `${temp}/${tempCredential}.keychain-db`;
+    const keychainPath = `${temp}/${credential}.keychain-db`;
     await fs.promises.access(keychainPath, fs.constants.R_OK);
     const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
     const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
-    const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
+    const appStoreConnectKeyPath = `${temp}/${credential}.p8`;
     await fs.promises.access(appStoreConnectKeyPath, fs.constants.R_OK);
     await exec.exec('xcodebuild', [
         '-project', projectPath,
@@ -31664,8 +31662,8 @@ const main = async () => {
     try {
         if (!IS_POST) {
             core.saveState('isPost', true);
-            await (0, credentials_1.ImportCredentials)();
-            const archive = await (0, xcode_1.ArchiveXcodeProject)();
+            const credential = await (0, credentials_1.ImportCredentials)();
+            const archive = await (0, xcode_1.ArchiveXcodeProject)(credential);
             core.setOutput('archive', archive);
         }
         else {

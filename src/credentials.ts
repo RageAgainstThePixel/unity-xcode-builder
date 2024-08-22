@@ -7,7 +7,7 @@ const security = 'security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 
 // https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
-async function ImportCredentials() {
+async function ImportCredentials(): Promise<string> {
     core.info('Importing credentials...');
     const tempCredential = uuid.v4();
     const appStoreConnectKey = core.getInput('app-store-connect-key', { required: true });
@@ -41,15 +41,10 @@ async function ImportCredentials() {
         await exec.exec(security, ['cms', '-D', '-i', provisioningProfilePath]);
         await exec.exec(security, ['import', provisioningProfilePath, '-k', keychainPath, '-A']);
     }
+    return tempCredential;
 }
 
-async function Cleanup() {
-    const sessionId = core.getState('sessionId');
-    if (sessionId) {
-        core.info('Removing certificate...');
-        const keychainPath = `${temp}/${sessionId}.keychain-db`;
-        await exec.exec(security, ['delete-keychain', keychainPath]);
-    }
+async function Cleanup(): Promise<void> {
     const provisioningProfilePath = core.getState('provisioningProfilePath');
     if (provisioningProfilePath) {
         core.info('Removing provisioning profile...');
@@ -59,9 +54,16 @@ async function Cleanup() {
             core.error(`Failed to remove provisioning profile!\n${error.stack}`);
         }
     }
+    const tempCredential = core.getState('tempCredential');
+    if (!tempCredential) {
+        throw new Error('Missing tempCredential state');
+    }
+    core.info('Removing certificate...');
+    const keychainPath = `${temp}/${tempCredential}.keychain-db`;
+    await exec.exec(security, ['delete-keychain', keychainPath]);
     core.info('Removing App Store Connect API key...');
     try {
-        await fs.promises.unlink(`${temp}/${sessionId}.p8`);
+        await fs.promises.unlink(`${temp}/${tempCredential}.p8`);
     } catch (error) {
         core.error(`Failed to remove app store connect key!\n${error.stack}`);
     }
