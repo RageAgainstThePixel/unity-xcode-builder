@@ -22,6 +22,12 @@ inputs:
   certificate-password:
     description: The password for the exported `certificate`.
     required: true
+  provisioning-profile:
+    description: The provisioning profile to use for manually signing the Xcode project as base64 string.
+    required: false
+  provisioning-profile-name:
+    description: The name of the provisioning profile file, including the type to use for signing the Xcode project.
+    required: false
   team-id:
     description: The team ID to use for signing the Xcode project. Overrides the value in the exported Unity project.
     required: false
@@ -32,14 +38,11 @@ inputs:
     description: The configuration to build the Xcode project with.
     required: false
     default: 'Release'
-  xcscheme:
-    description: The path to the xcscheme to build the Xcode project with. Overrides the value in the exported Unity project.
+  scheme:
+    description: The scheme to build the Xcode project with. Overrides the value in the exported Unity project.
     required: false
-  provisioning-profile:
-    description: The provisioning profile to use for signing the Xcode project as base64 string.
-    required: false
-  provisioning-profile-name:
-    description: The name of the provisioning profile file, including the type to use for signing the Xcode project.
+  destination:
+    description: The destination to build the Xcode project for. Overrides the value in the exported Unity project.
     required: false
   export-option:
     description: The export option to use for archiving the Xcode project. Can be one of 'app-store', 'ad-hoc', 'package', 'enterprise', 'development', 'developer-id', 'mac-application'.

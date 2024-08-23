@@ -29688,8 +29688,7 @@ async function ArchiveXcodeProject(credential) {
     let schemeListOutput = '';
     await exec.exec('xcodebuild', [
         '-list',
-        '-project',
-        projectPath,
+        '-project', projectPath,
         `-json`
     ], {
         listeners: {
@@ -29713,25 +29712,32 @@ async function ArchiveXcodeProject(credential) {
         }
     }
     core.debug(`Using scheme: ${scheme}`);
-    let destinationListOutput = '';
-    await exec.exec('xcodebuild', [
-        `-project`, projectPath,
-        '-scheme', scheme,
-        '-showdestinations'
-    ], {
-        listeners: {
-            stdout: (data) => {
-                destinationListOutput += data.toString();
+    let destination = core.getInput('destination');
+    if (!destination) {
+        let destinationListOutput = '';
+        await exec.exec('xcodebuild', [
+            `-project`, projectPath,
+            '-scheme', scheme,
+            '-showdestinations'
+        ], {
+            listeners: {
+                stdout: (data) => {
+                    destinationListOutput += data.toString();
+                }
             }
+        });
+        const destinations = destinationListOutput.match(/{[^}]+}/g);
+        if (!destinations) {
+            throw new Error('No destinations found in the project');
         }
-    });
-    const destinations = destinationListOutput.split('\n').filter((line) => line.includes('platform='));
-    if (destinations.length === 0) {
-        throw new Error('No destinations found');
+        const platform = destinations[0].match(/platform=([^,]+)/)[1];
+        if (!platform) {
+            throw new Error('No platform found in the project');
+        }
+        core.info(`Platform: ${platform}`);
+        destination = `generic/platform=${platform}`;
     }
-    const platform = destinations[0].match(/platform=([^,]+)/)[1];
-    core.info(`Platform: ${platform}`);
-    const destination = `generic/platform=${platform}`;
+    core.debug(`Using destination: ${destination}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.debug(`Configuration: ${configuration}`);
     const keychainPath = `${temp}/${credential}.keychain-db`;

@@ -34,8 +34,7 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
     let schemeListOutput = '';
     await exec.exec('xcodebuild', [
         '-list',
-        '-project',
-        projectPath,
+        '-project', projectPath,
         `-json`], {
         listeners: {
             stdout: (data: Buffer) => {
@@ -44,7 +43,7 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
         }
     });
     const schemeList = JSON.parse(schemeListOutput);
-    const schemes = schemeList.project.schemes;
+    const schemes = schemeList.project.schemes as string[];
     if (!schemes) {
         throw new Error('No schemes found in the project');
     }
@@ -57,6 +56,8 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
         }
     }
     core.debug(`Using scheme: ${scheme}`);
+    let destination = core.getInput('destination');
+    if (!destination) {
     let destinationListOutput = '';
     await exec.exec('xcodebuild', [
         `-project`, projectPath,
@@ -69,13 +70,18 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
             }
         }
     });
-    const destinations = destinationListOutput.split('\n').filter((line) => line.includes('platform='));
-    if (destinations.length === 0) {
-        throw new Error('No destinations found');
+        const destinations = destinationListOutput.match(/{[^}]+}/g);
+        if (!destinations) {
+            throw new Error('No destinations found in the project');
     }
     const platform = destinations[0].match(/platform=([^,]+)/)[1];
+        if (!platform) {
+            throw new Error('No platform found in the project');
+        }
     core.info(`Platform: ${platform}`);
-    const destination = `generic/platform=${platform}`;
+        destination = `generic/platform=${platform}`;
+    }
+    core.debug(`Using destination: ${destination}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.debug(`Configuration: ${configuration}`);
     const keychainPath = `${temp}/${credential}.keychain-db`;

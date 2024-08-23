@@ -32,11 +32,14 @@ steps:
 | `app-store-connect-issuer-id` | The issuer ID of the App Store Connect API key. | true |
 | `certificate` | Exported signing certificate.p12 encoded as base64 string. | true |
 | `certificate-password` | The password for the exported `certificate`. | true |
+| `provisioning-profile` | The provisioning profile to use for as base64 string. Used when manually signing the Xcode project. | false |
+| `provisioning-profile-name` | The name of the provisioning profile file, including the type to use for signing the Xcode project. | If `provisioning-profile` is specified. |
 | `team-id` | The team ID to use for signing the Xcode project. Overrides the value in the exported Unity project. | false |
 | `bundle-id` | The bundle ID of the Xcode project. Overrides the value in the exported Unity project. | false |
 | `configuration` | The configuration to build the Xcode project with. | Defaults to `Release`. |
-| `xcscheme` | The path to the custom `.xcscheme` to build the Xcode project with. Overrides the value in the exported Unity project. | false |
-| `export-options` | The path to custom export options plist. | false |
+| `scheme` | The scheme to build the Xcode project with. Overrides the value in the exported Unity project. | false |
+| `destination` | The destination to build the Xcode project for. Overrides the value in the exported Unity project. | false |
+| `export-options` | The path to custom export options plist file. | false |
 
 ### outputs
 
