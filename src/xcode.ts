@@ -5,6 +5,7 @@ import plist = require('plist');
 import path = require('path');
 import fs = require('fs');
 
+const xcodebuild = 'xcodebuild';
 const temp = process.env['RUNNER_TEMP'] || '.';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
@@ -40,7 +41,7 @@ async function ArchiveXcodeProject(projectPath: string, projectDirectory: string
     if (!core.isDebug()) {
         core.info(`[command]xcodebuild -list -project ${projectPath} -json`);
     }
-    await exec.exec('xcodebuild', [
+    await exec.exec(xcodebuild, [
         '-list',
         '-project', projectPath,
         `-json`
@@ -74,7 +75,7 @@ async function ArchiveXcodeProject(projectPath: string, projectDirectory: string
         if (!core.isDebug()) {
             core.info(`[command]xcodebuild -project ${projectPath} -scheme ${scheme} -showdestinations`);
         }
-        await exec.exec('xcodebuild', [
+        await exec.exec(xcodebuild, [
             `-project`, projectPath,
             '-scheme', scheme,
             '-showdestinations'
@@ -122,7 +123,7 @@ async function ArchiveXcodeProject(projectPath: string, projectDirectory: string
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
-    await exec.exec('xcodebuild', archiveArgs);
+    await exec.exec(xcodebuild, archiveArgs);
     return archivePath;
 }
 
@@ -157,7 +158,7 @@ async function ExportXcodeArchive(projectPath: string, projectDirectory: string,
     if (!core.isDebug()) {
         exportArgs.push('-quiet');
     }
-    await exec.exec('xcodebuild', exportArgs);
+    await exec.exec(xcodebuild, exportArgs);
     return exportPath;
 }
 

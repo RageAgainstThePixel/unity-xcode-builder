@@ -10,21 +10,23 @@ const temp = process.env['RUNNER_TEMP'] || '.';
 async function ImportCredentials(): Promise<string> {
     core.info('Importing credentials...');
     const tempCredential = uuid.v4();
-    const appStoreConnectKey = core.getInput('app-store-connect-key', { required: true });
+    const appStoreConnectKeyBase64 = core.getInput('app-store-connect-key', { required: true });
     const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
-    await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'base64');
+    const appStoreConnectKey = Buffer.from(appStoreConnectKeyBase64, 'base64').toString('utf8');
+    await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'utf8');
     core.info('Importing certificate...');
-    const certificate = core.getInput('certificate', { required: true });
+    const certificateBase64 = core.getInput('certificate', { required: true });
     const certificatePassword = core.getInput('certificate-password', { required: true });
+    core.saveState('tempCredential', tempCredential);
     const certificatePath = `${temp}/${tempCredential}.p12`;
     const keychainPath = `${temp}/${tempCredential}.keychain-db`;
-    core.saveState('tempCredential', tempCredential);
-    await fs.promises.writeFile(certificatePath, certificate, 'base64');
+    const certificate = Buffer.from(certificateBase64, 'base64').toString('binary');
+    await fs.promises.writeFile(certificatePath, certificate, 'binary');
     await exec.exec(security, ['create-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
     await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
-    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', tempCredential, keychainPath], { silent: !core.isDebug() });
+    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath], { silent: !core.isDebug() });
     await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath]);
     const provisioningProfileBase64 = core.getInput('provisioning-profile');
     if (provisioningProfileBase64) {
@@ -35,9 +37,9 @@ async function ImportCredentials(): Promise<string> {
             throw new Error('Provisioning profile name must end with .mobileprovision or .provisionprofile');
         }
         const provisioningProfilePath = `${temp}/${provisioningProfileName}`;
-        const provisioningProfile = Buffer.from(provisioningProfileBase64, 'base64').toString('utf8');
         core.saveState('provisioningProfilePath', provisioningProfilePath);
-        await fs.promises.writeFile(provisioningProfilePath, provisioningProfile);
+        const provisioningProfile = Buffer.from(provisioningProfileBase64, 'base64').toString('binary');
+        await fs.promises.writeFile(provisioningProfilePath, provisioningProfile, 'binary');
         await exec.exec(security, ['cms', '-D', '-i', provisioningProfilePath]);
         await exec.exec(security, ['import', provisioningProfilePath, '-k', keychainPath, '-A']);
     }
@@ -61,7 +63,7 @@ async function Cleanup(): Promise<void> {
     core.info('Removing certificate...');
     const keychainPath = `${temp}/${tempCredential}.keychain-db`;
     await exec.exec(security, ['delete-keychain', keychainPath]);
-    core.info('Removing App Store Connect API key...');
+    core.info('Removing credentials...');
     try {
         await fs.promises.unlink(`${temp}/${tempCredential}.p8`);
     } catch (error) {
