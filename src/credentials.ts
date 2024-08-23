@@ -8,6 +8,7 @@ const temp = process.env['RUNNER_TEMP'] || '.';
 
 // https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
 async function ImportCredentials(): Promise<AppleCredential> {
+    const teamId = core.getInput('team-id', { required: true });
     core.info('Importing credentials...');
     const tempCredential = uuid.v4();
     const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
@@ -50,7 +51,7 @@ async function ImportCredentials(): Promise<AppleCredential> {
         await exec.exec(security, ['cms', '-D', '-i', provisioningProfilePath]);
         await exec.exec(security, ['import', provisioningProfilePath, '-k', keychainPath, '-A']);
     }
-    return new AppleCredential(tempCredential, keychainPath, authenticationKeyID, authenticationKeyIssuerID, appStoreConnectKeyPath);
+    return new AppleCredential(tempCredential, keychainPath, authenticationKeyID, authenticationKeyIssuerID, appStoreConnectKeyPath, teamId);
 }
 
 async function Cleanup(): Promise<void> {
@@ -79,18 +80,20 @@ async function Cleanup(): Promise<void> {
 }
 
 class AppleCredential {
-    constructor(name: string, keychainPath: string, appStoreConnectKeyId: string, appStoreConnectIssuerId: string, appStoreConnectKeyPath: string) {
+    constructor(name: string, keychainPath: string, appStoreConnectKeyId: string, appStoreConnectIssuerId: string, appStoreConnectKeyPath: string, teamId: string) {
         this.name = name;
         this.keychainPath = keychainPath;
         this.appStoreConnectKeyId = appStoreConnectKeyId;
         this.appStoreConnectIssuerId = appStoreConnectIssuerId;
         this.appStoreConnectKeyPath = appStoreConnectKeyPath
+        this.teamId = teamId;
     }
     name: string;
     keychainPath: string;
     appStoreConnectKeyId: string;
     appStoreConnectIssuerId: string;
     appStoreConnectKeyPath: string;
+    teamId: string;
 }
 
 export {

@@ -56,7 +56,7 @@ jobs:
         name: '${{ matrix.build-target }}-Build'
         with:
           log-name: '${{ matrix.build-target }}-Build'
-          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -export -appleTeamId ${{ secrets.APPLE_TEAM_ID }} -enableAppleAutomaticSigning -bundleIdentifier com.rageagainstthepixel.utilities.encoder.wav'
+          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -export -enableAppleAutomaticSigning -bundleIdentifier com.rageagainstthepixel.utilities.encoder.wav'
 
       - uses: ./ # RageAgainstThePixel/unity-xcode-builder
         id: xcode-build
