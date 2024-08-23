@@ -40564,6 +40564,7 @@ var _default = exports["default"] = version;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AppleCredential = void 0;
 exports.ImportCredentials = ImportCredentials;
 exports.Cleanup = Cleanup;
 const core = __nccwpck_require__(2186);
@@ -40575,6 +40576,8 @@ const temp = process.env['RUNNER_TEMP'] || '.';
 async function ImportCredentials() {
     core.info('Importing credentials...');
     const tempCredential = uuid.v4();
+    const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
+    const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
     const appStoreConnectKeyBase64 = core.getInput('app-store-connect-key', { required: true });
     const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
     const appStoreConnectKey = Buffer.from(appStoreConnectKeyBase64, 'base64').toString('utf8');
@@ -40591,7 +40594,12 @@ async function ImportCredentials() {
     await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
     await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
-    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath], { silent: !core.isDebug() });
+    if (!core.isDebug()) {
+        core.info(`[command]security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${tempCredential} ${keychainPath}`);
+    }
+    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath], {
+        silent: !core.isDebug()
+    });
     await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath]);
     const provisioningProfileBase64 = core.getInput('provisioning-profile');
     if (provisioningProfileBase64) {
@@ -40608,7 +40616,7 @@ async function ImportCredentials() {
         await exec.exec(security, ['cms', '-D', '-i', provisioningProfilePath]);
         await exec.exec(security, ['import', provisioningProfilePath, '-k', keychainPath, '-A']);
     }
-    return tempCredential;
+    return new AppleCredential(tempCredential, keychainPath, authenticationKeyID, authenticationKeyIssuerID, appStoreConnectKeyPath);
 }
 async function Cleanup() {
     const provisioningProfilePath = core.getState('provisioningProfilePath');
@@ -40636,6 +40644,16 @@ async function Cleanup() {
         core.error(`Failed to remove app store connect key!\n${error.stack}`);
     }
 }
+class AppleCredential {
+    constructor(name, keychainPath, appStoreConnectKeyId, appStoreConnectIssuerId, appStoreConnectKeyPath) {
+        this.name = name;
+        this.keychainPath = keychainPath;
+        this.appStoreConnectKeyId = appStoreConnectKeyId;
+        this.appStoreConnectIssuerId = appStoreConnectIssuerId;
+        this.appStoreConnectKeyPath = appStoreConnectKeyPath;
+    }
+}
+exports.AppleCredential = AppleCredential;
 
 
 /***/ }),
@@ -40646,6 +40664,7 @@ async function Cleanup() {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.XcodeProject = void 0;
 exports.GetProjectDetails = GetProjectDetails;
 exports.ArchiveXcodeProject = ArchiveXcodeProject;
 exports.ExportXcodeArchive = ExportXcodeArchive;
@@ -40656,7 +40675,6 @@ const plist = __nccwpck_require__(1933);
 const path = __nccwpck_require__(1017);
 const fs = __nccwpck_require__(7147);
 const xcodebuild = 'xcodebuild';
-const temp = process.env['RUNNER_TEMP'] || '.';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 async function GetProjectDetails() {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
@@ -40682,10 +40700,11 @@ async function GetProjectDetails() {
     const projectDirectory = path.dirname(projectPath);
     core.debug(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
-    return { projectPath, projectDirectory, projectName };
+    return new XcodeProject(projectPath, projectName, projectDirectory);
 }
-async function ArchiveXcodeProject(projectPath, projectDirectory, projectName, credential) {
+async function ArchiveXcodeProject(projectRef) {
     var _a, _b;
+    const { projectPath, projectName, projectDirectory } = projectRef;
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.debug(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
@@ -40745,16 +40764,11 @@ async function ArchiveXcodeProject(projectPath, projectDirectory, projectName, c
         }
         core.debug(`Platform: ${platform}`);
         destination = `generic/platform=${platform}`;
+        projectRef.platform = platform;
     }
     core.debug(`Using destination: ${destination}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.debug(`Configuration: ${configuration}`);
-    const keychainPath = `${temp}/${credential}.keychain-db`;
-    await fs.promises.access(keychainPath, fs.constants.R_OK);
-    const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
-    const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
-    const appStoreConnectKeyPath = `${temp}/${credential}.p8`;
-    await fs.promises.access(appStoreConnectKeyPath, fs.constants.R_OK);
     const archiveArgs = [
         'archive',
         '-project', projectPath,
@@ -40763,10 +40777,10 @@ async function ArchiveXcodeProject(projectPath, projectDirectory, projectName, c
         '-configuration', configuration,
         '-archivePath', archivePath,
         '-allowProvisioningUpdates',
-        `-authenticationKeyPath`, appStoreConnectKeyPath,
-        `-authenticationKeyID`, authenticationKeyID,
-        `-authenticationKeyIssuerID`, authenticationKeyIssuerID,
-        `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`
+        `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
+        `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
+        `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId,
+        `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`
     ];
     const teamId = core.getInput('team-id');
     if (teamId) {
@@ -40776,9 +40790,11 @@ async function ArchiveXcodeProject(projectPath, projectDirectory, projectName, c
         archiveArgs.push('-quiet');
     }
     await exec.exec(xcodebuild, archiveArgs);
-    return archivePath;
+    projectRef.archivePath = archivePath;
+    return projectRef;
 }
-async function ExportXcodeArchive(projectPath, projectDirectory, projectName, archivePath) {
+async function ExportXcodeArchive(projectRef) {
+    const { projectPath, projectName, projectDirectory, archivePath } = projectRef;
     const exportPath = `${projectDirectory}/${projectName}`;
     core.debug(`Export path: ${exportPath}`);
     const exportOptionPlistInput = core.getInput('export-option-plist');
@@ -40812,7 +40828,8 @@ async function ExportXcodeArchive(projectPath, projectDirectory, projectName, ar
         exportArgs.push('-quiet');
     }
     await exec.exec(xcodebuild, exportArgs);
-    return exportPath;
+    projectRef.exportPath = exportPath;
+    return projectRef;
 }
 async function writeExportOptions(projectPath) {
     const exportOption = core.getInput('export-option');
@@ -40823,6 +40840,14 @@ async function writeExportOptions(projectPath) {
     await fs.promises.writeFile(exportOptionsPath, plist.build(exportOptions));
     return exportOptionsPath;
 }
+class XcodeProject {
+    constructor(projectPath, projectName, projectDirectory) {
+        this.projectPath = projectPath;
+        this.projectName = projectName;
+        this.projectDirectory = projectDirectory;
+    }
+}
+exports.XcodeProject = XcodeProject;
 
 
 /***/ }),
@@ -42754,11 +42779,12 @@ const main = async () => {
         if (!IS_POST) {
             core.saveState('isPost', true);
             const credential = await (0, credentials_1.ImportCredentials)();
-            const { projectPath, projectDirectory, projectName } = await (0, xcode_1.GetProjectDetails)();
-            const archive = await (0, xcode_1.ArchiveXcodeProject)(projectPath, projectDirectory, projectName, credential);
-            core.setOutput('archive', archive);
-            const exportPath = await (0, xcode_1.ExportXcodeArchive)(projectPath, projectDirectory, projectName, archive);
-            core.setOutput('export-path', exportPath);
+            let projectRef = await (0, xcode_1.GetProjectDetails)();
+            projectRef.credential = credential;
+            projectRef = await (0, xcode_1.ArchiveXcodeProject)(projectRef);
+            core.setOutput('archive', projectRef.archivePath);
+            projectRef = await (0, xcode_1.ExportXcodeArchive)(projectRef);
+            core.setOutput('export-path', projectRef.exportPath);
         }
         else {
             await (0, credentials_1.Cleanup)();

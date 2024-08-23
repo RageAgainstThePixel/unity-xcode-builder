@@ -7,9 +7,11 @@ const security = 'security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 
 // https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
-async function ImportCredentials(): Promise<string> {
+async function ImportCredentials(): Promise<AppleCredential> {
     core.info('Importing credentials...');
     const tempCredential = uuid.v4();
+    const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
+    const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
     const appStoreConnectKeyBase64 = core.getInput('app-store-connect-key', { required: true });
     const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
     const appStoreConnectKey = Buffer.from(appStoreConnectKeyBase64, 'base64').toString('utf8');
@@ -26,7 +28,12 @@ async function ImportCredentials(): Promise<string> {
     await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
     await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
-    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath], { silent: !core.isDebug() });
+    if (!core.isDebug()) {
+        core.info(`[command]security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${tempCredential} ${keychainPath}`);
+    }
+    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath], {
+        silent: !core.isDebug()
+    });
     await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath]);
     const provisioningProfileBase64 = core.getInput('provisioning-profile');
     if (provisioningProfileBase64) {
@@ -43,7 +50,7 @@ async function ImportCredentials(): Promise<string> {
         await exec.exec(security, ['cms', '-D', '-i', provisioningProfilePath]);
         await exec.exec(security, ['import', provisioningProfilePath, '-k', keychainPath, '-A']);
     }
-    return tempCredential;
+    return new AppleCredential(tempCredential, keychainPath, authenticationKeyID, authenticationKeyIssuerID, appStoreConnectKeyPath);
 }
 
 async function Cleanup(): Promise<void> {
@@ -71,7 +78,23 @@ async function Cleanup(): Promise<void> {
     }
 }
 
+class AppleCredential {
+    constructor(name: string, keychainPath: string, appStoreConnectKeyId: string, appStoreConnectIssuerId: string, appStoreConnectKeyPath: string) {
+        this.name = name;
+        this.keychainPath = keychainPath;
+        this.appStoreConnectKeyId = appStoreConnectKeyId;
+        this.appStoreConnectIssuerId = appStoreConnectIssuerId;
+        this.appStoreConnectKeyPath = appStoreConnectKeyPath
+    }
+    name: string;
+    keychainPath: string;
+    appStoreConnectKeyId: string;
+    appStoreConnectIssuerId: string;
+    appStoreConnectKeyPath: string;
+}
+
 export {
     ImportCredentials,
     Cleanup,
+    AppleCredential
 }

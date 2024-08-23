@@ -5,11 +5,12 @@ import plist = require('plist');
 import path = require('path');
 import fs = require('fs');
 
+import { AppleCredential } from './credentials';
+
 const xcodebuild = 'xcodebuild';
-const temp = process.env['RUNNER_TEMP'] || '.';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
-async function GetProjectDetails(): Promise<{ projectPath: string, projectDirectory: string, projectName: string }> {
+async function GetProjectDetails(): Promise<XcodeProject> {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
     core.debug(`Project path input: ${projectPathInput}`);
     let projectPath = undefined;
@@ -31,10 +32,11 @@ async function GetProjectDetails(): Promise<{ projectPath: string, projectDirect
     const projectDirectory = path.dirname(projectPath);
     core.debug(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
-    return { projectPath, projectDirectory, projectName };
+    return new XcodeProject(projectPath, projectName, projectDirectory);
 }
 
-async function ArchiveXcodeProject(projectPath: string, projectDirectory: string, projectName: string, credential: string): Promise<string> {
+async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {
+    const { projectPath, projectName, projectDirectory } = projectRef;
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.debug(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
@@ -93,16 +95,11 @@ async function ArchiveXcodeProject(projectPath: string, projectDirectory: string
         }
         core.debug(`Platform: ${platform}`);
         destination = `generic/platform=${platform}`;
+        projectRef.platform = platform;
     }
     core.debug(`Using destination: ${destination}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.debug(`Configuration: ${configuration}`);
-    const keychainPath = `${temp}/${credential}.keychain-db`;
-    await fs.promises.access(keychainPath, fs.constants.R_OK);
-    const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
-    const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
-    const appStoreConnectKeyPath = `${temp}/${credential}.p8`;
-    await fs.promises.access(appStoreConnectKeyPath, fs.constants.R_OK);
     const archiveArgs = [
         'archive',
         '-project', projectPath,
@@ -111,10 +108,10 @@ async function ArchiveXcodeProject(projectPath: string, projectDirectory: string
         '-configuration', configuration,
         '-archivePath', archivePath,
         '-allowProvisioningUpdates',
-        `-authenticationKeyPath`, appStoreConnectKeyPath,
-        `-authenticationKeyID`, authenticationKeyID,
-        `-authenticationKeyIssuerID`, authenticationKeyIssuerID,
-        `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`
+        `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
+        `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
+        `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId,
+        `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`
     ];
     const teamId = core.getInput('team-id');
     if (teamId) {
@@ -124,10 +121,12 @@ async function ArchiveXcodeProject(projectPath: string, projectDirectory: string
         archiveArgs.push('-quiet');
     }
     await exec.exec(xcodebuild, archiveArgs);
-    return archivePath;
+    projectRef.archivePath = archivePath
+    return projectRef;
 }
 
-async function ExportXcodeArchive(projectPath: string, projectDirectory: string, projectName: string, archivePath: string): Promise<string> {
+async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProject> {
+    const { projectPath, projectName, projectDirectory, archivePath } = projectRef;
     const exportPath = `${projectDirectory}/${projectName}`;
     core.debug(`Export path: ${exportPath}`);
     const exportOptionPlistInput = core.getInput('export-option-plist');
@@ -159,7 +158,8 @@ async function ExportXcodeArchive(projectPath: string, projectDirectory: string,
         exportArgs.push('-quiet');
     }
     await exec.exec(xcodebuild, exportArgs);
-    return exportPath;
+    projectRef.exportPath = exportPath;
+    return projectRef;
 }
 
 async function writeExportOptions(projectPath: string): Promise<string> {
@@ -172,8 +172,24 @@ async function writeExportOptions(projectPath: string): Promise<string> {
     return exportOptionsPath;
 }
 
+class XcodeProject {
+    constructor(projectPath: string, projectName: string, projectDirectory: string) {
+        this.projectPath = projectPath;
+        this.projectName = projectName;
+        this.projectDirectory = projectDirectory;
+    }
+    projectPath: string;
+    projectName: string;
+    projectDirectory: string;
+    credential: AppleCredential;
+    platform: string;
+    archivePath: string;
+    exportPath: string;
+}
+
 export {
     GetProjectDetails,
     ArchiveXcodeProject,
-    ExportXcodeArchive
+    ExportXcodeArchive,
+    XcodeProject
 }
