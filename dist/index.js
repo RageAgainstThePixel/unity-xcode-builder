@@ -40785,7 +40785,7 @@ async function ArchiveXcodeProject(projectRef) {
     return projectRef;
 }
 async function determinePlatform(projectPath, scheme) {
-    var _a;
+    var _a, _b;
     let buildSettingsOutput = '';
     await exec.exec(xcodebuild, [
         '-project', projectPath,
@@ -40798,11 +40798,12 @@ async function determinePlatform(projectPath, scheme) {
             }
         }
     });
-    const match = buildSettingsOutput.match(/^\s+PLATFORM_NAME = (?<platformName>\w+)/gm);
+    const match = buildSettingsOutput.match(/\s+PLATFORM_NAME = (?<platformName>\w+)/m);
+    core.info(`$PLATFORM_NAME: ${(_a = match === null || match === void 0 ? void 0 : match.groups) === null || _a === void 0 ? void 0 : _a.platformName}`);
     if (!match) {
         throw new Error('No PLATFORM_NAME found in the build settings');
     }
-    const platformName = (_a = match.groups) === null || _a === void 0 ? void 0 : _a.platformName;
+    const platformName = (_b = match.groups) === null || _b === void 0 ? void 0 : _b.platformName;
     if (!platformName) {
         throw new Error('Unable to determine the platform name from the build settings');
     }
