@@ -65,10 +65,10 @@ jobs:
           app-store-connect-key: ${{ secrets.APP_STORE_CONNECT_KEY }}
           app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          certificate: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
+          certificate: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
           certificate-password: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
           team-id: ${{ secrets.APPLE_TEAM_ID }}
-          export-option: 'app-store'
+          export-option: 'ad-hoc'
 
       - name: print outputs
         run: |
