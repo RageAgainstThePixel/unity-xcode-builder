@@ -73,7 +73,7 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
     if (destinations.length === 0) {
         throw new Error('No destinations found');
     }
-    const platform = destinations[0].split(',').find((line) => line.includes('platform=')).split('=')[1];
+    const platform = destinations[0].match(/platform=([^,]+)/)[1];
     core.info(`Platform: ${platform}`);
     const destination = `generic/platform=${platform}`;
     const configuration = core.getInput('configuration') || 'Release';

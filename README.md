@@ -42,4 +42,3 @@ steps:
 
 - `archive`: Path to the exported archive.
 - `executable`: Path to the generated executable.
-
