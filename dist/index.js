@@ -40787,6 +40787,8 @@ async function ExportXcodeArchive(projectPath, projectDirectory, projectName, ar
         throw new Error(`Invalid path for export-option-plist: ${exportOptionsPath}`);
     }
     await fs.promises.access(exportOptionsPath, fs.constants.R_OK);
+    const exportOptionContent = await fs.promises.readFile(exportOptionsPath, 'utf8');
+    core.info(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------\n`);
     const exportArgs = [
         '-exportArchive',
         '-archivePath', archivePath,
