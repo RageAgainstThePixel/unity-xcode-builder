@@ -39,9 +39,10 @@ steps:
 | `configuration` | The configuration to build the Xcode project with. | Defaults to `Release`. |
 | `scheme` | The scheme to build the Xcode project with. Overrides the value in the exported Unity project. | false |
 | `destination` | The destination to build the Xcode project for. Overrides the value in the exported Unity project. | false |
-| `export-options` | The path to custom export options plist file. | false |
+| `export-option` | The path to custom export options plist file. | false |
+| `export-option-plist` | The path to the export option plist file to use for archiving the Xcode project. Overrides `export-option`. | false |
 
 ### outputs
 
 - `archive`: Path to the exported archive.
-- `executable`: Path to the generated executable.
+- `export-path`: The path to the export directory.

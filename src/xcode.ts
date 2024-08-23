@@ -1,13 +1,14 @@
 import core = require('@actions/core');
 import exec = require('@actions/exec');
 import glob = require('@actions/glob');
+import plist = require('plist');
 import path = require('path');
 import fs = require('fs');
 
 const temp = process.env['RUNNER_TEMP'] || '.';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
-async function ArchiveXcodeProject(credential: string): Promise<string> {
+async function GetProjectDetails(): Promise<{ projectPath: string, projectDirectory: string, projectName: string }> {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
     core.debug(`Project path input: ${projectPathInput}`);
     let projectPath = undefined;
@@ -29,6 +30,10 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
     const projectDirectory = path.dirname(projectPath);
     core.debug(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
+    return { projectPath, projectDirectory, projectName };
+}
+
+async function ArchiveXcodeProject(projectPath: string, projectDirectory: string, projectName: string, credential: string): Promise<string> {
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.debug(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
@@ -65,22 +70,22 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
     core.debug(`Using scheme: ${scheme}`);
     let destination = core.getInput('destination');
     if (!destination) {
-    let destinationListOutput = '';
+        let destinationListOutput = '';
         if (!core.isDebug()) {
             core.info(`[command]xcodebuild -project ${projectPath} -scheme ${scheme} -showdestinations`);
         }
-    await exec.exec('xcodebuild', [
-        `-project`, projectPath,
-        '-scheme', scheme,
-        '-showdestinations'
-    ], {
-        listeners: {
-            stdout: (data: Buffer) => {
-                destinationListOutput += data.toString();
-            }
+        await exec.exec('xcodebuild', [
+            `-project`, projectPath,
+            '-scheme', scheme,
+            '-showdestinations'
+        ], {
+            listeners: {
+                stdout: (data: Buffer) => {
+                    destinationListOutput += data.toString();
+                }
             },
             silent: !core.isDebug()
-    });
+        });
         const platform = destinationListOutput.match(/platform:([^,]+)/)?.[1]?.trim();
         if (!platform) {
             throw new Error('No platform found in the project');
@@ -117,4 +122,41 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
     return archivePath;
 }
 
-export { ArchiveXcodeProject }
+async function ExportXcodeArchive(projectPath: string, projectDirectory: string, projectName: string, archivePath: string): Promise<string> {
+    const exportPath = `${projectDirectory}/${projectName}`;
+    core.info(`Export path: ${exportPath}`);
+    const exportOptionPlistInput = core.getInput('export-option-plist');
+    let exportOptionsPath = undefined;
+    if (!exportOptionPlistInput) {
+        await writeExportOptions(projectPath);
+    } else {
+        exportOptionsPath = exportOptionPlistInput;
+    }
+    core.info(`Export options path: ${exportOptionsPath}`);
+    const exportArgs = [
+        'exportArchive',
+        '-archivePath', archivePath,
+        '-exportPath', exportPath,
+        '-exportOptionsPlist', exportOptionsPath
+    ];
+    // if (!core.isDebug()) {
+    //     exportArgs.push('-quiet');
+    // }
+    await exec.exec('xcodebuild', exportArgs);
+    return exportPath;
+}
+
+async function writeExportOptions(projectPath: string) {
+    const exportOption = core.getInput('export-option');
+    const exportOptions = {
+        method: exportOption
+    };
+    const exportOptionsPath = `${projectPath}/exportOptions.plist`;
+    await fs.promises.writeFile(exportOptionsPath, plist.build(exportOptions));
+}
+
+export {
+    GetProjectDetails,
+    ArchiveXcodeProject,
+    ExportXcodeArchive
+}

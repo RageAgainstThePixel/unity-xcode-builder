@@ -71,4 +71,5 @@ jobs:
       - name: print outputs
         run: |
           echo "Archive: ${{ steps.xcode-build.outputs.archive }}"
-          echo "Executable: ${{ steps.xcode-build.outputs.executable }}"
+          echo "Export path: ${{ steps.xcode-build.outputs.export-path }}"
+          ls -al ${{ steps.xcode-build.outputs.export-path }}
