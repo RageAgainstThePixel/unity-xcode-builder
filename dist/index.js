@@ -40798,7 +40798,7 @@ async function determinePlatform(projectPath, scheme) {
             }
         }
     });
-    const platformName = (_b = (_a = buildSettingsOutput.match(/^\s+PLATFORM_NAME = (\w+)/)) === null || _a === void 0 ? void 0 : _a[1]) === null || _b === void 0 ? void 0 : _b.trim();
+    const platformName = (_b = (_a = buildSettingsOutput.match(/^\s+PLATFORM_NAME = (\w+)/g)) === null || _a === void 0 ? void 0 : _a[1]) === null || _b === void 0 ? void 0 : _b.trim();
     if (!platformName) {
         throw new Error('Unable to determine the platform name from the build settings');
     }
