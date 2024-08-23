@@ -29687,6 +29687,9 @@ async function ArchiveXcodeProject(credential) {
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.debug(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
+    if (!core.isDebug()) {
+        core.info(`[command]xcodebuild -list -project ${projectPath} -json`);
+    }
     await exec.exec('xcodebuild', [
         '-list',
         '-project', projectPath,
@@ -29696,13 +29699,16 @@ async function ArchiveXcodeProject(credential) {
             stdout: (data) => {
                 schemeListOutput += data.toString();
             }
-        }
+        },
+        silent: !core.isDebug()
     });
     const schemeList = JSON.parse(schemeListOutput);
     const schemes = schemeList.project.schemes;
     if (!schemes) {
         throw new Error('No schemes found in the project');
     }
+    core.info(`Available schemes:`);
+    schemes.forEach(s => core.info(`  > ${s}`));
     let scheme = core.getInput('scheme');
     if (!scheme) {
         if (schemes.includes('Unity-iPhone')) {
@@ -29716,6 +29722,9 @@ async function ArchiveXcodeProject(credential) {
     let destination = core.getInput('destination');
     if (!destination) {
         let destinationListOutput = '';
+        if (!core.isDebug()) {
+            core.info(`[command]xcodebuild -project ${projectPath} -scheme ${scheme} -showdestinations`);
+        }
         await exec.exec('xcodebuild', [
             `-project`, projectPath,
             '-scheme', scheme,
@@ -29725,13 +29734,14 @@ async function ArchiveXcodeProject(credential) {
                 stdout: (data) => {
                     destinationListOutput += data.toString();
                 }
-            }
+            },
+            silent: !core.isDebug()
         });
         const platform = (_b = (_a = destinationListOutput.match(/platform:([^,]+)/)) === null || _a === void 0 ? void 0 : _a[1]) === null || _b === void 0 ? void 0 : _b.trim();
         if (!platform) {
             throw new Error('No platform found in the project');
         }
-        core.info(`Platform: ${platform}`);
+        core.debug(`Platform: ${platform}`);
         destination = `generic/platform=${platform}`;
     }
     core.debug(`Using destination: ${destination}`);
@@ -29743,7 +29753,7 @@ async function ArchiveXcodeProject(credential) {
     const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
     const appStoreConnectKeyPath = `${temp}/${credential}.p8`;
     await fs.promises.access(appStoreConnectKeyPath, fs.constants.R_OK);
-    await exec.exec('xcodebuild', [
+    const archiveArgs = [
         'archive',
         '-project', projectPath,
         '-scheme', scheme,
@@ -29755,7 +29765,11 @@ async function ArchiveXcodeProject(credential) {
         `-authenticationKeyID`, authenticationKeyID,
         `-authenticationKeyIssuerID`, authenticationKeyIssuerID,
         `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`
-    ]);
+    ];
+    if (!core.isDebug()) {
+        archiveArgs.push('-quiet');
+    }
+    await exec.exec('xcodebuild', archiveArgs);
     return archivePath;
 }
 
