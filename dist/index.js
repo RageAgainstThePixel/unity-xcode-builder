@@ -40765,6 +40765,10 @@ async function ArchiveXcodeProject(projectPath, projectDirectory, projectName, c
         `-authenticationKeyIssuerID`, authenticationKeyIssuerID,
         `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`
     ];
+    const teamId = core.getInput('team-id');
+    if (teamId) {
+        archiveArgs.push(`DEVELOPMENT_TEAM=${teamId}`);
+    }
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
@@ -40787,8 +40791,14 @@ async function ExportXcodeArchive(projectPath, projectDirectory, projectName, ar
         throw new Error(`Invalid path for export-option-plist: ${exportOptionsPath}`);
     }
     await fs.promises.access(exportOptionsPath, fs.constants.R_OK);
-    const exportOptionContent = await fs.promises.readFile(exportOptionsPath, 'utf8');
-    core.info(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------\n`);
+    const fileHandle = await fs.promises.open(exportOptionsPath, 'r');
+    try {
+        const exportOptionContent = await fs.promises.readFile(fileHandle, 'utf8');
+        core.info(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------`);
+    }
+    finally {
+        await fileHandle.close();
+    }
     const exportArgs = [
         '-exportArchive',
         '-archivePath', archivePath,
