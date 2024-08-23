@@ -61,20 +61,19 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
     await exec.exec('xcodebuild', [
         `-project`, projectPath,
         '-scheme', scheme,
-        '-showdestinations',
-        `-json`], {
+        '-showdestinations'
+    ], {
         listeners: {
             stdout: (data: Buffer) => {
                 destinationListOutput += data.toString();
             }
         }
     });
-    const destinationList = JSON.parse(destinationListOutput);
-    const destinations = destinationList.destinations;
-    if (!destinations) {
+    const destinations = destinationListOutput.split('\n').filter((line) => line.includes('platform='));
+    if (destinations.length === 0) {
         throw new Error('No destinations found');
     }
-    const platform = destinations[0].platform;
+    const platform = destinations[0].split(',').find((line) => line.includes('platform=')).split('=')[1];
     core.info(`Platform: ${platform}`);
     const destination = `generic/platform=${platform}`;
     const configuration = core.getInput('configuration') || 'Release';
