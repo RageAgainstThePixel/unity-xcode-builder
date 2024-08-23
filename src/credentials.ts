@@ -3,7 +3,7 @@ import exec = require('@actions/exec');
 import uuid = require('uuid');
 import fs = require('fs');
 
-const security = 'security';
+const security = '/usr/bin/security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 
 // https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
@@ -29,7 +29,7 @@ async function ImportCredentials(): Promise<AppleCredential> {
     await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
     if (!core.isDebug()) {
-        core.info(`[command]security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${tempCredential} ${keychainPath}`);
+        core.info(`[command]${security} set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${tempCredential} ${keychainPath}`);
     }
     await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath], {
         silent: !core.isDebug()

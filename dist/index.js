@@ -40571,7 +40571,7 @@ const core = __nccwpck_require__(2186);
 const exec = __nccwpck_require__(1514);
 const uuid = __nccwpck_require__(5840);
 const fs = __nccwpck_require__(7147);
-const security = 'security';
+const security = '/usr/bin/security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 async function ImportCredentials() {
     core.info('Importing credentials...');
@@ -40595,7 +40595,7 @@ async function ImportCredentials() {
     await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
     if (!core.isDebug()) {
-        core.info(`[command]security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${tempCredential} ${keychainPath}`);
+        core.info(`[command]${security} set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${tempCredential} ${keychainPath}`);
     }
     await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath], {
         silent: !core.isDebug()
@@ -40674,7 +40674,7 @@ const glob = __nccwpck_require__(8090);
 const plist = __nccwpck_require__(1933);
 const path = __nccwpck_require__(1017);
 const fs = __nccwpck_require__(7147);
-const xcodebuild = 'xcodebuild';
+const xcodebuild = '/usr/bin/xcodebuild';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 async function GetProjectDetails() {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
@@ -40709,7 +40709,7 @@ async function ArchiveXcodeProject(projectRef) {
     core.debug(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
     if (!core.isDebug()) {
-        core.info(`[command]xcodebuild -list -project ${projectPath} -json`);
+        core.info(`[command]${xcodebuild} -list -project ${projectPath} -json`);
     }
     await exec.exec(xcodebuild, [
         '-list',
@@ -40744,7 +40744,7 @@ async function ArchiveXcodeProject(projectRef) {
     if (!destination) {
         let destinationListOutput = '';
         if (!core.isDebug()) {
-            core.info(`[command]xcodebuild -project ${projectPath} -scheme ${scheme} -showdestinations`);
+            core.info(`[command]${xcodebuild} -project ${projectPath} -scheme ${scheme} -showdestinations`);
         }
         await exec.exec(xcodebuild, [
             `-project`, projectPath,

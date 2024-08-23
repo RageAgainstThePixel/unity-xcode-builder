@@ -7,7 +7,7 @@ import fs = require('fs');
 
 import { AppleCredential } from './credentials';
 
-const xcodebuild = 'xcodebuild';
+const xcodebuild = '/usr/bin/xcodebuild';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
 async function GetProjectDetails(): Promise<XcodeProject> {
@@ -41,7 +41,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
     core.debug(`Archive path: ${archivePath}`);
     let schemeListOutput = '';
     if (!core.isDebug()) {
-        core.info(`[command]xcodebuild -list -project ${projectPath} -json`);
+        core.info(`[command]${xcodebuild} -list -project ${projectPath} -json`);
     }
     await exec.exec(xcodebuild, [
         '-list',
@@ -75,7 +75,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
     if (!destination) {
         let destinationListOutput = '';
         if (!core.isDebug()) {
-            core.info(`[command]xcodebuild -project ${projectPath} -scheme ${scheme} -showdestinations`);
+            core.info(`[command]${xcodebuild} -project ${projectPath} -scheme ${scheme} -showdestinations`);
         }
         await exec.exec(xcodebuild, [
             `-project`, projectPath,
