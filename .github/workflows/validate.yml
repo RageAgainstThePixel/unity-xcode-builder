@@ -68,7 +68,6 @@ jobs:
           certificate: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
           certificate-password: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
           team-id: ${{ secrets.APPLE_TEAM_ID }}
-          export-option: 'ad-hoc'
 
       - name: print outputs
         run: |
