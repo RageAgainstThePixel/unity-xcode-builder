@@ -68,6 +68,7 @@ jobs:
           certificate: ${{ secrets.APPLE_SIGNING_CERTIFICATE }}
           certificate-password: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
           team-id: ${{ secrets.APPLE_TEAM_ID }}
+          export-option: 'app-store'
 
       - name: print outputs
         run: |
