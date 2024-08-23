@@ -128,7 +128,7 @@ async function ArchiveXcodeProject(projectPath: string, projectDirectory: string
 
 async function ExportXcodeArchive(projectPath: string, projectDirectory: string, projectName: string, archivePath: string): Promise<string> {
     const exportPath = `${projectDirectory}/${projectName}`;
-    core.info(`Export path: ${exportPath}`);
+    core.debug(`Export path: ${exportPath}`);
     const exportOptionPlistInput = core.getInput('export-option-plist');
     let exportOptionsPath = undefined;
     if (!exportOptionPlistInput) {
@@ -136,15 +136,14 @@ async function ExportXcodeArchive(projectPath: string, projectDirectory: string,
     } else {
         exportOptionsPath = exportOptionPlistInput;
     }
-    core.info(`Export options path: ${exportOptionsPath}`);
+    core.debug(`Export options path: ${exportOptionsPath}`);
     if (!exportOptionsPath) {
         throw new Error(`Invalid path for export-option-plist: ${exportOptionsPath}`);
     }
-    await fs.promises.access(exportOptionsPath, fs.constants.R_OK);
     const fileHandle = await fs.promises.open(exportOptionsPath, 'r');
     try {
         const exportOptionContent = await fs.promises.readFile(fileHandle, 'utf8');
-        core.info(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------`);
+        core.debug(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------`);
     } finally {
         await fileHandle.close();
     }
@@ -155,9 +154,9 @@ async function ExportXcodeArchive(projectPath: string, projectDirectory: string,
         '-exportOptionsPlist', exportOptionsPath,
         '-allowProvisioningUpdates'
     ];
-    // if (!core.isDebug()) {
-    //     exportArgs.push('-quiet');
-    // }
+    if (!core.isDebug()) {
+        exportArgs.push('-quiet');
+    }
     await exec.exec('xcodebuild', exportArgs);
     return exportPath;
 }
