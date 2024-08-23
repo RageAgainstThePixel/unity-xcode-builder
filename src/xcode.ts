@@ -132,7 +132,11 @@ async function determinePlatform(projectPath: string, scheme: string): Promise<s
             }
         }
     });
-    const platformName = buildSettingsOutput.match(/^\s+PLATFORM_NAME = (\w+)/gm)?.[1]?.trim();
+    const match = buildSettingsOutput.match(/^\s+PLATFORM_NAME = (\w+)/gm);
+    if (!match) {
+        throw new Error('No PLATFORM_NAME found in the build settings');
+    }
+    const platformName = match[1].trim();
     if (!platformName) {
         throw new Error('Unable to determine the platform name from the build settings');
     }
