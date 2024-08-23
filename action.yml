@@ -8,10 +8,10 @@ inputs:
     description: The directory that contains the exported xcode project from Unity.
     required: true
   app-store-connect-key:
-    description: The App Store Connect API key as base64 string.
+    description: The App Store Connect API AuthKey_*.p8 key encoded as base64 string.
     required: true
   app-store-connect-key-id:
-    description: The key ID of the App Store Connect API key.
+    description: The key ID of the App Store Connect API key id.
     required: true
   app-store-connect-issuer-id:
     description: The issuer ID of the App Store Connect API key.

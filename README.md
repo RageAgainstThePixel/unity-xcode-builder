@@ -27,10 +27,10 @@ steps:
 | name | description | required |
 | ---- | ----------- | -------- |
 | `project-path` | The path to the xcode project. | Defaults to searching the workspace for `.xcodeproj` |
-| `app-store-connect-key` | The App Store Connect API private .p8 key encoded as base64 string. | true |
-| `app-store-connect-key-id` | The key ID of the App Store Connect API key. | true |
+| `app-store-connect-key` | The App Store Connect API AuthKey_*.p8 key encoded as base64 string. | true |
+| `app-store-connect-key-id` | The key ID of the App Store Connect API key id. | true |
 | `app-store-connect-issuer-id` | The issuer ID of the App Store Connect API key. | true |
-| `certificate` | Exported signing certificate.p12 encoded as base64 string. | true |
+| `certificate` | The exported signing certificate.p12 encoded as base64 string. | true |
 | `certificate-password` | The password for the exported `certificate`. | true |
 | `provisioning-profile` | The provisioning profile to use for as base64 string. Used when manually signing the Xcode project. | false |
 | `provisioning-profile-name` | The name of the provisioning profile file, including the type to use for signing the Xcode project. | If `provisioning-profile` is specified. |
