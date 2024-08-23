@@ -35,7 +35,8 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
     await exec.exec('xcodebuild', [
         '-list',
         '-project', projectPath,
-        `-json`], {
+        `-json`
+    ], {
         listeners: {
             stdout: (data: Buffer) => {
                 schemeListOutput += data.toString();
@@ -70,11 +71,7 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
             }
         }
     });
-        const destinations = destinationListOutput.match(/{[^}]+}/g);
-        if (!destinations) {
-            throw new Error('No destinations found in the project');
-    }
-    const platform = destinations[0].match(/platform=([^,]+)/)[1];
+        const platform = destinationListOutput.match(/platform:([^,]+)/)?.[1]?.trim();
         if (!platform) {
             throw new Error('No platform found in the project');
         }
@@ -101,7 +98,6 @@ async function ArchiveXcodeProject(credential: string): Promise<string> {
         `-authenticationKeyPath`, appStoreConnectKeyPath,
         `-authenticationKeyID`, authenticationKeyID,
         `-authenticationKeyIssuerID`, authenticationKeyIssuerID,
-        `-json`,
         `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`
     ]);
     return archivePath;

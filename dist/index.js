@@ -29660,6 +29660,7 @@ const fs = __nccwpck_require__(7147);
 const temp = process.env['RUNNER_TEMP'] || '.';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 async function ArchiveXcodeProject(credential) {
+    var _a, _b;
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
     core.debug(`Project path input: ${projectPathInput}`);
     let projectPath = undefined;
@@ -29726,11 +29727,7 @@ async function ArchiveXcodeProject(credential) {
                 }
             }
         });
-        const destinations = destinationListOutput.match(/{[^}]+}/g);
-        if (!destinations) {
-            throw new Error('No destinations found in the project');
-        }
-        const platform = destinations[0].match(/platform=([^,]+)/)[1];
+        const platform = (_b = (_a = destinationListOutput.match(/platform:([^,]+)/)) === null || _a === void 0 ? void 0 : _a[1]) === null || _b === void 0 ? void 0 : _b.trim();
         if (!platform) {
             throw new Error('No platform found in the project');
         }
@@ -29757,7 +29754,6 @@ async function ArchiveXcodeProject(credential) {
         `-authenticationKeyPath`, appStoreConnectKeyPath,
         `-authenticationKeyID`, authenticationKeyID,
         `-authenticationKeyIssuerID`, authenticationKeyIssuerID,
-        `-json`,
         `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`
     ]);
     return archivePath;
