@@ -72,21 +72,18 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
     }
     core.info(`Using scheme: ${scheme}`);
     let platform = core.getInput('platform') || await determinePlatform(projectPath, scheme);
+    if (!platform) {
+        throw new Error('Unable to determine the platform to build for.');
+    }
     core.info(`Platform: ${platform}`);
     projectRef.platform = platform;
     let destination = core.getInput('destination') || `generic/platform=${platform}`;
     core.info(`Using destination: ${destination}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.info(`Configuration: ${configuration}`);
-    const entitlementsPath = core.getInput('entitlements-plist') || await writeDefaultEntitlements(projectDirectory);
-    core.info(`Entitlements path: ${entitlementsPath}`);
-    const entitlementsHandle = await fs.promises.open(entitlementsPath, 'r');
-    try {
-        const entitlementsContent = await fs.promises.readFile(entitlementsHandle, 'utf8');
-        core.info(`----- Entitlements content: -----\n${entitlementsContent}\n---------------------------------`);
-    }
-    finally {
-        await entitlementsHandle.close();
+    let entitlementsPath = core.getInput('entitlements-plist');
+    if (!entitlementsPath && platform === 'macOS') {
+        entitlementsPath = await getDefaultEntitlementsMacOS(projectDirectory)
     }
     const archiveArgs = [
         'archive',
@@ -102,6 +99,18 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`,
         `DEVELOPMENT_TEAM=${projectRef.credential.teamId}`
     ];
+    if (entitlementsPath) {
+        core.info(`Entitlements path: ${entitlementsPath}`);
+        const entitlementsHandle = await fs.promises.open(entitlementsPath, 'r');
+        try {
+            const entitlementsContent = await fs.promises.readFile(entitlementsHandle, 'utf8');
+            core.info(`----- Entitlements content: -----\n${entitlementsContent}\n---------------------------------`);
+        }
+        finally {
+            await entitlementsHandle.close();
+        }
+        archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${entitlementsPath}`);
+    }
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
@@ -123,24 +132,34 @@ async function determinePlatform(projectPath: string, scheme: string): Promise<s
             }
         }
     });
-    let platform = buildSettingsOutput.match(/PLATFORM_NAME = (\w+)/)?.[1]?.trim();
-    if (!platform) {
-        platform = buildSettingsOutput.match(/SDK_NAME = ([a-zA-Z]+)[0-9\.]+/)?.[1]?.trim();
+    const platformName = buildSettingsOutput.match(/PLATFORM_NAME = (\w+)/)?.[1]?.trim();
+    if (!platformName) {
+        throw new Error('Unable to determine the platform name from the build settings');
     }
-    if (!platform) {
-        throw new Error('Unable to determine the platform from the build settings');
-    }
-    return platform;
+    const platforms = {
+        'iphoneos': 'iOS',
+        'macosx': 'macOS',
+        'appletvos': 'tvOS',
+        'watchos': 'watchOS',
+        'xros': 'visionOS'
+    };
+    return platforms[platformName] || null;
 }
 
-async function writeDefaultEntitlements(projectPath: string): Promise<string> {
+async function getDefaultEntitlementsMacOS(projectPath: string): Promise<string> {
     const entitlementsPath = `${projectPath}/Entitlements.plist`;
+    try {
+        await fs.promises.access(entitlementsPath, fs.constants.R_OK);
+        return entitlementsPath;
+    } catch (error) {
+        core.warning('Entitlements.plist not found, creating default Entitlements.plist...');
+    }
+    // default hardened runtime entitlements for macOS
     const defaultEntitlements = {
-        'com.apple.security.app-sandbox': true
+        'com.apple.security.app-sandbox': true,
+        'com.apple.security.cs.disable-executable-page-protection': true,
+        'com.apple.security.cs.disable-library-validation': true
     };
-    defaultEntitlements['com.apple.security.cs.allow-jit'] = true;
-    defaultEntitlements['com.apple.security.cs.allow-unsigned-executable-memory'] = true;
-    defaultEntitlements['com.apple.security.cs.disable-library-validation'] = true;
     await fs.promises.writeFile(entitlementsPath, plist.build(defaultEntitlements));
     return entitlementsPath;
 }
