@@ -40766,7 +40766,6 @@ async function ArchiveXcodeProject(projectRef) {
         '-destination', destination,
         '-configuration', configuration,
         '-archivePath', archivePath,
-        '-allowProvisioningUpdates',
         `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
         `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
         `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId,
@@ -40886,7 +40885,8 @@ async function ExportXcodeArchive(projectRef) {
         '-exportArchive',
         '-archivePath', archivePath,
         '-exportPath', exportPath,
-        '-exportOptionsPlist', exportOptionsPath
+        '-exportOptionsPlist', exportOptionsPath,
+        '-allowProvisioningUpdates'
     ];
     if (!core.isDebug()) {
         exportArgs.push('-quiet');
