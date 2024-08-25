@@ -211,7 +211,10 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
         '-archivePath', archivePath,
         '-exportPath', exportPath,
         '-exportOptionsPlist', exportOptionsPath,
-        '-allowProvisioningUpdates'
+        '-allowProvisioningUpdates',
+        `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
+        `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
+        `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId
     ];
     if (!core.isDebug()) {
         exportArgs.push('-quiet');
