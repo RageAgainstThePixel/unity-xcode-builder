@@ -95,12 +95,15 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
         `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
         `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId,
-        `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`,
-        `CODE_SIGN_IDENTITY=-`,
-        `CODE_SIGN_STYLE=Automatic`,
-        `AD_HOC_CODE_SIGNING_ALLOWED=YES`,
-        `DEVELOPMENT_TEAM=${projectRef.credential.teamId}`
     ];
+    if (projectRef.credential.teamId) {
+        archiveArgs.push(`DEVELOPMENT_TEAM=${projectRef.credential.teamId}`);
+    }
+    if (projectRef.credential.signingIdentity) {
+        archiveArgs.push(`CODE_SIGN_IDENTITY=${projectRef.credential.signingIdentity}`, `CODE_SIGN_STYLE=Manual`, `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`);
+    } else {
+        archiveArgs.push(`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_STYLE=Automatic`);
+    }
     if (entitlementsPath) {
         core.debug(`Entitlements path: ${entitlementsPath}`);
         const entitlementsHandle = await fs.promises.open(entitlementsPath, 'r');
@@ -161,6 +164,7 @@ async function getDefaultEntitlementsMacOS(projectPath: string): Promise<string>
     const entitlementsPath = `${projectPath}/Entitlements.plist`;
     try {
         await fs.promises.access(entitlementsPath, fs.constants.R_OK);
+        core.info(`Existing Entitlements.plist found at: ${entitlementsPath}`);
         return entitlementsPath;
     } catch (error) {
         core.warning('Entitlements.plist not found, creating default Entitlements.plist...');
@@ -184,7 +188,7 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
         const exportOption = core.getInput('export-option');
         const exportOptions = {
             method: exportOption,
-            signingStyle: 'automatic',
+            signingStyle: projectRef.credential.signingIdentity ? 'manual' : 'automatic',
             teamID: `${projectRef.credential.teamId}`
         };
         if (exportOption === 'app-store') {

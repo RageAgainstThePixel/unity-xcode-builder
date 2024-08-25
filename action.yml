@@ -1,8 +1,8 @@
 name: unity-xcode-builder
 description: A GitHub Action to build and archive Unity exported xcode projects.
 branding:
-  icon: 'command'
-  color: 'blue'
+  icon: command
+  color: blue
 inputs:
   project-path:
     description: The directory that contains the exported xcode project from Unity.
@@ -17,39 +17,48 @@ inputs:
     description: The issuer ID of the App Store Connect API key.
     required: true
   certificate:
-    description: Exported signing certificate.p12 encoded as base64 string.
+    description: Exported signing certificate.p12 encoded as base64 string. Overrides the automatic signing in Xcode.
     required: false
   certificate-password:
-    description: The password for the exported `certificate`.
+    description: The password for the exported certificate. Required if `certificate` is provided.
+    required: false
+  signing-identity:
+    description: The signing identity to use for signing the Xcode project. Parsed from the `certificate` if not provided.
     required: false
   provisioning-profile:
-    description: The provisioning profile to use for manually signing the Xcode project as base64 string. Overrides `export-option`.`
+    description: The provisioning profile to use as base64 string. Overrides the automatic signing in Xcode.
     required: false
   provisioning-profile-name:
-    description: The name of the provisioning profile file, including the type to use for signing the Xcode project.
+    description: The name of the provisioning profile file, including the type to use for signing the Xcode project. Required if `provisioning-profile` is provided.
     required: false
   team-id:
-    description: The team ID to use for signing the Xcode project. Overrides the value in the exported Unity project.
+    description: The team ID to use for signing the Xcode project. Defaults to parsing team ID from `.xcodeproj`.
     required: false
   bundle-id:
-    description: The bundle ID of the Xcode project. Overrides the value in the exported Unity project.
+    description: The bundle ID of the Xcode project. Defaults to parsing bundle ID from `.xcodeproj`.
     required: false
   configuration:
-    description: The configuration to use.
+    description: The configuration to use when building the xcode project. Defaults to `Release`.
     required: false
     default: 'Release'
   scheme:
-    description: The scheme to use. Overrides the value in the exported Unity project.
+    description: The scheme to use when building the xcode project.
     required: false
   destination:
-    description: The destination to use. Overrides the value in the exported Unity project.
+    description: The destination to use when building the xcode project. Defaults to `generic/platform={platform}`.
+    required: false
+  platform:
+    description: The platform to build for. Can be one of `iOS`, `macOS`, `visionOS`, `tvOS`. Defaults to parsing platform from `.xcodeproj`.
     required: false
   export-option:
-    description: The export option to use for exporting the Xcode project. Can be one of 'app-store', 'ad-hoc', 'package', 'enterprise', 'development', 'developer-id', 'mac-application'.
+    description: The export option to use for exporting the Xcode project. Can be one of `app-store`, `ad-hoc`, `package`, `enterprise`, `development`, `developer-id`, `mac-application`.
     required: false
-    default: 'development'
+    default: development
   export-option-plist:
-    description: The path to the export option plist file to use for exporting the Xcode project. Overrides `export-option`.
+    description: The path to custom export option plist file to use when exporting the Xcode project. Overrides `export-option`.
+    required: false
+  entitlements-plist:
+    description: The path to custom entitlements plist file. Generates default hardened runtime entitlements if not provided.
     required: false
 outputs:
   archive:

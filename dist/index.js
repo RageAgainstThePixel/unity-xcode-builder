@@ -40574,7 +40574,6 @@ const fs = __nccwpck_require__(7147);
 const security = '/usr/bin/security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 async function ImportCredentials() {
-    const teamId = core.getInput('team-id', { required: true });
     core.info('Importing credentials...');
     const tempCredential = uuid.v4();
     core.setSecret(tempCredential);
@@ -40590,6 +40589,8 @@ async function ImportCredentials() {
     await exec.exec(security, ['create-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
     await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
+    let signingIdentity = core.getInput('signing-identity');
+    let teamId = core.getInput('team-id');
     const certificateBase64 = core.getInput('certificate');
     if (certificateBase64) {
         const certificatePassword = core.getInput('certificate-password', { required: true });
@@ -40600,9 +40601,37 @@ async function ImportCredentials() {
         await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
         await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath]);
         await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath, 'login.keychain-db']);
-        await fs.promises.unlink(`${temp}/${tempCredential}.p12`);
+        await fs.promises.unlink(certificatePath);
+        if (!signingIdentity) {
+            let output = '';
+            const options = {
+                listeners: {
+                    stdout: (data) => {
+                        output += data.toString();
+                    }
+                }
+            };
+            await exec.exec(security, ['find-identity', '-v', '-p', 'codesigning', keychainPath], options);
+            const match = output.match(/"(?<signing_identity>[^"]+)"\s*$/m);
+            if (match) {
+                signingIdentity = match[1];
+            }
+            if (!signingIdentity) {
+                throw new Error('Failed to find signing identity');
+            }
+            if (!teamId) {
+                const match = signingIdentity.match(/(?<team_id>[A-Z0-9]{10})\s/);
+                if (match) {
+                    teamId = match[1];
+                }
+                if (!teamId) {
+                    throw new Error('Failed to find team id');
+                }
+            }
+        }
     }
     const provisioningProfileBase64 = core.getInput('provisioning-profile');
+    let provisioningProfileUUID;
     if (provisioningProfileBase64) {
         core.info('Importing provisioning profile...');
         const provisioningProfileName = core.getInput('provisioning-profile-name', { required: true });
@@ -40616,8 +40645,16 @@ async function ImportCredentials() {
         await fs.promises.writeFile(provisioningProfilePath, provisioningProfile, 'binary');
         await exec.exec(security, ['cms', '-D', '-i', provisioningProfilePath]);
         await exec.exec(security, ['import', provisioningProfilePath, '-k', keychainPath, '-A']);
+        const provisioningProfileContent = await fs.promises.readFile(provisioningProfilePath, 'utf8');
+        const uuidMatch = provisioningProfileContent.match(/<key>UUID<\/key>\s*<string>([^<]+)<\/string>/);
+        if (uuidMatch) {
+            provisioningProfileUUID = uuidMatch[1];
+        }
+        if (!provisioningProfileUUID) {
+            throw new Error('Failed to parse provisioning profile UUID');
+        }
     }
-    return new AppleCredential(tempCredential, keychainPath, authenticationKeyID, authenticationKeyIssuerID, appStoreConnectKeyPath, appStoreConnectKey, teamId);
+    return new AppleCredential(tempCredential, keychainPath, authenticationKeyID, authenticationKeyIssuerID, appStoreConnectKeyPath, appStoreConnectKey, teamId, signingIdentity, provisioningProfileUUID);
 }
 async function Cleanup() {
     const provisioningProfilePath = core.getState('provisioningProfilePath');
@@ -40646,7 +40683,7 @@ async function Cleanup() {
     }
 }
 class AppleCredential {
-    constructor(name, keychainPath, appStoreConnectKeyId, appStoreConnectIssuerId, appStoreConnectKeyPath, appStoreConnectKey, teamId) {
+    constructor(name, keychainPath, appStoreConnectKeyId, appStoreConnectIssuerId, appStoreConnectKeyPath, appStoreConnectKey, teamId, signingIdentity, provisioningProfileUUID) {
         this.name = name;
         this.keychainPath = keychainPath;
         this.appStoreConnectKeyId = appStoreConnectKeyId;
@@ -40654,6 +40691,8 @@ class AppleCredential {
         this.appStoreConnectKeyPath = appStoreConnectKeyPath;
         this.appStoreConnectKey = appStoreConnectKey;
         this.teamId = teamId;
+        this.signingIdentity = signingIdentity;
+        this.provisioningProfileUUID = provisioningProfileUUID;
     }
 }
 exports.AppleCredential = AppleCredential;
@@ -40766,12 +40805,16 @@ async function ArchiveXcodeProject(projectRef) {
         `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
         `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
         `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId,
-        `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`,
-        `CODE_SIGN_IDENTITY=-`,
-        `CODE_SIGN_STYLE=Automatic`,
-        `AD_HOC_CODE_SIGNING_ALLOWED=YES`,
-        `DEVELOPMENT_TEAM=${projectRef.credential.teamId}`
     ];
+    if (projectRef.credential.teamId) {
+        archiveArgs.push(`DEVELOPMENT_TEAM=${projectRef.credential.teamId}`);
+    }
+    if (projectRef.credential.signingIdentity) {
+        archiveArgs.push(`CODE_SIGN_IDENTITY=${projectRef.credential.signingIdentity}`, `CODE_SIGN_STYLE=Manual`, `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`);
+    }
+    else {
+        archiveArgs.push(`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_STYLE=Automatic`);
+    }
     if (entitlementsPath) {
         core.debug(`Entitlements path: ${entitlementsPath}`);
         const entitlementsHandle = await fs.promises.open(entitlementsPath, 'r');
@@ -40831,6 +40874,7 @@ async function getDefaultEntitlementsMacOS(projectPath) {
     const entitlementsPath = `${projectPath}/Entitlements.plist`;
     try {
         await fs.promises.access(entitlementsPath, fs.constants.R_OK);
+        core.info(`Existing Entitlements.plist found at: ${entitlementsPath}`);
         return entitlementsPath;
     }
     catch (error) {
@@ -40854,7 +40898,7 @@ async function ExportXcodeArchive(projectRef) {
         const exportOption = core.getInput('export-option');
         const exportOptions = {
             method: exportOption,
-            signingStyle: 'automatic',
+            signingStyle: projectRef.credential.signingIdentity ? 'manual' : 'automatic',
             teamID: `${projectRef.credential.teamId}`
         };
         if (exportOption === 'app-store') {
