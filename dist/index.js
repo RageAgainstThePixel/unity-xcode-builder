@@ -40813,7 +40813,7 @@ async function ArchiveXcodeProject(projectRef) {
         archiveArgs.push(`CODE_SIGN_IDENTITY=${projectRef.credential.signingIdentity}`, `CODE_SIGN_STYLE=Manual`, `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`);
     }
     else {
-        archiveArgs.push(`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_STYLE=Automatic`);
+        archiveArgs.push(`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_STYLE=Automatic`, `AD_HOC_CODE_SIGNING_ALLOWED=YES`);
     }
     if (entitlementsPath) {
         core.debug(`Entitlements path: ${entitlementsPath}`);
