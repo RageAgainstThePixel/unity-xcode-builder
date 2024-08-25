@@ -1,4 +1,5 @@
 import core = require('@actions/core');
+import exec = require('@actions/exec');
 import {
     ImportCredentials,
     Cleanup
@@ -15,6 +16,7 @@ const main = async () => {
     try {
         if (!IS_POST) {
             core.saveState('isPost', true);
+            await exec.exec('xcodebuild', ['-version']);
             const credential = await ImportCredentials();
             let projectRef = await GetProjectDetails();
             projectRef.credential = credential;

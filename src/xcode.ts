@@ -97,6 +97,9 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
         `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId,
         `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`,
+        `CODE_SIGN_IDENTITY=-`,
+        `CODE_SIGN_STYLE=Automatic`,
+        `AD_HOC_CODE_SIGNING_ALLOWED=YES`,
         `DEVELOPMENT_TEAM=${projectRef.credential.teamId}`
     ];
     if (entitlementsPath) {
@@ -181,15 +184,10 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     if (!exportOptionPlistInput) {
         const exportOption = core.getInput('export-option');
         const exportOptions = {
-            destination: 'export',
+            method: exportOption,
             signingStyle: 'automatic',
             teamID: `${projectRef.credential.teamId}`
         };
-        if (exportOption === 'ad-hoc') {
-            exportOptions['method'] = 'developer-id';
-        } else {
-            exportOptions['method'] = exportOption;
-        }
         if (exportOption === 'app-store') {
             exportOptions['uploadSymbols'] = true;
             exportOptions['manageAppVersionAndBuildNumber'] = true;
@@ -213,12 +211,7 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
         '-exportArchive',
         '-archivePath', archivePath,
         '-exportPath', exportPath,
-        '-exportOptionsPlist', exportOptionsPath,
-        '-allowProvisioningUpdates',
-        `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
-        `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
-        `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId,
-        `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`
+        '-exportOptionsPlist', exportOptionsPath
     ];
     if (!core.isDebug()) {
         exportArgs.push('-quiet');
