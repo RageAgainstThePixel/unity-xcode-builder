@@ -12,6 +12,7 @@ async function ImportCredentials(): Promise<AppleCredential> {
     core.info('Importing credentials...');
     const tempCredential = uuid.v4();
     core.setSecret(tempCredential);
+    core.saveState('tempCredential', tempCredential);
     const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
     const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
     const appStoreConnectKeyBase64 = core.getInput('app-store-connect-key', { required: true });
@@ -19,20 +20,22 @@ async function ImportCredentials(): Promise<AppleCredential> {
     const appStoreConnectKey = Buffer.from(appStoreConnectKeyBase64, 'base64').toString('utf8');
     core.setSecret(appStoreConnectKey);
     await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'utf8');
-    core.info('Importing certificate...');
-    const certificateBase64 = core.getInput('certificate', { required: true });
-    const certificatePassword = core.getInput('certificate-password', { required: true });
-    core.saveState('tempCredential', tempCredential);
-    const certificatePath = `${temp}/${tempCredential}.p12`;
     const keychainPath = `${temp}/${tempCredential}.keychain-db`;
-    const certificate = Buffer.from(certificateBase64, 'base64').toString('binary');
-    await fs.promises.writeFile(certificatePath, certificate, 'binary');
     await exec.exec(security, ['create-keychain', '-p', tempCredential, keychainPath]);
     await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
     await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
-    await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
-    await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath]);
-    await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath, 'login.keychain-db']);
+    const certificateBase64 = core.getInput('certificate');
+    if (certificateBase64) {
+        const certificatePassword = core.getInput('certificate-password', { required: true });
+        core.info('Importing certificate...');
+        const certificatePath = `${temp}/${tempCredential}.p12`;
+        const certificate = Buffer.from(certificateBase64, 'base64').toString('binary');
+        await fs.promises.writeFile(certificatePath, certificate, 'binary');
+        await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
+        await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath]);
+        await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath, 'login.keychain-db']);
+        await fs.promises.unlink(`${temp}/${tempCredential}.p12`);
+    }
     const provisioningProfileBase64 = core.getInput('provisioning-profile');
     if (provisioningProfileBase64) {
         core.info('Importing provisioning profile...');
@@ -73,11 +76,6 @@ async function Cleanup(): Promise<void> {
         await fs.promises.unlink(`${temp}/${tempCredential}.p8`);
     } catch (error) {
         core.error(`Failed to remove app store connect key!\n${error.stack}`);
-    }
-    try {
-        await fs.promises.unlink(`${temp}/${tempCredential}.p12`);
-    } catch (error) {
-        core.error(`Failed to remove certificate!\n${error.stack}`);
     }
 }
 

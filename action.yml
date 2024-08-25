@@ -18,10 +18,10 @@ inputs:
     required: true
   certificate:
     description: Exported signing certificate.p12 encoded as base64 string.
-    required: true
+    required: false
   certificate-password:
     description: The password for the exported `certificate`.
-    required: true
+    required: false
   provisioning-profile:
     description: The provisioning profile to use for manually signing the Xcode project as base64 string. Overrides `export-option`.`
     required: false
