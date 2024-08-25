@@ -66,6 +66,8 @@ jobs:
           app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           team-id: ${{ secrets.APPLE_TEAM_ID }}
+          certificate: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
+          certificate-password: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
 
       - name: print outputs
         run: |
