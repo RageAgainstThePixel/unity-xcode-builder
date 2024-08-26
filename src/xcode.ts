@@ -272,7 +272,9 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
             stderr: (data: Buffer) => {
                 xcBeautifyProcess.stdin.write(data);
             }
-        }, silent: true
+        },
+        silent: true,
+        ignoreReturnCode: true
     });
     xcBeautifyProcess.stdin.end();
     await new Promise<void>((resolve, reject) => {

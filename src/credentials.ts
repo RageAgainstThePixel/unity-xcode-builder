@@ -15,10 +15,11 @@ async function ImportCredentials(): Promise<AppleCredential> {
         core.setSecret(tempCredential);
         core.saveState('tempCredential', tempCredential);
         const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
+        core.saveState('authenticationKeyID', authenticationKeyID);
         const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
         const appStoreConnectKeyBase64 = core.getInput('app-store-connect-key', { required: true });
         await fs.promises.mkdir(appStoreConnectKeyDir, { recursive: true });
-        const appStoreConnectKeyPath = `${temp}/AuthKey_${authenticationKeyID}.p8`;
+        const appStoreConnectKeyPath = `${appStoreConnectKeyDir}/AuthKey_${authenticationKeyID}.p8`;
         const appStoreConnectKey = Buffer.from(appStoreConnectKeyBase64, 'base64').toString('utf8');
         core.setSecret(appStoreConnectKey);
         await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'utf8');
@@ -137,7 +138,9 @@ async function Cleanup(): Promise<void> {
     await exec.exec(security, ['delete-keychain', keychainPath]);
     core.info('Removing credentials...');
     try {
-        await fs.promises.unlink(`${appStoreConnectKeyDir}/AuthKey_${tempCredential}.p8`);
+        const authenticationKeyID = core.getState('authenticationKeyID');
+        const appStoreConnectKeyPath = `${appStoreConnectKeyDir}/AuthKey_${authenticationKeyID}.p8`;
+        await fs.promises.unlink(appStoreConnectKeyPath);
     } catch (error) {
         core.error(`Failed to remove app store connect key!\n${error.stack}`);
     }
