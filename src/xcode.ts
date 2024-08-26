@@ -101,6 +101,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
     }
     if (projectRef.credential.signingIdentity) {
         archiveArgs.push(
+            `-allowProvisioningUpdates`,
             `CODE_SIGN_IDENTITY=${projectRef.credential.signingIdentity}`,
             `CODE_SIGN_STYLE=Manual`,
             `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`

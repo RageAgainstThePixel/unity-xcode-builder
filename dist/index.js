@@ -40810,7 +40810,7 @@ async function ArchiveXcodeProject(projectRef) {
         archiveArgs.push(`DEVELOPMENT_TEAM=${projectRef.credential.teamId}`);
     }
     if (projectRef.credential.signingIdentity) {
-        archiveArgs.push(`CODE_SIGN_IDENTITY=${projectRef.credential.signingIdentity}`, `CODE_SIGN_STYLE=Manual`, `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`);
+        archiveArgs.push(`-allowProvisioningUpdates`, `CODE_SIGN_IDENTITY=${projectRef.credential.signingIdentity}`, `CODE_SIGN_STYLE=Manual`, `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`);
     }
     else {
         archiveArgs.push(`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_STYLE=Automatic`, `AD_HOC_CODE_SIGNING_ALLOWED=YES`);
