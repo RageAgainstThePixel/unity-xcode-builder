@@ -40853,7 +40853,6 @@ async function ArchiveXcodeProject(projectRef) {
         }
         archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${entitlementsPath}`);
     }
-    archiveArgs.push('ENABLE_BITCODE=NO');
     if (platform === 'iOS') {
         archiveArgs.push('COPY_PHASE_STRIP=NO');
     }

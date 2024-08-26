@@ -130,7 +130,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         }
         archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${entitlementsPath}`);
     }
-    archiveArgs.push('ENABLE_BITCODE=NO'); // disabling because building with bitcode is not supported
+    //archiveArgs.push('ENABLE_BITCODE=NO'); // disabling because building with bitcode is not supported
     // don't strip debug symbols during copy
     if (platform === 'iOS') {
         archiveArgs.push('COPY_PHASE_STRIP=NO');
