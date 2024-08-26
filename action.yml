@@ -4,6 +4,9 @@ branding:
   icon: command
   color: blue
 inputs:
+  xcode-version:
+    description: The version of Xcode to use for building the Xcode project. Defaults to the active version of Xcode on the runner.
+    required: false
   project-path:
     description: The directory that contains the exported xcode project from Unity.
     required: true
@@ -60,8 +63,6 @@ inputs:
   entitlements-plist:
     description: The path to custom entitlements plist file. Generates default hardened runtime entitlements if not provided.
     required: false
-  xcode-version:
-    description: The version of Xcode to use for building the Xcode project. Defaults to the active version of Xcode on the runner.
     required: false
 outputs:
   archive:

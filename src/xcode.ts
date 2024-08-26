@@ -35,9 +35,28 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     return new XcodeProject(projectPath, projectName, projectDirectory);
 }
 
+async function configureRunScriptPhase(projectPath: string): Promise<void> {
+    core.info(`Configuring run script phase to run during every build...`);
+    const pbxprojPath = path.join(projectPath, 'project.pbxproj');
+    const fileHandle = await fs.promises.open(pbxprojPath, 'r+');
+    try {
+        const pbxprojContent = await fileHandle.readFile('utf8');
+        const modifiedContent = pbxprojContent.replace(
+            /runOnlyForDeploymentPostprocessing = 1;/g,
+            'runOnlyForDeploymentPostprocessing = 0;'
+        );
+        await fileHandle.truncate(0);
+        await fileHandle.writeFile(modifiedContent, 'utf8');
+        console.log('Configured run script phase to run during every build.');
+    } finally {
+        await fileHandle.close();
+    }
+}
+
 async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {
     const { projectPath, projectName, projectDirectory } = projectRef;
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
+    await configureRunScriptPhase(projectPath);
     core.debug(`Archive path: ${archivePath}`);
     let projectInfoOutput = '';
     if (!core.isDebug()) {
@@ -130,9 +149,8 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         }
         archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${entitlementsPath}`);
     }
-    //archiveArgs.push('ENABLE_BITCODE=NO'); // disabling because building with bitcode is not supported
-    // don't strip debug symbols during copy
     if (platform === 'iOS') {
+        // don't strip debug symbols during copy
         archiveArgs.push('COPY_PHASE_STRIP=NO');
     }
     if (!core.isDebug()) {
