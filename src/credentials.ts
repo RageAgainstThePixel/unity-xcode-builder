@@ -5,6 +5,7 @@ import fs = require('fs');
 
 const security = '/usr/bin/security';
 const temp = process.env['RUNNER_TEMP'] || '.';
+const appStoreConnectKeyDir = `${process.env.HOME}/.appstoreconnect/private_keys`;
 
 // https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
 async function ImportCredentials(): Promise<AppleCredential> {
@@ -16,7 +17,8 @@ async function ImportCredentials(): Promise<AppleCredential> {
         const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
         const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
         const appStoreConnectKeyBase64 = core.getInput('app-store-connect-key', { required: true });
-        const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
+        await fs.promises.mkdir(appStoreConnectKeyDir, { recursive: true });
+        const appStoreConnectKeyPath = `${temp}/AuthKey_${authenticationKeyID}.p8`;
         const appStoreConnectKey = Buffer.from(appStoreConnectKeyBase64, 'base64').toString('utf8');
         core.setSecret(appStoreConnectKey);
         await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'utf8');
@@ -135,7 +137,7 @@ async function Cleanup(): Promise<void> {
     await exec.exec(security, ['delete-keychain', keychainPath]);
     core.info('Removing credentials...');
     try {
-        await fs.promises.unlink(`${temp}/${tempCredential}.p8`);
+        await fs.promises.unlink(`${appStoreConnectKeyDir}/AuthKey_${tempCredential}.p8`);
     } catch (error) {
         core.error(`Failed to remove app store connect key!\n${error.stack}`);
     }

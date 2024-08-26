@@ -40573,6 +40573,7 @@ const uuid = __nccwpck_require__(5840);
 const fs = __nccwpck_require__(7147);
 const security = '/usr/bin/security';
 const temp = process.env['RUNNER_TEMP'] || '.';
+const appStoreConnectKeyDir = `${process.env.HOME}/.appstoreconnect/private_keys`;
 async function ImportCredentials() {
     var _a, _b, _c;
     try {
@@ -40583,7 +40584,8 @@ async function ImportCredentials() {
         const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
         const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
         const appStoreConnectKeyBase64 = core.getInput('app-store-connect-key', { required: true });
-        const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
+        await fs.promises.mkdir(appStoreConnectKeyDir, { recursive: true });
+        const appStoreConnectKeyPath = `${temp}/AuthKey_${authenticationKeyID}.p8`;
         const appStoreConnectKey = Buffer.from(appStoreConnectKeyBase64, 'base64').toString('utf8');
         core.setSecret(appStoreConnectKey);
         await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'utf8');
@@ -40693,7 +40695,7 @@ async function Cleanup() {
     await exec.exec(security, ['delete-keychain', keychainPath]);
     core.info('Removing credentials...');
     try {
-        await fs.promises.unlink(`${temp}/${tempCredential}.p8`);
+        await fs.promises.unlink(`${appStoreConnectKeyDir}/AuthKey_${tempCredential}.p8`);
     }
     catch (error) {
         core.error(`Failed to remove app store connect key!\n${error.stack}`);
@@ -40761,21 +40763,6 @@ async function GetProjectDetails() {
     core.debug(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
     return new XcodeProject(projectPath, projectName, projectDirectory);
-}
-async function configureRunScriptPhase(projectPath) {
-    core.info(`Configuring run script phase to run during every build...`);
-    const pbxprojPath = path.join(projectPath, 'project.pbxproj');
-    const fileHandle = await fs.promises.open(pbxprojPath, 'r+');
-    try {
-        const pbxprojContent = await fileHandle.readFile('utf8');
-        const modifiedContent = pbxprojContent.replace(/runOnlyForDeploymentPostprocessing = 1;/g, 'runOnlyForDeploymentPostprocessing = 0;');
-        await fileHandle.truncate(0);
-        await fileHandle.writeFile(modifiedContent, 'utf8');
-        console.log('Configured run script phase to run during every build.');
-    }
-    finally {
-        await fileHandle.close();
-    }
 }
 async function ArchiveXcodeProject(projectRef) {
     const { projectPath, projectName, projectDirectory } = projectRef;
