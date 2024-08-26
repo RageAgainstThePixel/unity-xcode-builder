@@ -115,7 +115,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         archiveArgs.push(`PROVISIONING_PROFILE=${provisioningProfileUUID}`);
     } else {
         archiveArgs.push(
-            `AD_HOC_CODE_SIGNING_ALLOWED=YES`,
+            // `AD_HOC_CODE_SIGNING_ALLOWED=YES`,
             `-allowProvisioningUpdates`
         );
     }
