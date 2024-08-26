@@ -261,7 +261,7 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
         core.info('Installing xcbeautify...');
         await exec.exec('brew', ['install', 'xcbeautify']);
     }
-    const xcBeautifyProcess = spawn('xcbeautify', ['-q', '--renderer github-actions'], {
+    const xcBeautifyProcess = spawn('xcbeautify', ['--quiet', '--is-ci'], {
         stdio: ['pipe', process.stdout, process.stderr]
     });
     core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
