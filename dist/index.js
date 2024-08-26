@@ -40853,7 +40853,7 @@ async function ArchiveXcodeProject(projectRef) {
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
-    await execWithXcPretty(archiveArgs);
+    await execWithXcBeautify(archiveArgs);
     projectRef.archivePath = archivePath;
     return projectRef;
 }
@@ -40958,7 +40958,7 @@ async function ExportXcodeArchive(projectRef) {
     if (!core.isDebug()) {
         exportArgs.push('-quiet');
     }
-    await execWithXcPretty(exportArgs);
+    await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
     return projectRef;
 }
@@ -40967,32 +40967,27 @@ async function writeExportOptions(projectPath, exportOptions) {
     await fs.promises.writeFile(exportOptionsPath, plist.build(exportOptions));
     return exportOptionsPath;
 }
-async function execWithXcPretty(xcodeBuildArgs) {
-    const xcprettyArgs = [
-        '--color',
-        '--simple',
-        '--no-utf',
-        '--no-color'
-    ];
-    const xcPrettyProcess = (0, child_process_1.spawn)('xcpretty', xcprettyArgs, {
+async function execWithXcBeautify(xcodeBuildArgs) {
+    const xcbeautifyArgs = [];
+    const xcBeautifyProcess = (0, child_process_1.spawn)('xcbeautify', xcbeautifyArgs, {
         stdio: ['pipe', process.stdout, process.stderr]
     });
     core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
     const exitCode = await exec.exec(xcodebuild, xcodeBuildArgs, {
         listeners: {
             stdout: (data) => {
-                xcPrettyProcess.stdin.write(data);
+                xcBeautifyProcess.stdin.write(data);
             },
             stderr: (data) => {
-                xcPrettyProcess.stdin.write(data);
+                xcBeautifyProcess.stdin.write(data);
             }
         }, silent: true
     });
-    xcPrettyProcess.stdin.end();
+    xcBeautifyProcess.stdin.end();
     await new Promise((resolve, reject) => {
-        xcPrettyProcess.on('close', (code) => {
+        xcBeautifyProcess.on('close', (code) => {
             if (code !== 0) {
-                reject(new Error(`xcpretty exited with code ${code}`));
+                reject(new Error(`xcbeautify exited with code ${code}`));
             }
             else {
                 resolve();
