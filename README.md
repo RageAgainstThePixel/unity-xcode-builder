@@ -32,7 +32,7 @@ steps:
 | `certificate-password` | The password for the exported certificate. | Required if `certificate` is provided. |
 | `signing-identity` | The signing identity to use for signing the Xcode project. | Parsed from the `certificate` if not provided. |
 | `provisioning-profile` | The provisioning profile to use as base64 string. Use when manually signing the Xcode project. | Defaults to Automatic signing. |
-| `provisioning-profile-name` | The name of the provisioning profile file, including the type to use for signing the Xcode project. | Required if `provisioning-profile` is provided. |
+| `provisioning-profile-name` | The name of the provisioning profile file, including the type to use for signing the Xcode project. Must end with either `.mobileprovision` or `.provisionprofile`. | Required if `provisioning-profile` is provided. |
 | `team-id` | The team ID to use for signing the Xcode project. | Defaults to parsing team ID from `certificate` if provided. |
 | `bundle-id` | The bundle ID of the Xcode project. Overrides the value in the exported Unity project. | Defaults to parsing bundle ID from `.xcodeproj`. |
 | `configuration` | The configuration to build the Xcode project with. | Defaults to `Release`. |

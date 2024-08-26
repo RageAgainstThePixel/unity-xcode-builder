@@ -40574,6 +40574,7 @@ const fs = __nccwpck_require__(7147);
 const security = '/usr/bin/security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 async function ImportCredentials() {
+    var _a, _b, _c;
     core.info('Importing credentials...');
     const tempCredential = uuid.v4();
     core.setSecret(tempCredential);
@@ -40590,6 +40591,7 @@ async function ImportCredentials() {
     await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
     await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
     let signingIdentity = core.getInput('signing-identity');
+    let certificateUUID;
     let teamId = core.getInput('team-id');
     const certificateBase64 = core.getInput('certificate');
     if (certificateBase64) {
@@ -40599,34 +40601,47 @@ async function ImportCredentials() {
         const certificate = Buffer.from(certificateBase64, 'base64').toString('binary');
         await fs.promises.writeFile(certificatePath, certificate, 'binary');
         await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
-        await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath]);
+        if (core.isDebug()) {
+            core.info(`[command]${security} set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${tempCredential} ${keychainPath}`);
+        }
+        await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath], {
+            silent: !core.isDebug()
+        });
         await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath, 'login.keychain-db']);
         await fs.promises.unlink(certificatePath);
         if (!signingIdentity) {
             let output = '';
+            core.info(`[command]${security} find-identity -v -p codesigning ${keychainPath}`);
             await exec.exec(security, ['find-identity', '-v', '-p', 'codesigning', keychainPath], {
                 listeners: {
                     stdout: (data) => {
                         output += data.toString();
                     }
-                }
+                },
+                silent: true
             });
-            const match = output.match(/"(?<signing_identity>[^"]+)"\s*$/m);
-            if (match) {
-                signingIdentity = match[1];
+            const match = output.match(/\d\) (?<uuid>\w+) \"(?<signing_identity>[^"]+)\"$/m);
+            if (!match) {
+                throw new Error('Failed to match signing identity!');
             }
+            certificateUUID = (_a = match.groups) === null || _a === void 0 ? void 0 : _a.uuid;
+            core.setSecret(certificateUUID);
+            signingIdentity = (_b = match.groups) === null || _b === void 0 ? void 0 : _b.signing_identity;
             if (!signingIdentity) {
-                throw new Error('Failed to find signing identity');
+                throw new Error('Failed to find signing identity!');
             }
             if (!teamId) {
-                const match = signingIdentity.match(/(?<team_id>[A-Z0-9]{10})\s/);
-                if (match) {
-                    teamId = match[1];
+                const teamMatch = signingIdentity.match(/(?<team_id>[A-Z0-9]{10})\s/);
+                if (!teamMatch) {
+                    throw new Error('Failed to match team id!');
                 }
+                teamId = (_c = teamMatch.groups) === null || _c === void 0 ? void 0 : _c.team_id;
                 if (!teamId) {
-                    throw new Error('Failed to find team id');
+                    throw new Error('Failed to find team id!');
                 }
+                core.setSecret(teamId);
             }
+            core.info(output);
         }
     }
     const provisioningProfileBase64 = core.getInput('provisioning-profile');
@@ -40642,8 +40657,6 @@ async function ImportCredentials() {
         core.saveState('provisioningProfilePath', provisioningProfilePath);
         const provisioningProfile = Buffer.from(provisioningProfileBase64, 'base64').toString('binary');
         await fs.promises.writeFile(provisioningProfilePath, provisioningProfile, 'binary');
-        await exec.exec(security, ['cms', '-D', '-i', provisioningProfilePath]);
-        await exec.exec(security, ['import', provisioningProfilePath, '-k', keychainPath, '-A']);
         const provisioningProfileContent = await fs.promises.readFile(provisioningProfilePath, 'utf8');
         const uuidMatch = provisioningProfileContent.match(/<key>UUID<\/key>\s*<string>([^<]+)<\/string>/);
         if (uuidMatch) {
@@ -40834,6 +40847,8 @@ async function ArchiveXcodeProject(projectRef) {
         }
         archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${entitlementsPath}`);
     }
+    archiveArgs.push('ENABLE_BITCODE=NO');
+    archiveArgs.push('STRIP_INSTALLED_PRODUCT=NO');
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }

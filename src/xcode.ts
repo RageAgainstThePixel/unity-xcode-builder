@@ -6,6 +6,7 @@ import path = require('path');
 import fs = require('fs');
 
 import { AppleCredential } from './credentials';
+import { arch } from 'process';
 
 const xcodebuild = '/usr/bin/xcodebuild';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
@@ -130,6 +131,8 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         }
         archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${entitlementsPath}`);
     }
+    archiveArgs.push('ENABLE_BITCODE=NO'); // disabling because building with bitcode is not supported
+    archiveArgs.push('STRIP_INSTALLED_PRODUCT=NO');
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
