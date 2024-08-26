@@ -251,7 +251,12 @@ async function writeExportOptions(projectPath: string, exportOptions: any): Prom
 }
 
 async function execWithXcBeautify(xcodeBuildArgs: string[]) {
-    // set -o pipefail && xcodebuild [flags] | xcbeautify
+    try {
+        await exec.exec('xcbeautify', ['--version'], { silent: true });
+    } catch (error) {
+        core.info('Installing xcbeautify...');
+        await exec.exec('brew', ['install', 'xcbeautify']);
+    }
     const xcbeautifyArgs = [];
     const xcBeautifyProcess = spawn('xcbeautify', xcbeautifyArgs, {
         stdio: ['pipe', process.stdout, process.stderr]

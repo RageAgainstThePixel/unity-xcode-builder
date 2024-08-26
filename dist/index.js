@@ -40968,6 +40968,13 @@ async function writeExportOptions(projectPath, exportOptions) {
     return exportOptionsPath;
 }
 async function execWithXcBeautify(xcodeBuildArgs) {
+    try {
+        await exec.exec('xcbeautify', ['--version'], { silent: true });
+    }
+    catch (error) {
+        core.info('Installing xcbeautify...');
+        await exec.exec('brew', ['install', 'xcbeautify']);
+    }
     const xcbeautifyArgs = [];
     const xcBeautifyProcess = (0, child_process_1.spawn)('xcbeautify', xcbeautifyArgs, {
         stdio: ['pipe', process.stdout, process.stderr]
