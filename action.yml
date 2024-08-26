@@ -63,7 +63,6 @@ inputs:
   entitlements-plist:
     description: The path to custom entitlements plist file. Generates default hardened runtime entitlements if not provided.
     required: false
-    required: false
 outputs:
   archive:
     description: The path to the generated archive.
