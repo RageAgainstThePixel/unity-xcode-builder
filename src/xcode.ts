@@ -131,7 +131,10 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${entitlementsPath}`);
     }
     archiveArgs.push('ENABLE_BITCODE=NO'); // disabling because building with bitcode is not supported
-    archiveArgs.push('STRIP_INSTALLED_PRODUCT=NO');
+    // don't strip debug symbols during copy
+    if (platform === 'iOS') {
+        archiveArgs.push('COPY_PHASE_STRIP=NO');
+    }
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
@@ -241,6 +244,7 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     }
     await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
+    core.info(`Exported to: ${exportPath}`);
     return projectRef;
 }
 
@@ -257,8 +261,7 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
         core.info('Installing xcbeautify...');
         await exec.exec('brew', ['install', 'xcbeautify']);
     }
-    const xcbeautifyArgs = [];
-    const xcBeautifyProcess = spawn('xcbeautify', xcbeautifyArgs, {
+    const xcBeautifyProcess = spawn('xcbeautify', ['-q', '--renderer github-actions'], {
         stdio: ['pipe', process.stdout, process.stderr]
     });
     core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);

@@ -40575,98 +40575,103 @@ const security = '/usr/bin/security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 async function ImportCredentials() {
     var _a, _b, _c;
-    core.info('Importing credentials...');
-    const tempCredential = uuid.v4();
-    core.setSecret(tempCredential);
-    core.saveState('tempCredential', tempCredential);
-    const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
-    const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
-    const appStoreConnectKeyBase64 = core.getInput('app-store-connect-key', { required: true });
-    const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
-    const appStoreConnectKey = Buffer.from(appStoreConnectKeyBase64, 'base64').toString('utf8');
-    core.setSecret(appStoreConnectKey);
-    await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'utf8');
-    const keychainPath = `${temp}/${tempCredential}.keychain-db`;
-    await exec.exec(security, ['create-keychain', '-p', tempCredential, keychainPath]);
-    await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
-    await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
-    let signingIdentity = core.getInput('signing-identity');
-    let certificateUUID;
-    let teamId = core.getInput('team-id');
-    const certificateBase64 = core.getInput('certificate');
-    if (certificateBase64) {
-        const certificatePassword = core.getInput('certificate-password', { required: true });
-        core.info('Importing certificate...');
-        const certificatePath = `${temp}/${tempCredential}.p12`;
-        const certificate = Buffer.from(certificateBase64, 'base64').toString('binary');
-        await fs.promises.writeFile(certificatePath, certificate, 'binary');
-        await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
-        if (core.isDebug()) {
-            core.info(`[command]${security} set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${tempCredential} ${keychainPath}`);
-        }
-        await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath], {
-            silent: !core.isDebug()
-        });
-        await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath, 'login.keychain-db']);
-        await fs.promises.unlink(certificatePath);
-        if (!signingIdentity) {
-            let output = '';
-            core.info(`[command]${security} find-identity -v -p codesigning ${keychainPath}`);
-            await exec.exec(security, ['find-identity', '-v', '-p', 'codesigning', keychainPath], {
-                listeners: {
-                    stdout: (data) => {
-                        output += data.toString();
-                    }
-                },
-                silent: true
+    try {
+        core.startGroup('Importing credentials...');
+        const tempCredential = uuid.v4();
+        core.setSecret(tempCredential);
+        core.saveState('tempCredential', tempCredential);
+        const authenticationKeyID = core.getInput('app-store-connect-key-id', { required: true });
+        const authenticationKeyIssuerID = core.getInput('app-store-connect-issuer-id', { required: true });
+        const appStoreConnectKeyBase64 = core.getInput('app-store-connect-key', { required: true });
+        const appStoreConnectKeyPath = `${temp}/${tempCredential}.p8`;
+        const appStoreConnectKey = Buffer.from(appStoreConnectKeyBase64, 'base64').toString('utf8');
+        core.setSecret(appStoreConnectKey);
+        await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'utf8');
+        const keychainPath = `${temp}/${tempCredential}.keychain-db`;
+        await exec.exec(security, ['create-keychain', '-p', tempCredential, keychainPath]);
+        await exec.exec(security, ['set-keychain-settings', '-lut', '21600', keychainPath]);
+        await exec.exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);
+        let signingIdentity = core.getInput('signing-identity');
+        let certificateUUID;
+        let teamId = core.getInput('team-id');
+        const certificateBase64 = core.getInput('certificate');
+        if (certificateBase64) {
+            const certificatePassword = core.getInput('certificate-password', { required: true });
+            core.info('Importing certificate...');
+            const certificatePath = `${temp}/${tempCredential}.p12`;
+            const certificate = Buffer.from(certificateBase64, 'base64').toString('binary');
+            await fs.promises.writeFile(certificatePath, certificate, 'binary');
+            await exec.exec(security, ['import', certificatePath, '-P', certificatePassword, '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychainPath]);
+            if (core.isDebug()) {
+                core.info(`[command]${security} set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ${tempCredential} ${keychainPath}`);
+            }
+            await exec.exec(security, ['set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', tempCredential, keychainPath], {
+                silent: !core.isDebug()
             });
-            const match = output.match(/\d\) (?<uuid>\w+) \"(?<signing_identity>[^"]+)\"$/m);
-            if (!match) {
-                throw new Error('Failed to match signing identity!');
-            }
-            certificateUUID = (_a = match.groups) === null || _a === void 0 ? void 0 : _a.uuid;
-            core.setSecret(certificateUUID);
-            signingIdentity = (_b = match.groups) === null || _b === void 0 ? void 0 : _b.signing_identity;
+            await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath, 'login.keychain-db']);
+            await fs.promises.unlink(certificatePath);
             if (!signingIdentity) {
-                throw new Error('Failed to find signing identity!');
-            }
-            if (!teamId) {
-                const teamMatch = signingIdentity.match(/(?<team_id>[A-Z0-9]{10})\s/);
-                if (!teamMatch) {
-                    throw new Error('Failed to match team id!');
+                let output = '';
+                core.info(`[command]${security} find-identity -v -p codesigning ${keychainPath}`);
+                await exec.exec(security, ['find-identity', '-v', '-p', 'codesigning', keychainPath], {
+                    listeners: {
+                        stdout: (data) => {
+                            output += data.toString();
+                        }
+                    },
+                    silent: true
+                });
+                const match = output.match(/\d\) (?<uuid>\w+) \"(?<signing_identity>[^"]+)\"$/m);
+                if (!match) {
+                    throw new Error('Failed to match signing identity!');
                 }
-                teamId = (_c = teamMatch.groups) === null || _c === void 0 ? void 0 : _c.team_id;
+                certificateUUID = (_a = match.groups) === null || _a === void 0 ? void 0 : _a.uuid;
+                core.setSecret(certificateUUID);
+                signingIdentity = (_b = match.groups) === null || _b === void 0 ? void 0 : _b.signing_identity;
+                if (!signingIdentity) {
+                    throw new Error('Failed to find signing identity!');
+                }
                 if (!teamId) {
-                    throw new Error('Failed to find team id!');
+                    const teamMatch = signingIdentity.match(/(?<team_id>[A-Z0-9]{10})\s/);
+                    if (!teamMatch) {
+                        throw new Error('Failed to match team id!');
+                    }
+                    teamId = (_c = teamMatch.groups) === null || _c === void 0 ? void 0 : _c.team_id;
+                    if (!teamId) {
+                        throw new Error('Failed to find team id!');
+                    }
+                    core.setSecret(teamId);
                 }
-                core.setSecret(teamId);
+                core.info(output);
             }
-            core.info(output);
         }
+        const provisioningProfileBase64 = core.getInput('provisioning-profile');
+        let provisioningProfileUUID;
+        if (provisioningProfileBase64) {
+            core.info('Importing provisioning profile...');
+            const provisioningProfileName = core.getInput('provisioning-profile-name', { required: true });
+            if (!provisioningProfileName.endsWith('.mobileprovision') &&
+                !provisioningProfileName.endsWith('.provisionprofile')) {
+                throw new Error('Provisioning profile name must end with .mobileprovision or .provisionprofile');
+            }
+            const provisioningProfilePath = `${temp}/${provisioningProfileName}`;
+            core.saveState('provisioningProfilePath', provisioningProfilePath);
+            const provisioningProfile = Buffer.from(provisioningProfileBase64, 'base64').toString('binary');
+            await fs.promises.writeFile(provisioningProfilePath, provisioningProfile, 'binary');
+            const provisioningProfileContent = await fs.promises.readFile(provisioningProfilePath, 'utf8');
+            const uuidMatch = provisioningProfileContent.match(/<key>UUID<\/key>\s*<string>([^<]+)<\/string>/);
+            if (uuidMatch) {
+                provisioningProfileUUID = uuidMatch[1];
+            }
+            if (!provisioningProfileUUID) {
+                throw new Error('Failed to parse provisioning profile UUID');
+            }
+        }
+        return new AppleCredential(tempCredential, keychainPath, authenticationKeyID, authenticationKeyIssuerID, appStoreConnectKeyPath, appStoreConnectKey, teamId, signingIdentity, provisioningProfileUUID);
     }
-    const provisioningProfileBase64 = core.getInput('provisioning-profile');
-    let provisioningProfileUUID;
-    if (provisioningProfileBase64) {
-        core.info('Importing provisioning profile...');
-        const provisioningProfileName = core.getInput('provisioning-profile-name', { required: true });
-        if (!provisioningProfileName.endsWith('.mobileprovision') &&
-            !provisioningProfileName.endsWith('.provisionprofile')) {
-            throw new Error('Provisioning profile name must end with .mobileprovision or .provisionprofile');
-        }
-        const provisioningProfilePath = `${temp}/${provisioningProfileName}`;
-        core.saveState('provisioningProfilePath', provisioningProfilePath);
-        const provisioningProfile = Buffer.from(provisioningProfileBase64, 'base64').toString('binary');
-        await fs.promises.writeFile(provisioningProfilePath, provisioningProfile, 'binary');
-        const provisioningProfileContent = await fs.promises.readFile(provisioningProfilePath, 'utf8');
-        const uuidMatch = provisioningProfileContent.match(/<key>UUID<\/key>\s*<string>([^<]+)<\/string>/);
-        if (uuidMatch) {
-            provisioningProfileUUID = uuidMatch[1];
-        }
-        if (!provisioningProfileUUID) {
-            throw new Error('Failed to parse provisioning profile UUID');
-        }
+    finally {
+        core.endGroup();
     }
-    return new AppleCredential(tempCredential, keychainPath, authenticationKeyID, authenticationKeyIssuerID, appStoreConnectKeyPath, appStoreConnectKey, teamId, signingIdentity, provisioningProfileUUID);
 }
 async function Cleanup() {
     const provisioningProfilePath = core.getState('provisioningProfilePath');
@@ -40849,7 +40854,9 @@ async function ArchiveXcodeProject(projectRef) {
         archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${entitlementsPath}`);
     }
     archiveArgs.push('ENABLE_BITCODE=NO');
-    archiveArgs.push('STRIP_INSTALLED_PRODUCT=NO');
+    if (platform === 'iOS') {
+        archiveArgs.push('COPY_PHASE_STRIP=NO');
+    }
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
@@ -40960,6 +40967,7 @@ async function ExportXcodeArchive(projectRef) {
     }
     await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
+    core.info(`Exported to: ${exportPath}`);
     return projectRef;
 }
 async function writeExportOptions(projectPath, exportOptions) {
@@ -40975,8 +40983,7 @@ async function execWithXcBeautify(xcodeBuildArgs) {
         core.info('Installing xcbeautify...');
         await exec.exec('brew', ['install', 'xcbeautify']);
     }
-    const xcbeautifyArgs = [];
-    const xcBeautifyProcess = (0, child_process_1.spawn)('xcbeautify', xcbeautifyArgs, {
+    const xcBeautifyProcess = (0, child_process_1.spawn)('xcbeautify', ['-q', '--renderer github-actions'], {
         stdio: ['pipe', process.stdout, process.stderr]
     });
     core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
