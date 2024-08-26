@@ -16,6 +16,11 @@ const main = async () => {
     try {
         if (!IS_POST) {
             core.saveState('isPost', true);
+            const xcodeVersion = core.getInput('xcode-version');
+            if (xcodeVersion) {
+                core.info(`Setting xcode version to ${xcodeVersion}`);
+                await exec.exec('sudo', ['xcode-select', '-s', `/Applications/Xcode_${xcodeVersion}.app/Contents/Developer`]);
+            }
             await exec.exec('xcodebuild', ['-version']);
             const credential = await ImportCredentials();
             let projectRef = await GetProjectDetails();

@@ -1,12 +1,10 @@
+import { AppleCredential } from './credentials';
 import core = require('@actions/core');
 import exec = require('@actions/exec');
 import glob = require('@actions/glob');
 import plist = require('plist');
 import path = require('path');
 import fs = require('fs');
-
-import { AppleCredential } from './credentials';
-import { arch } from 'process';
 
 const xcodebuild = '/usr/bin/xcodebuild';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
@@ -136,6 +134,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
+    archiveArgs.push('|', 'xcpretty');
     await exec.exec(xcodebuild, archiveArgs);
     projectRef.archivePath = archivePath
     return projectRef;
@@ -240,6 +239,7 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     if (!core.isDebug()) {
         exportArgs.push('-quiet');
     }
+    exportArgs.push('|', 'xcpretty');
     await exec.exec(xcodebuild, exportArgs);
     projectRef.exportPath = exportPath;
     return projectRef;
