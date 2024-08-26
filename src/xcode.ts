@@ -56,7 +56,7 @@ async function configureRunScriptPhase(projectPath: string): Promise<void> {
 async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {
     const { projectPath, projectName, projectDirectory } = projectRef;
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
-    await configureRunScriptPhase(projectPath);
+    //await configureRunScriptPhase(projectPath);
     core.debug(`Archive path: ${archivePath}`);
     let projectInfoOutput = '';
     if (!core.isDebug()) {

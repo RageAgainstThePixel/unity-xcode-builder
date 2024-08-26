@@ -40780,7 +40780,6 @@ async function configureRunScriptPhase(projectPath) {
 async function ArchiveXcodeProject(projectRef) {
     const { projectPath, projectName, projectDirectory } = projectRef;
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
-    await configureRunScriptPhase(projectPath);
     core.debug(`Archive path: ${archivePath}`);
     let projectInfoOutput = '';
     if (!core.isDebug()) {
