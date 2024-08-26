@@ -38,14 +38,13 @@ async function ImportCredentials(): Promise<AppleCredential> {
         await fs.promises.unlink(certificatePath);
         if (!signingIdentity) {
             let output = '';
-            const options = {
+            await exec.exec(security, ['find-identity', '-v', '-p', 'codesigning', keychainPath], {
                 listeners: {
                     stdout: (data: Buffer) => {
                         output += data.toString();
                     }
                 }
-            };
-            await exec.exec(security, ['find-identity', '-v', '-p', 'codesigning', keychainPath], options);
+            });
             const match = output.match(/"(?<signing_identity>[^"]+)"\s*$/m);
             if (match) {
                 signingIdentity = match[1];

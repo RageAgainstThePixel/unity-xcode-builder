@@ -96,21 +96,27 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
         `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId,
     ];
-    if (projectRef.credential.teamId) {
-        archiveArgs.push(`DEVELOPMENT_TEAM=${projectRef.credential.teamId}`);
+    const { teamId, signingIdentity, provisioningProfileUUID, keychainPath } = projectRef.credential;
+    if (teamId) {
+        archiveArgs.push(`DEVELOPMENT_TEAM=${teamId}`);
     }
-    if (projectRef.credential.signingIdentity) {
+    if (signingIdentity) {
         archiveArgs.push(
-            `-allowProvisioningUpdates`,
-            `CODE_SIGN_IDENTITY=${projectRef.credential.signingIdentity}`,
-            `CODE_SIGN_STYLE=Manual`,
-            `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`
+            `CODE_SIGN_IDENTITY=${signingIdentity}`,
+            `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`
         );
     } else {
+        archiveArgs.push(`CODE_SIGN_IDENTITY=-`);
+    }
+    archiveArgs.push(
+        `CODE_SIGN_STYLE=${provisioningProfileUUID ? 'Manual' : 'Automatic'}`
+    );
+    if (provisioningProfileUUID) {
+        archiveArgs.push(`PROVISIONING_PROFILE=${provisioningProfileUUID}`);
+    } else {
         archiveArgs.push(
-            `CODE_SIGN_IDENTITY=-`,
-            `CODE_SIGN_STYLE=Automatic`,
-            `AD_HOC_CODE_SIGNING_ALLOWED=YES`
+            `AD_HOC_CODE_SIGNING_ALLOWED=YES`,
+            `-allowProvisioningUpdates`
         );
     }
     if (entitlementsPath) {
@@ -119,8 +125,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         try {
             const entitlementsContent = await fs.promises.readFile(entitlementsHandle, 'utf8');
             core.debug(`----- Entitlements content: -----\n${entitlementsContent}\n---------------------------------`);
-        }
-        finally {
+        } finally {
             await entitlementsHandle.close();
         }
         archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${entitlementsPath}`);

@@ -40604,14 +40604,13 @@ async function ImportCredentials() {
         await fs.promises.unlink(certificatePath);
         if (!signingIdentity) {
             let output = '';
-            const options = {
+            await exec.exec(security, ['find-identity', '-v', '-p', 'codesigning', keychainPath], {
                 listeners: {
                     stdout: (data) => {
                         output += data.toString();
                     }
                 }
-            };
-            await exec.exec(security, ['find-identity', '-v', '-p', 'codesigning', keychainPath], options);
+            });
             const match = output.match(/"(?<signing_identity>[^"]+)"\s*$/m);
             if (match) {
                 signingIdentity = match[1];
@@ -40806,14 +40805,22 @@ async function ArchiveXcodeProject(projectRef) {
         `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
         `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId,
     ];
-    if (projectRef.credential.teamId) {
-        archiveArgs.push(`DEVELOPMENT_TEAM=${projectRef.credential.teamId}`);
+    const { teamId, signingIdentity, provisioningProfileUUID, keychainPath } = projectRef.credential;
+    if (teamId) {
+        archiveArgs.push(`DEVELOPMENT_TEAM=${teamId}`);
     }
-    if (projectRef.credential.signingIdentity) {
-        archiveArgs.push(`-allowProvisioningUpdates`, `CODE_SIGN_IDENTITY=${projectRef.credential.signingIdentity}`, `CODE_SIGN_STYLE=Manual`, `OTHER_CODE_SIGN_FLAGS=--keychain ${projectRef.credential.keychainPath}`);
+    if (signingIdentity) {
+        archiveArgs.push(`CODE_SIGN_IDENTITY=${signingIdentity}`, `OTHER_CODE_SIGN_FLAGS=--keychain ${keychainPath}`);
     }
     else {
-        archiveArgs.push(`CODE_SIGN_IDENTITY=-`, `CODE_SIGN_STYLE=Automatic`, `AD_HOC_CODE_SIGNING_ALLOWED=YES`);
+        archiveArgs.push(`CODE_SIGN_IDENTITY=-`);
+    }
+    archiveArgs.push(`CODE_SIGN_STYLE=${provisioningProfileUUID ? 'Manual' : 'Automatic'}`);
+    if (provisioningProfileUUID) {
+        archiveArgs.push(`PROVISIONING_PROFILE=${provisioningProfileUUID}`);
+    }
+    else {
+        archiveArgs.push(`AD_HOC_CODE_SIGNING_ALLOWED=YES`, `-allowProvisioningUpdates`);
     }
     if (entitlementsPath) {
         core.debug(`Entitlements path: ${entitlementsPath}`);
