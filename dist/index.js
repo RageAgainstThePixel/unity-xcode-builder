@@ -40820,7 +40820,7 @@ async function ArchiveXcodeProject(projectRef) {
         archiveArgs.push(`PROVISIONING_PROFILE=${provisioningProfileUUID}`);
     }
     else {
-        archiveArgs.push(`-allowProvisioningUpdates`);
+        archiveArgs.push(`AD_HOC_CODE_SIGNING_ALLOWED=YES`, `-allowProvisioningUpdates`);
     }
     if (entitlementsPath) {
         core.debug(`Entitlements path: ${entitlementsPath}`);
