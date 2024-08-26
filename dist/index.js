@@ -40815,7 +40815,7 @@ async function ArchiveXcodeProject(projectRef) {
     else {
         archiveArgs.push(`CODE_SIGN_IDENTITY=-`);
     }
-    archiveArgs.push(`CODE_SIGN_STYLE=${provisioningProfileUUID ? 'Manual' : 'Automatic'}`);
+    archiveArgs.push(`CODE_SIGN_STYLE=${provisioningProfileUUID || signingIdentity ? 'Manual' : 'Automatic'}`);
     if (provisioningProfileUUID) {
         archiveArgs.push(`PROVISIONING_PROFILE=${provisioningProfileUUID}`);
     }

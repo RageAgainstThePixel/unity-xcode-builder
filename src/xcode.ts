@@ -109,7 +109,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         archiveArgs.push(`CODE_SIGN_IDENTITY=-`);
     }
     archiveArgs.push(
-        `CODE_SIGN_STYLE=${provisioningProfileUUID ? 'Manual' : 'Automatic'}`
+        `CODE_SIGN_STYLE=${provisioningProfileUUID || signingIdentity ? 'Manual' : 'Automatic'}`
     );
     if (provisioningProfileUUID) {
         archiveArgs.push(`PROVISIONING_PROFILE=${provisioningProfileUUID}`);
