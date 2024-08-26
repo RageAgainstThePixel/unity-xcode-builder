@@ -40722,6 +40722,7 @@ exports.XcodeProject = void 0;
 exports.GetProjectDetails = GetProjectDetails;
 exports.ArchiveXcodeProject = ArchiveXcodeProject;
 exports.ExportXcodeArchive = ExportXcodeArchive;
+const child_process_1 = __nccwpck_require__(2081);
 const core = __nccwpck_require__(2186);
 const exec = __nccwpck_require__(1514);
 const glob = __nccwpck_require__(8090);
@@ -40852,8 +40853,7 @@ async function ArchiveXcodeProject(projectRef) {
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
-    archiveArgs.push('|', 'xcpretty');
-    await exec.exec(xcodebuild, archiveArgs);
+    await execWithXcPretty(archiveArgs);
     projectRef.archivePath = archivePath;
     return projectRef;
 }
@@ -40958,8 +40958,7 @@ async function ExportXcodeArchive(projectRef) {
     if (!core.isDebug()) {
         exportArgs.push('-quiet');
     }
-    exportArgs.push('|', 'xcpretty');
-    await exec.exec(xcodebuild, exportArgs);
+    await execWithXcPretty(exportArgs);
     projectRef.exportPath = exportPath;
     return projectRef;
 }
@@ -40967,6 +40966,42 @@ async function writeExportOptions(projectPath, exportOptions) {
     const exportOptionsPath = `${projectPath}/exportOptions.plist`;
     await fs.promises.writeFile(exportOptionsPath, plist.build(exportOptions));
     return exportOptionsPath;
+}
+async function execWithXcPretty(xcodeBuildArgs) {
+    const xcprettyArgs = [
+        '--color',
+        '--simple',
+        '--no-utf',
+        '--no-color'
+    ];
+    const xcPrettyProcess = (0, child_process_1.spawn)('xcpretty', xcprettyArgs, {
+        stdio: ['pipe', process.stdout, process.stderr]
+    });
+    core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
+    const exitCode = await exec.exec(xcodebuild, xcodeBuildArgs, {
+        listeners: {
+            stdout: (data) => {
+                xcPrettyProcess.stdin.write(data);
+            },
+            stderr: (data) => {
+                xcPrettyProcess.stdin.write(data);
+            }
+        }, silent: true
+    });
+    xcPrettyProcess.stdin.end();
+    await new Promise((resolve, reject) => {
+        xcPrettyProcess.on('close', (code) => {
+            if (code !== 0) {
+                reject(new Error(`xcpretty exited with code ${code}`));
+            }
+            else {
+                resolve();
+            }
+        });
+    });
+    if (exitCode !== 0) {
+        throw new Error(`xcodebuild exited with code ${exitCode}`);
+    }
 }
 class XcodeProject {
     constructor(projectPath, projectName, projectDirectory) {
