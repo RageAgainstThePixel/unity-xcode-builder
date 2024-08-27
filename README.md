@@ -33,7 +33,9 @@ This action requires several secrets that need to be setup in the repository or 
 
 > [!NOTE]
 > You can easily encode a file to base64 using the following command:
-> `openssl base64 -in ./AuthKey_*.p8 -out ./AuthKey_*.txt`
+> ```
+> openssl base64 -in ./AuthKey_*.p8 -out ./AuthKey_*.txt
+> ```
 
 | name | description | required |
 | ---- | ----------- | -------- |
