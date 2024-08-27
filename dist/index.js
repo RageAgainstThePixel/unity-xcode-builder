@@ -40929,14 +40929,13 @@ async function ExportXcodeArchive(projectRef) {
     const exportOptionPlistInput = core.getInput('export-option-plist');
     let exportOptionsPath = undefined;
     if (!exportOptionPlistInput) {
-        const exportOption = core.getInput('export-option');
+        const exportOption = core.getInput('export-option') || 'development';
         const exportOptions = {
-            method: platform === 'macOs' && exportOption === 'ad-hoc' ? 'development' : exportOption,
+            method: platform === 'macOS' && exportOption === 'ad-hoc' ? 'development' : exportOption,
             signingStyle: projectRef.credential.signingIdentity ? 'manual' : 'automatic',
             teamID: `${projectRef.credential.teamId}`
         };
         if (exportOption === 'app-store') {
-            exportOptions['uploadSymbols'] = true;
             exportOptions['manageAppVersionAndBuildNumber'] = true;
         }
         exportOptionsPath = await writeExportOptions(projectPath, exportOptions);
