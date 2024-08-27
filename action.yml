@@ -14,7 +14,7 @@ inputs:
     description: The App Store Connect API AuthKey_*.p8 key encoded as base64 string.
     required: true
   app-store-connect-key-id:
-    description: The key ID of the App Store Connect API key id.
+    description: The App Store Connect API key id.
     required: true
   app-store-connect-issuer-id:
     description: The issuer ID of the App Store Connect API key.

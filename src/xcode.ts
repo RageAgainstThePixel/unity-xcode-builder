@@ -197,7 +197,7 @@ async function getDefaultEntitlementsMacOS(projectPath: string): Promise<string>
 }
 
 async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProject> {
-    const { projectPath, projectName, projectDirectory, archivePath } = projectRef;
+    const { projectPath, projectName, projectDirectory, archivePath, platform } = projectRef;
     const exportPath = `${projectDirectory}/${projectName}`;
     core.debug(`Export path: ${exportPath}`);
     const exportOptionPlistInput = core.getInput('export-option-plist');
@@ -212,6 +212,9 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
         if (exportOption === 'app-store') {
             exportOptions['uploadSymbols'] = true;
             exportOptions['manageAppVersionAndBuildNumber'] = true;
+        }
+        if (platform === 'macOS' && exportOption['method'] === 'ad-hoc') {
+            exportOptions['method'] = 'development';
         }
         exportOptionsPath = await writeExportOptions(projectPath, exportOptions);
     } else {
