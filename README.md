@@ -38,6 +38,8 @@ This action requires several secrets that need to be setup in the repository or 
 > openssl base64 -in ./AuthKey_*.p8 -out ./AuthKey_*.txt
 > ```
 
+::: {.table-responsive}
+
 | name | description | required |
 | ---- | ----------- | -------- |
 | `xcode-version` | The version of Xcode to use for building the Xcode project. | Defaults to the [latest version of Xcode on the runner](https://github.com/actions/runner-images/blob/main/images/macos/macos-13-Readme.md#xcode). |
@@ -59,6 +61,8 @@ This action requires several secrets that need to be setup in the repository or 
 | `export-option` | The export option to use for exporting the Xcode project. Can be one of `app-store`, `ad-hoc`, `package`, `enterprise`, `development`, `developer-id`, `mac-application`. | Defaults to `development` |
 | `export-option-plist` | The path to custom export option plist file to use when exporting the Xcode project. | Overrides `export-option`. |
 | `entitlements-plist` | The path to custom entitlements plist file. | Generates [default hardened runtime entitlements](https://developer.apple.com/documentation/security/hardened-runtime) if not provided. |
+
+:::
 
 ### outputs
 
