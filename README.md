@@ -2,6 +2,9 @@
 
 A GitHub Action to build and archive Unity exported xcode projects.
 
+> [!NOTE]
+> The main goal of this action to to take what is provided from Unity, archive sign and package it to be directly uploaded to the app store or steam.
+
 ## How to use
 
 ### workflow
@@ -31,16 +34,16 @@ This action requires several secrets that need to be setup in the repository or 
 - `APP_STORE_CONNECT_KEY_ID`: The App Store Connect API key id.
 - `APP_STORE_CONNECT_ISSUER_ID`: The issuer ID of the App Store Connect API key.
 
-> [!NOTE]
-> You can easily encode a file to base64 using the following command:
+> [!TIP]
+> You can easily encode a file to base64 using the following command in linux, mac, or windows bash terminal:
 >
-> ```terminal
+> ```bash
 > openssl base64 -in ./AuthKey_*.p8 -out ./AuthKey_*.txt
 > ```
 
 | name | description | required |
 | ---- | ----------- | -------- |
-| `xcode-version` | The version of Xcode to use for building the Xcode project. | Defaults to the [latest version of Xcode on the runner](https://github.com/actions/runner-images/blob/main/images/macos/macos-13-Readme.md#xcode). |
+| `xcode-version` | The version of Xcode to use for building the Xcode project. | Defaults to the [latest version of Xcode on the runner](https://github.com/actions/runner-images#available-images). |
 | `project-path` | The directory that contains the exported xcode project from Unity. | Defaults to searching the workspace for `.xcodeproj` |
 | `app-store-connect-key` | The App Store Connect API AuthKey_*.p8 key encoded as base64 string. | true |
 | `app-store-connect-key-id` | The App Store Connect API key id. | true |
