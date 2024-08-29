@@ -3,7 +3,7 @@
 A GitHub Action to build and archive Unity exported xcode projects.
 
 > [!NOTE]
-> The main goal of this action to to take what is provided from Unity, archive sign and package it to be directly uploaded to the app store or steam.
+> The main goal of this action to to take what is provided from Unity, archive, sign, notarize and package it to be directly uploaded to the Apple app store or steam.
 
 ## How to use
 
@@ -59,9 +59,10 @@ This action requires several secrets that need to be setup in the repository or 
 | `scheme` | The scheme to use when building the xcode project. | false |
 | `destination` | The destination to use when building the xcode project. | Defaults to 'generic/platform={platform}'. |
 | `platform` | The platform to build for. Can be one of `iOS`, `macOS`, `tvOS`, `visionOS`. | Defaults to parsing platform from `.xcodeproj`. |
-| `export-option` | The export option to use for exporting the Xcode project. Can be one of `app-store`, `ad-hoc`, `package`, `enterprise`, `development`, `developer-id`, `mac-application`. | Defaults to `development` |
+| `export-option` | The export option to use for exporting the Xcode project. Can be one of `app-store`, `steam`, `ad-hoc`, `package`, `enterprise`, `development`, `developer-id`, `mac-application`. | Defaults to `development` |
 | `export-option-plist` | The path to custom export option plist file to use when exporting the Xcode project. | Overrides `export-option`. |
 | `entitlements-plist` | The path to custom entitlements plist file. | Generates [default hardened runtime entitlements](https://developer.apple.com/documentation/security/hardened-runtime) if not provided. |
+| `notarize` | Whether to notarize the exported Xcode project. | Defaults to `true` if `export-option === steam`. |
 
 ### outputs
 

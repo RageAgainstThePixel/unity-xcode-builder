@@ -40814,9 +40814,13 @@ async function ArchiveXcodeProject(projectRef) {
     core.debug(`Using destination: ${destination}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.debug(`Configuration: ${configuration}`);
+    await getExportOptions(projectRef);
     let entitlementsPath = core.getInput('entitlements-plist');
     if (!entitlementsPath && platform === 'macOS') {
-        entitlementsPath = await getDefaultEntitlementsMacOS(projectDirectory);
+        await getDefaultEntitlementsMacOS(projectRef);
+    }
+    else {
+        projectRef.entitlementsPath = entitlementsPath;
     }
     const archiveArgs = [
         'archive',
@@ -40846,9 +40850,9 @@ async function ArchiveXcodeProject(projectRef) {
     else {
         archiveArgs.push(`AD_HOC_CODE_SIGNING_ALLOWED=YES`, `-allowProvisioningUpdates`);
     }
-    if (entitlementsPath) {
-        core.debug(`Entitlements path: ${entitlementsPath}`);
-        const entitlementsHandle = await fs.promises.open(entitlementsPath, 'r');
+    if (projectRef.entitlementsPath) {
+        core.debug(`Entitlements path: ${projectRef.entitlementsPath}`);
+        const entitlementsHandle = await fs.promises.open(projectRef.entitlementsPath, 'r');
         try {
             const entitlementsContent = await fs.promises.readFile(entitlementsHandle, 'utf8');
             core.debug(`----- Entitlements content: -----\n${entitlementsContent}\n---------------------------------`);
@@ -40856,7 +40860,7 @@ async function ArchiveXcodeProject(projectRef) {
         finally {
             await entitlementsHandle.close();
         }
-        archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${entitlementsPath}`);
+        archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${projectRef.entitlementsPath}`);
     }
     if (platform === 'iOS') {
         archiveArgs.push('COPY_PHASE_STRIP=NO');
@@ -40866,6 +40870,28 @@ async function ArchiveXcodeProject(projectRef) {
     }
     await execWithXcBeautify(archiveArgs);
     projectRef.archivePath = archivePath;
+    return projectRef;
+}
+async function ExportXcodeArchive(projectRef) {
+    const { projectName, projectDirectory, archivePath, exportOptionsPath } = projectRef;
+    const exportPath = `${projectDirectory}/${projectName}`;
+    core.debug(`Export path: ${exportPath}`);
+    const exportArgs = [
+        '-exportArchive',
+        '-archivePath', archivePath,
+        '-exportPath', exportPath,
+        '-exportOptionsPlist', exportOptionsPath,
+        '-allowProvisioningUpdates',
+        `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
+        `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
+        `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId
+    ];
+    if (!core.isDebug()) {
+        exportArgs.push('-quiet');
+    }
+    await execWithXcBeautify(exportArgs);
+    projectRef.exportPath = exportPath;
+    core.info(`Exported to: ${exportPath}`);
     return projectRef;
 }
 async function determinePlatform(projectPath, scheme) {
@@ -40904,41 +40930,20 @@ async function determinePlatform(projectPath, scheme) {
     };
     return platforms[platformName] || null;
 }
-async function getDefaultEntitlementsMacOS(projectPath) {
-    const entitlementsPath = `${projectPath}/Entitlements.plist`;
-    try {
-        await fs.promises.access(entitlementsPath, fs.constants.R_OK);
-        core.info(`Existing Entitlements.plist found at: ${entitlementsPath}`);
-        return entitlementsPath;
-    }
-    catch (error) {
-        core.warning('Entitlements.plist not found, creating default Entitlements.plist...');
-    }
-    const defaultEntitlements = {
-        'com.apple.security.app-sandbox': true,
-        'com.apple.security.cs.disable-executable-page-protection': true,
-        'com.apple.security.cs.disable-library-validation': true
-    };
-    await fs.promises.writeFile(entitlementsPath, plist.build(defaultEntitlements));
-    return entitlementsPath;
-}
-async function ExportXcodeArchive(projectRef) {
-    const { projectPath, projectName, projectDirectory, archivePath, platform } = projectRef;
-    const exportPath = `${projectDirectory}/${projectName}`;
-    core.debug(`Export path: ${exportPath}`);
+async function getExportOptions(projectRef) {
     const exportOptionPlistInput = core.getInput('export-option-plist');
     let exportOptionsPath = undefined;
     if (!exportOptionPlistInput) {
         const exportOption = core.getInput('export-option') || 'development';
+        const method = projectRef.platform === 'macOS' && (exportOption === 'ad-hoc' || exportOption === 'steam')
+            ? 'developer-id'
+            : exportOption;
         const exportOptions = {
-            method: platform === 'macOS' && exportOption === 'ad-hoc' ? 'development' : exportOption,
+            method: method,
             signingStyle: projectRef.credential.signingIdentity ? 'manual' : 'automatic',
             teamID: `${projectRef.credential.teamId}`
         };
-        if (exportOption === 'app-store') {
-            exportOptions['manageAppVersionAndBuildNumber'] = true;
-        }
-        exportOptionsPath = await writeExportOptions(projectPath, exportOptions);
+        exportOptionsPath = await writeExportOptions(projectRef.projectPath, exportOptions);
     }
     else {
         exportOptionsPath = exportOptionPlistInput;
@@ -40951,32 +40956,48 @@ async function ExportXcodeArchive(projectRef) {
     try {
         const exportOptionContent = await fs.promises.readFile(exportOptionsHandle, 'utf8');
         core.debug(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------`);
+        const exportOptions = plist.parse(exportOptionContent);
+        projectRef.exportOption = exportOptions.method;
     }
     finally {
         await exportOptionsHandle.close();
     }
-    const exportArgs = [
-        '-exportArchive',
-        '-archivePath', archivePath,
-        '-exportPath', exportPath,
-        '-exportOptionsPlist', exportOptionsPath,
-        '-allowProvisioningUpdates',
-        `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
-        `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
-        `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId
-    ];
-    if (!core.isDebug()) {
-        exportArgs.push('-quiet');
-    }
-    await execWithXcBeautify(exportArgs);
-    projectRef.exportPath = exportPath;
-    core.info(`Exported to: ${exportPath}`);
-    return projectRef;
+    projectRef.exportOptionsPath = exportOptionsPath;
 }
 async function writeExportOptions(projectPath, exportOptions) {
     const exportOptionsPath = `${projectPath}/exportOptions.plist`;
     await fs.promises.writeFile(exportOptionsPath, plist.build(exportOptions));
     return exportOptionsPath;
+}
+async function getDefaultEntitlementsMacOS(projectRef) {
+    const entitlementsPath = `${projectRef.projectPath}/Entitlements.plist`;
+    projectRef.entitlementsPath = entitlementsPath;
+    try {
+        await fs.promises.access(entitlementsPath, fs.constants.R_OK);
+        core.info(`Existing Entitlements.plist found at: ${entitlementsPath}`);
+        return;
+    }
+    catch (error) {
+        core.warning('Entitlements.plist not found, creating default Entitlements.plist...');
+    }
+    const exportOption = projectRef.exportOption;
+    let defaultEntitlements = undefined;
+    switch (exportOption) {
+        case 'app-store':
+            defaultEntitlements = {
+                'com.apple.security.app-sandbox': true,
+                'com.apple.security.files.user-selected.read-only': true,
+            };
+            break;
+        default:
+            defaultEntitlements = {
+                'com.apple.security.cs.disable-library-validation': true,
+                'com.apple.security.cs.allow-dyld-environment-variables': true,
+                'com.apple.security.cs.disable-executable-page-protection': true,
+            };
+            break;
+    }
+    await fs.promises.writeFile(entitlementsPath, plist.build(defaultEntitlements));
 }
 async function execWithXcBeautify(xcodeBuildArgs) {
     try {
