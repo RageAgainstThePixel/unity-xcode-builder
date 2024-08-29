@@ -209,9 +209,22 @@ async function getExportOptions(projectRef: XcodeProject): Promise<void> {
     let exportOptionsPath = undefined;
     if (!exportOptionPlistInput) {
         const exportOption = core.getInput('export-option') || 'development';
-        const method = projectRef.platform === 'macOS' && (exportOption === 'ad-hoc' || exportOption === 'steam')
-            ? 'developer-id'
-            : exportOption;
+        let method: string;
+        if (projectRef.platform === 'macOS') {
+            switch (exportOption) {
+                case 'steam':
+                    method = 'developer-id';
+                    break;
+                case 'ad-hoc':
+                    method = 'development';
+                    break;
+                default:
+                    method = exportOption;
+                    break;
+            }
+        } else {
+            method = exportOption;
+        }
         const exportOptions = {
             method: method,
             signingStyle: projectRef.credential.signingIdentity ? 'manual' : 'automatic',
