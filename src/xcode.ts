@@ -137,6 +137,10 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         // don't strip debug symbols during copy
         archiveArgs.push('COPY_PHASE_STRIP=NO');
     }
+    if (platform === 'macOS' && projectRef.exportOption !== 'app-store') {
+        // enable hardened runtime
+        archiveArgs.push('ENABLE_HARDENED_RUNTIME=YES');
+    }
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
@@ -295,7 +299,7 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
         core.info('Installing xcbeautify...');
         await exec.exec('brew', ['install', 'xcbeautify']);
     }
-    const xcBeautifyProcess = spawn('xcbeautify', ['--quiet', '--is-ci'], {
+    const xcBeautifyProcess = spawn('xcbeautify', ['--quiet', '--is-ci', '--disable-logging'], {
         stdio: ['pipe', process.stdout, process.stderr]
     });
     core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);

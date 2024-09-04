@@ -40865,6 +40865,9 @@ async function ArchiveXcodeProject(projectRef) {
     if (platform === 'iOS') {
         archiveArgs.push('COPY_PHASE_STRIP=NO');
     }
+    if (platform === 'macOS' && projectRef.exportOption !== 'app-store') {
+        archiveArgs.push('ENABLE_HARDENED_RUNTIME=YES');
+    }
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
@@ -41021,7 +41024,7 @@ async function execWithXcBeautify(xcodeBuildArgs) {
         core.info('Installing xcbeautify...');
         await exec.exec('brew', ['install', 'xcbeautify']);
     }
-    const xcBeautifyProcess = (0, child_process_1.spawn)('xcbeautify', ['--quiet', '--is-ci'], {
+    const xcBeautifyProcess = (0, child_process_1.spawn)('xcbeautify', ['--quiet', '--is-ci', '--disable-logging'], {
         stdio: ['pipe', process.stdout, process.stderr]
     });
     core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
