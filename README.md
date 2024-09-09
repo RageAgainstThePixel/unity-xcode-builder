@@ -21,9 +21,8 @@ steps:
       team-id: ${{ secrets.APPLE_TEAM_ID }}
 
   - run: |
-      echo ${{ steps.xcode-build.outputs.archive }}
       echo ${{ steps.xcode-build.outputs.executable }}
-      ls -al ${{ steps.xcode-build.outputs.export-path }}
+      ls -al ${{ steps.xcode-build.outputs.output-directory }}
 ```
 
 ### inputs
