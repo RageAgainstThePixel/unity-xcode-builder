@@ -73,7 +73,7 @@ jobs:
         run: |
           echo "Executable: ${{ steps.xcode-build.outputs.executable }}"
           echo "Output Directory: ${{ steps.xcode-build.outputs.output-directory }}"
-          ls -al ${{ steps.xcode-build.outputs.output-directory }}
+          ls -R "${{ steps.xcode-build.outputs.output-directory }}"
 
       - uses: actions/upload-artifact@v4
         with:
