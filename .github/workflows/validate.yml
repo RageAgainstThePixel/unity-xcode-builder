@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   unity-build:
-    name: '${{ matrix.build-target }} ${{ matrix.unity-versions }}'
+    name: '(${{ matrix.unity-versions }}) ${{ matrix.build-target }}'
     env:
       UNITY_PROJECT_PATH: '' # set by unity-setup action
     runs-on: ${{ matrix.os }}
