@@ -43004,9 +43004,9 @@ const main = async () => {
             let projectRef = await (0, xcode_1.GetProjectDetails)();
             projectRef.credential = credential;
             projectRef = await (0, xcode_1.ArchiveXcodeProject)(projectRef);
-            core.setOutput('archive', projectRef.archivePath);
+            core.setOutput('executable', projectRef.archivePath);
             projectRef = await (0, xcode_1.ExportXcodeArchive)(projectRef);
-            core.setOutput('export-path', projectRef.exportPath);
+            core.setOutput('output-directory', projectRef.exportPath);
         }
         else {
             await (0, credentials_1.Cleanup)();

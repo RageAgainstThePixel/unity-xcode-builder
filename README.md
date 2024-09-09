@@ -66,5 +66,5 @@ This action requires several secrets that need to be setup in the repository or 
 
 ### outputs
 
-- `archive`: Path to the exported archive.
-- `export-path`: The path to the export directory.
+- `executable`: Path to the exported archive executable.
+- `output-directory`: The path to the export output directory.
