@@ -74,11 +74,3 @@ jobs:
           echo "Executable: ${{ steps.xcode-build.outputs.executable }}"
           echo "Output Directory: ${{ steps.xcode-build.outputs.output-directory }}"
           ls -R "${{ steps.xcode-build.outputs.output-directory }}"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: ${{ matrix.unity-versions }}-${{ matrix.build-target }}.${{ github.run_number }}
-          path: |
-            ${{ github.workspace }}/**/*.log
-            ${{ steps.xcode-build.outputs.output-directory }}
