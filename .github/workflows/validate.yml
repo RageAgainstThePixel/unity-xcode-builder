@@ -13,51 +13,66 @@ concurrency:
   cancel-in-progress: true
 jobs:
   unity-build:
-    name: '(${{ matrix.unity-versions }}) ${{ matrix.build-target }}'
+    name: '(${{ matrix.unity-version }}) ${{ matrix.build-target }}'
     env:
+      TEMPLATE_PATH: ''
       UNITY_PROJECT_PATH: '' # set by unity-setup action
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [macos-13]
-        unity-versions: [2021.x, 2022.x, 6000.x]
+        unity-version: [2021.x, 2022.x, 6000.x]
         build-target:
           - iOS
           - StandaloneOSX
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: RageAgainstThePixel/com.utilities.encoder.wav
-          path: 'com.utilities.encoder.wav'
-          ref: test
+      - run: 'npm install -g openupm-cli'
+        # Installs the Unity Editor based on your project version text file
+        # sets -> env.UNITY_EDITOR_PATH
+        # sets -> env.UNITY_PROJECT_PATH
       - uses: RageAgainstThePixel/unity-setup@v1
         with:
-          unity-version: ${{ matrix.unity-versions }}
+          version-file: 'None'
           build-targets: ${{ matrix.build-target }}
-          version-file: '${{ github.workspace }}/com.utilities.encoder.wav/Utilities.Encoder.Wav/ProjectSettings/ProjectVersion.txt'
+          unity-version: ${{ matrix.unity-version }}
+      - name: Find Unity Template Path
+        run: |
+          $rootPath = $env:UNITY_EDITOR_PATH -replace "Editor.*", ""
+          Write-Host "ROOT_PATH=$rootPath"
+          $templatePath = Get-ChildItem -Recurse -Filter "com.unity.template.3d*.tgz" -Path $rootPath | Select-Object -First 1 | Select-Object -ExpandProperty FullName
+          Write-Host "TEMPLATE_PATH=$templatePath"
+          echo "TEMPLATE_PATH=$templatePath" >> $env:GITHUB_ENV
+          $projectPath = "${{ github.workspace }}/TestProject"
+          echo "UNITY_PROJECT_PATH=$projectPath" >> $env:GITHUB_ENV
+        shell: pwsh
+        # Activates the installation with the provided credentials
       - uses: RageAgainstThePixel/activate-unity-license@v1
         with:
           license: 'Personal'
           username: ${{ secrets.UNITY_USERNAME }}
           password: ${{ secrets.UNITY_PASSWORD }}
       - uses: RageAgainstThePixel/unity-action@v1
+        name: Create Test Project
+        with:
+          log-name: 'create-test-project'
+          args: '-quit -nographics -batchmode -createProject "${{ github.workspace }}/TestProject" -cloneFromTemplate "${{ env.TEMPLATE_PATH }}"'
+      - run: 'openupm add com.utilities.buildpipeline'
+        name: Add Build Pipeline Package
+        working-directory: ${{ github.workspace }}/TestProject
+      - uses: RageAgainstThePixel/unity-action@v1
         name: '${{ matrix.build-target }}-Validate'
         with:
+          build-target: ${{ matrix.build-target }}
           log-name: '${{ matrix.build-target }}-Validate'
           args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.ValidateProject -importTMProEssentialsAsset'
       - uses: RageAgainstThePixel/unity-action@v1
-        name: '${{ matrix.build-target }}-Test'
-        with:
-          log-name: '${{ matrix.build-target }}-Test'
-          build-target: ${{ matrix.build-target }}
-          args: '-nographics -batchmode -runTests -testPlatform EditMode -testResults "${{ github.workspace }}/Logs/${{ matrix.build-target }}-results.xml"'
-      - uses: RageAgainstThePixel/unity-action@v1
         name: '${{ matrix.build-target }}-Build'
         with:
+          build-target: ${{ matrix.build-target }}
           log-name: '${{ matrix.build-target }}-Build'
-          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -export -enableAppleAutomaticSigning -bundleIdentifier com.rageagainstthepixel.utilities.encoder.wav'
+          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -sceneList Assets/Scenes/SampleScene.unity -arch ARM64'
 
       - uses: ./ # RageAgainstThePixel/unity-xcode-builder
         id: xcode-build
