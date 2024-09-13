@@ -72,7 +72,7 @@ jobs:
         with:
           build-target: ${{ matrix.build-target }}
           log-name: '${{ matrix.build-target }}-Build'
-          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -sceneList Assets/Scenes/SampleScene.unity -arch ARM64'
+          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -sceneList Assets/Scenes/SampleScene.unity -export'
 
       - uses: ./ # RageAgainstThePixel/unity-xcode-builder
         id: xcode-build
