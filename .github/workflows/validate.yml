@@ -28,6 +28,21 @@ jobs:
           - StandaloneOSX
     steps:
       - uses: actions/checkout@v4
+      - name: Remove unused applications
+        run: |
+          df -hI /dev/disk3s1s1
+          sudo rm -rf /Applications/Xcode_14.3.1.app
+          sudo rm -rf /Applications/Xcode_15.0.1.app
+          sudo rm -rf /Applications/Xcode_15.1.app
+          sudo rm -rf /Applications/Xcode_15.2.app
+          sudo rm -rf /Applications/Xcode_15.3.app
+          sudo rm -rf /Applications/Xcode_16_beta_6.app
+          df -hI /dev/disk3s1s1
+          # set the correct Xcode version 15.4
+          sudo xcode-select -s /Applications/Xcode_15.4.app
+          sudo xcode-select -p
+          sudo xcodebuild -runFirstLaunch
+          sudo xcrun simctl list
       - run: 'npm install -g openupm-cli'
         # Installs the Unity Editor based on your project version text file
         # sets -> env.UNITY_EDITOR_PATH

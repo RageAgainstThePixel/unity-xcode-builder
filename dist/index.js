@@ -40743,7 +40743,7 @@ const xcodebuild = '/usr/bin/xcodebuild';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 async function GetProjectDetails() {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
-    core.debug(`Project path input: ${projectPathInput}`);
+    core.info(`Project path input: ${projectPathInput}`);
     let projectPath = undefined;
     const globber = await glob.create(projectPathInput);
     const files = await globber.glob();
@@ -40752,7 +40752,7 @@ async function GetProjectDetails() {
             continue;
         }
         if (file.endsWith('.xcodeproj')) {
-            core.debug(`Found Xcode project: ${file}`);
+            core.info(`Found Xcode project: ${file}`);
             projectPath = file;
             break;
         }
@@ -40760,17 +40760,17 @@ async function GetProjectDetails() {
     if (!projectPath) {
         throw new Error('Invalid project-path! Unable to find .xcodeproj');
     }
-    core.debug(`Resolved Project path: ${projectPath}`);
+    core.info(`Resolved Project path: ${projectPath}`);
     await fs.promises.access(projectPath, fs.constants.R_OK);
     const projectDirectory = path.dirname(projectPath);
-    core.debug(`Project directory: ${projectDirectory}`);
+    core.info(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
     return new XcodeProject(projectPath, projectName, projectDirectory);
 }
 async function ArchiveXcodeProject(projectRef) {
     const { projectPath, projectName, projectDirectory } = projectRef;
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
-    core.debug(`Archive path: ${archivePath}`);
+    core.info(`Archive path: ${archivePath}`);
     let projectInfoOutput = '';
     if (!core.isDebug()) {
         core.info(`[command]${xcodebuild} -list -project ${projectPath} -json`);
@@ -40792,8 +40792,8 @@ async function ArchiveXcodeProject(projectRef) {
     if (!schemes) {
         throw new Error('No schemes found in the project');
     }
-    core.debug(`Available schemes:`);
-    schemes.forEach(s => core.debug(`  > ${s}`));
+    core.info(`Available schemes:`);
+    schemes.forEach(s => core.info(`  > ${s}`));
     let scheme = core.getInput('scheme');
     if (!scheme) {
         if (schemes.includes('Unity-iPhone')) {
@@ -40803,17 +40803,20 @@ async function ArchiveXcodeProject(projectRef) {
             scheme = schemes.find(s => !['GameAssembly', 'UnityFramework', 'Pods'].includes(s) && !s.includes('Test'));
         }
     }
-    core.debug(`Using scheme: ${scheme}`);
+    if (!scheme) {
+        throw new Error('Unable to determine the scheme to build');
+    }
+    core.info(`Using scheme: ${scheme}`);
     let platform = core.getInput('platform') || await determinePlatform(projectPath, scheme);
     if (!platform) {
         throw new Error('Unable to determine the platform to build for.');
     }
-    core.debug(`Platform: ${platform}`);
+    core.info(`Platform: ${platform}`);
     projectRef.platform = platform;
     let destination = core.getInput('destination') || `generic/platform=${platform}`;
-    core.debug(`Using destination: ${destination}`);
+    core.info(`Using destination: ${destination}`);
     const configuration = core.getInput('configuration') || 'Release';
-    core.debug(`Configuration: ${configuration}`);
+    core.info(`Configuration: ${configuration}`);
     await getExportOptions(projectRef);
     let entitlementsPath = core.getInput('entitlements-plist');
     if (!entitlementsPath && platform === 'macOS') {
@@ -40851,11 +40854,11 @@ async function ArchiveXcodeProject(projectRef) {
         archiveArgs.push(`AD_HOC_CODE_SIGNING_ALLOWED=YES`, `-allowProvisioningUpdates`);
     }
     if (projectRef.entitlementsPath) {
-        core.debug(`Entitlements path: ${projectRef.entitlementsPath}`);
+        core.info(`Entitlements path: ${projectRef.entitlementsPath}`);
         const entitlementsHandle = await fs.promises.open(projectRef.entitlementsPath, 'r');
         try {
             const entitlementsContent = await fs.promises.readFile(entitlementsHandle, 'utf8');
-            core.debug(`----- Entitlements content: -----\n${entitlementsContent}\n---------------------------------`);
+            core.info(`----- Entitlements content: -----\n${entitlementsContent}\n---------------------------------`);
         }
         finally {
             await entitlementsHandle.close();
@@ -40878,7 +40881,7 @@ async function ArchiveXcodeProject(projectRef) {
 async function ExportXcodeArchive(projectRef) {
     const { projectName, projectDirectory, archivePath, exportOptionsPath } = projectRef;
     const exportPath = `${projectDirectory}/${projectName}`;
-    core.debug(`Export path: ${exportPath}`);
+    core.info(`Export path: ${exportPath}`);
     const exportArgs = [
         '-exportArchive',
         '-archivePath', archivePath,
@@ -40916,7 +40919,7 @@ async function determinePlatform(projectPath, scheme) {
         silent: !core.isDebug()
     });
     const match = buildSettingsOutput.match(/\s+PLATFORM_NAME = (?<platformName>\w+)/m);
-    core.debug(`$PLATFORM_NAME: ${(_a = match === null || match === void 0 ? void 0 : match.groups) === null || _a === void 0 ? void 0 : _a.platformName}`);
+    core.info(`$PLATFORM_NAME: ${(_a = match === null || match === void 0 ? void 0 : match.groups) === null || _a === void 0 ? void 0 : _a.platformName}`);
     if (!match) {
         throw new Error('No PLATFORM_NAME found in the build settings');
     }
@@ -40965,14 +40968,14 @@ async function getExportOptions(projectRef) {
     else {
         exportOptionsPath = exportOptionPlistInput;
     }
-    core.debug(`Export options path: ${exportOptionsPath}`);
+    core.info(`Export options path: ${exportOptionsPath}`);
     if (!exportOptionsPath) {
         throw new Error(`Invalid path for export-option-plist: ${exportOptionsPath}`);
     }
     const exportOptionsHandle = await fs.promises.open(exportOptionsPath, 'r');
     try {
         const exportOptionContent = await fs.promises.readFile(exportOptionsHandle, 'utf8');
-        core.debug(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------`);
+        core.info(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------`);
         const exportOptions = plist.parse(exportOptionContent);
         projectRef.exportOption = exportOptions.method;
     }
