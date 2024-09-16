@@ -172,7 +172,7 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     }
     await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
-    core.debug(`Exported to: ${exportPath}`);
+    core.info(`Exported: ${exportPath}`);
     return projectRef;
 }
 

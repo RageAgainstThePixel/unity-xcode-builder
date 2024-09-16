@@ -40898,7 +40898,7 @@ async function ExportXcodeArchive(projectRef) {
     }
     await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
-    core.debug(`Exported to: ${exportPath}`);
+    core.info(`Exported: ${exportPath}`);
     return projectRef;
 }
 async function determinePlatform(projectPath, scheme) {
