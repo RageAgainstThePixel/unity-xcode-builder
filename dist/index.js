@@ -40800,7 +40800,8 @@ async function ArchiveXcodeProject(projectRef) {
             scheme = 'Unity-iPhone';
         }
         else {
-            scheme = schemes.find(s => !['GameAssembly', 'UnityFramework', 'Pods'].includes(s) && !s.includes('Test'));
+            const excludedSchemes = ['GameAssembly', 'UnityFramework', 'Pods'];
+            scheme = schemes.find(s => !excludedSchemes.includes(s) && !s.includes('Test'));
             core.info(`Auto-selected scheme: ${scheme}`);
         }
     }
