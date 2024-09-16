@@ -12,14 +12,14 @@ const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
 async function GetProjectDetails(): Promise<XcodeProject> {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
-    core.info(`Project path input: ${projectPathInput}`);
+    core.debug(`Project path input: ${projectPathInput}`);
     let projectPath = undefined;
     const globber = await glob.create(projectPathInput);
     const files = await globber.glob();
     for (const file of files) {
         if (file.endsWith(`GameAssembly.xcodeproj`)) { continue; }
         if (file.endsWith('.xcodeproj')) {
-            core.info(`Found Xcode project: ${file}`);
+            core.debug(`Found Xcode project: ${file}`);
             projectPath = file;
             break;
         }
@@ -27,10 +27,10 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     if (!projectPath) {
         throw new Error('Invalid project-path! Unable to find .xcodeproj');
     }
-    core.info(`Resolved Project path: ${projectPath}`);
+    core.debug(`Resolved Project path: ${projectPath}`);
     await fs.promises.access(projectPath, fs.constants.R_OK);
     const projectDirectory = path.dirname(projectPath);
-    core.info(`Project directory: ${projectDirectory}`);
+    core.debug(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
     return new XcodeProject(projectPath, projectName, projectDirectory);
 }
@@ -38,7 +38,7 @@ async function GetProjectDetails(): Promise<XcodeProject> {
 async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {
     const { projectPath, projectName, projectDirectory } = projectRef;
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
-    core.info(`Archive path: ${archivePath}`);
+    core.debug(`Archive path: ${archivePath}`);
     let projectInfoOutput = '';
     if (!core.isDebug()) {
         core.info(`[command]${xcodebuild} -list -project ${projectPath} -json`);
@@ -60,8 +60,8 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
     if (!schemes) {
         throw new Error('No schemes found in the project');
     }
-    core.info(`Available schemes:`);
-    schemes.forEach(s => core.info(`  > ${s}`));
+    core.debug(`Available schemes:`);
+    schemes.forEach(s => core.debug(`  > ${s}`));
     let scheme = core.getInput('scheme');
     if (!scheme) {
         if (schemes.includes('Unity-iPhone')) {
@@ -69,23 +69,22 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         } else {
             const excludedSchemes = ['GameAssembly', 'UnityFramework', 'Pods'];
             scheme = schemes.find(s => !excludedSchemes.includes(s) && !s.includes('Test'));
-            core.info(`Auto-selected scheme: ${scheme}`);
         }
     }
     if (!scheme) {
         throw new Error('Unable to determine the scheme to build');
     }
-    core.info(`Using scheme: ${scheme}`);
+    core.debug(`Using scheme: ${scheme}`);
     let platform = core.getInput('platform') || await determinePlatform(projectPath, scheme);
     if (!platform) {
         throw new Error('Unable to determine the platform to build for.');
     }
-    core.info(`Platform: ${platform}`);
+    core.debug(`Platform: ${platform}`);
     projectRef.platform = platform;
     let destination = core.getInput('destination') || `generic/platform=${platform}`;
-    core.info(`Using destination: ${destination}`);
+    core.debug(`Using destination: ${destination}`);
     const configuration = core.getInput('configuration') || 'Release';
-    core.info(`Configuration: ${configuration}`);
+    core.debug(`Configuration: ${configuration}`);
     await getExportOptions(projectRef);
     let entitlementsPath = core.getInput('entitlements-plist');
     if (!entitlementsPath && platform === 'macOS') {
@@ -128,11 +127,11 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         );
     }
     if (projectRef.entitlementsPath) {
-        core.info(`Entitlements path: ${projectRef.entitlementsPath}`);
+        core.debug(`Entitlements path: ${projectRef.entitlementsPath}`);
         const entitlementsHandle = await fs.promises.open(projectRef.entitlementsPath, 'r');
         try {
             const entitlementsContent = await fs.promises.readFile(entitlementsHandle, 'utf8');
-            core.info(`----- Entitlements content: -----\n${entitlementsContent}\n---------------------------------`);
+            core.debug(`----- Entitlements content: -----\n${entitlementsContent}\n---------------------------------`);
         } finally {
             await entitlementsHandle.close();
         }
@@ -157,7 +156,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
 async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProject> {
     const { projectName, projectDirectory, archivePath, exportOptionsPath } = projectRef;
     const exportPath = `${projectDirectory}/${projectName}`;
-    core.info(`Export path: ${exportPath}`);
+    core.debug(`Export path: ${exportPath}`);
     const exportArgs = [
         '-exportArchive',
         '-archivePath', archivePath,
@@ -173,7 +172,7 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     }
     await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
-    core.info(`Exported to: ${exportPath}`);
+    core.debug(`Exported to: ${exportPath}`);
     return projectRef;
 }
 
@@ -195,7 +194,7 @@ async function determinePlatform(projectPath: string, scheme: string): Promise<s
         silent: !core.isDebug()
     });
     const match = buildSettingsOutput.match(/\s+PLATFORM_NAME = (?<platformName>\w+)/m);
-    core.info(`$PLATFORM_NAME: ${match?.groups?.platformName}`);
+    core.debug(`$PLATFORM_NAME: ${match?.groups?.platformName}`);
     if (!match) {
         throw new Error('No PLATFORM_NAME found in the build settings');
     }
@@ -243,14 +242,14 @@ async function getExportOptions(projectRef: XcodeProject): Promise<void> {
     } else {
         exportOptionsPath = exportOptionPlistInput;
     }
-    core.info(`Export options path: ${exportOptionsPath}`);
+    core.debug(`Export options path: ${exportOptionsPath}`);
     if (!exportOptionsPath) {
         throw new Error(`Invalid path for export-option-plist: ${exportOptionsPath}`);
     }
     const exportOptionsHandle = await fs.promises.open(exportOptionsPath, 'r');
     try {
         const exportOptionContent = await fs.promises.readFile(exportOptionsHandle, 'utf8');
-        core.info(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------`);
+        core.debug(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------`);
         const exportOptions = plist.parse(exportOptionContent);
         projectRef.exportOption = exportOptions.method;
     } finally {
@@ -270,7 +269,7 @@ async function getDefaultEntitlementsMacOS(projectRef: XcodeProject): Promise<vo
     projectRef.entitlementsPath = entitlementsPath;
     try {
         await fs.promises.access(entitlementsPath, fs.constants.R_OK);
-        core.info(`Existing Entitlements.plist found at: ${entitlementsPath}`);
+        core.debug(`Existing Entitlements.plist found at: ${entitlementsPath}`);
         return;
     } catch (error) {
         core.warning('Entitlements.plist not found, creating default Entitlements.plist...');
@@ -301,7 +300,7 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
     try {
         await exec.exec('xcbeautify', ['--version'], { silent: true });
     } catch (error) {
-        core.info('Installing xcbeautify...');
+        core.debug('Installing xcbeautify...');
         await exec.exec('brew', ['install', 'xcbeautify']);
     }
     const xcBeautifyProcess = spawn('xcbeautify', ['--quiet', '--is-ci', '--disable-logging'], {
