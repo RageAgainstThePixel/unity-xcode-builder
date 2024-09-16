@@ -40801,6 +40801,7 @@ async function ArchiveXcodeProject(projectRef) {
         }
         else {
             scheme = schemes.find(s => !['GameAssembly', 'UnityFramework', 'Pods'].includes(s) && !s.includes('Test'));
+            core.info(`Auto-selected scheme: ${scheme}`);
         }
     }
     if (!scheme) {
