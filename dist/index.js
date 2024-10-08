@@ -40899,6 +40899,13 @@ async function ExportXcodeArchive(projectRef) {
     await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
     core.info(`Exported: ${exportPath}`);
+    const globPath = `${exportPath}/**/*.ipa\n${exportPath}/**/*.app`;
+    const globber = await glob.create(globPath);
+    const files = await globber.glob();
+    if (files.length === 0) {
+        throw new Error(`No IPA or APP file found in the export path.\n${globPath}`);
+    }
+    core.setOutput('executable', files[0]);
     return projectRef;
 }
 async function determinePlatform(projectPath, scheme) {
@@ -43008,7 +43015,6 @@ const main = async () => {
             let projectRef = await (0, xcode_1.GetProjectDetails)();
             projectRef.credential = credential;
             projectRef = await (0, xcode_1.ArchiveXcodeProject)(projectRef);
-            core.setOutput('executable', projectRef.archivePath);
             projectRef = await (0, xcode_1.ExportXcodeArchive)(projectRef);
             core.setOutput('output-directory', projectRef.exportPath);
         }
