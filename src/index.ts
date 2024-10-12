@@ -1,14 +1,21 @@
 import core = require('@actions/core');
 import exec = require('@actions/exec');
 import {
-    ImportCredentials,
-    Cleanup
-} from './credentials';
-import {
     GetProjectDetails,
     ArchiveXcodeProject,
-    ExportXcodeArchive
+    ExportXcodeArchive,
+    ValidateApp
 } from './xcode';
+import {
+    UploadTestFlightBuild
+} from './AppStoreConnectClient';
+import {
+    XcodeProject
+} from './XcodeProject';
+import {
+    ImportCredentials,
+    RemoveCredentials
+} from './AppleCredential';
 
 const IS_POST = !!core.getState('isPost');
 
@@ -23,13 +30,15 @@ const main = async () => {
             }
             await exec.exec('xcodebuild', ['-version']);
             const credential = await ImportCredentials();
-            let projectRef = await GetProjectDetails();
+            let projectRef: XcodeProject = await GetProjectDetails();
             projectRef.credential = credential;
             projectRef = await ArchiveXcodeProject(projectRef);
             projectRef = await ExportXcodeArchive(projectRef);
+            await ValidateApp(projectRef);
             core.setOutput('output-directory', projectRef.exportPath);
+            await UploadTestFlightBuild(projectRef);
         } else {
-            await Cleanup();
+            await RemoveCredentials();
         }
     } catch (error) {
         core.setFailed(error.stack);

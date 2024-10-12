@@ -1,6 +1,6 @@
 {
   "name": "unity-xcode-builder",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "A GitHub Action to build and archive Unity exported xcode projects.",
   "author": "RageAgainstThePixel",
   "license": "MIT",
@@ -18,19 +18,25 @@
     "@actions/core": "^1.10.1",
     "@actions/exec": "^1.1.1",
     "@actions/glob": "^0.5.0",
+    "@hey-api/client-fetch": "^0.4.1",
     "plist": "^3.1.0",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
+    "@hey-api/openapi-ts": "^0.53.10",
     "@types/node": "^22.2.0",
+    "@types/plist": "^3.0.5",
     "@types/uuid": "^10.0.0",
     "@vercel/ncc": "^0.34.0",
+    "jose": "^5.9.4",
     "shx": "^0.3.4",
     "typescript": "^5.5.4"
   },
   "scripts": {
     "build": "npm run clean && npm run bundle",
     "bundle": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
-    "clean": "npm install && shx rm -rf dist/ out/ node_modules/ && npm ci"
+    "clean": "npm install && shx rm -rf dist/ out/ node_modules/ && npm ci",
+    "openapi-ts": "openapi-ts",
+    "generate": "npx @hey-api/openapi-ts -f ./openapi-ts.config.ts"
   }
 }
