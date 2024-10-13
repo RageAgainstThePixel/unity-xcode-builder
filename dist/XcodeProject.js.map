@@ -1,1 +1,0 @@
-{"version":3,"file":"XcodeProject.js","sourceRoot":"","sources":["../src/XcodeProject.ts"],"names":[],"mappings":";;;AAEA,MAAa,YAAY;IACrB,YAAY,WAAmB,EAAE,WAAmB,EAAE,QAAgB,EAAE,gBAAwB;QAC5F,IAAI,CAAC,WAAW,GAAG,WAAW,CAAC;QAC/B,IAAI,CAAC,WAAW,GAAG,WAAW,CAAC;QAC/B,IAAI,CAAC,gBAAgB,GAAG,gBAAgB,CAAC;IAC7C,CAAC;CAcJ;AAnBD,oCAmBC"}
