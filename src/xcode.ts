@@ -38,6 +38,10 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     if (!bundleIdInput || bundleIdInput === '') {
         const xcodeprojHandle = await fs.promises.open(projectPath, 'r');
         try {
+            const stat = await xcodeprojHandle.stat();
+            if (stat.isDirectory()) {
+                throw new Error(`The project path ${projectPath} is a directory, not a file!`);
+            }
             const xcodeprojContent = await fs.promises.readFile(xcodeprojHandle, 'utf8');
             const match = xcodeprojContent.match(/PRODUCT_BUNDLE_IDENTIFIER = (?<bundleId>.+);/m);
             core.debug(`$PRODUCT_BUNDLE_IDENTIFIER: ${match?.groups?.bundleId}`);
