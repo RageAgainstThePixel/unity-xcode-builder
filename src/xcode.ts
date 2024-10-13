@@ -338,6 +338,7 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
         stdio: ['pipe', process.stdout, process.stderr]
     });
     core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
+    let errorOutput = '';
     const exitCode = await exec.exec(xcodebuild, xcodeBuildArgs, {
         listeners: {
             stdout: (data: Buffer) => {
@@ -345,6 +346,7 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
             },
             stderr: (data: Buffer) => {
                 xcBeautifyProcess.stdin.write(data);
+                errorOutput += data.toString();
             }
         },
         silent: true,
@@ -361,7 +363,7 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
         });
     });
     if (exitCode !== 0) {
-        throw new Error(`xcodebuild exited with code ${exitCode}`);
+        throw new Error(`xcodebuild exited with code ${exitCode}\n${errorOutput}`);
     }
 }
 
@@ -373,6 +375,7 @@ async function ValidateApp(projectRef: XcodeProject) {
         'visionOS': 'xros'
     };
     let output = '';
+    core.info(`[command]${xcrun} altool --validate-app --file ${projectRef.exportPath} --type ${platforms[projectRef.platform]} *** --verbose --output-format json`);
     const exitCode = await exec.exec(xcrun, [
         'altool',
         '--validate-app',
@@ -389,7 +392,7 @@ async function ValidateApp(projectRef: XcodeProject) {
             }
         },
         silent: !core.isDebug(),
-        failOnStdErr: false
+        ignoreReturnCode: true
     });
     core.info('Validation result:');
     const json = JSON.parse(output);
@@ -407,6 +410,7 @@ async function UploadApp(projectRef: XcodeProject) {
         'visionOS': 'xros'
     };
     let output = '';
+    core.info(`[command]${xcrun} altool --upload-package ${projectRef.archivePath} --type ${platforms[projectRef.platform]} *** --verbose --output-format json`);
     const exitCode = await exec.exec(xcrun, [
         'altool',
         '--upload-package',
@@ -424,7 +428,7 @@ async function UploadApp(projectRef: XcodeProject) {
             }
         },
         silent: !core.isDebug(),
-        failOnStdErr: false
+        ignoreReturnCode: true
     });
     core.info('Upload result:');
     const json = JSON.parse(output);
