@@ -28,19 +28,28 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     if (!projectPath) {
         throw new Error('Invalid project-path! Unable to find .xcodeproj');
     }
-    core.debug(`Resolved Project path: ${projectPath}`);
+    core.info(`Resolved Project path: ${projectPath}`);
     await fs.promises.access(projectPath, fs.constants.R_OK);
     const projectDirectory = path.dirname(projectPath);
-    core.debug(`Project directory: ${projectDirectory}`);
+    core.info(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
     const bundleIdInput = core.getInput('bundle-id');
     let bundleId: string;
     if (!bundleIdInput || bundleIdInput === '') {
-        let projectContent = await fs.promises.readFile(projectPath, 'utf8');
-        let match = projectContent.match(/PRODUCT_BUNDLE_IDENTIFIER = (?<bundleId>[^;]+);/m);
-        bundleId = match.groups.bundleId;
-        if (!match) {
-            throw new Error('Unable to determine bundle id from the project file!');
+        const xcodeprojHandle = await fs.promises.open(projectPath, 'r');
+        try {
+            const xcodeprojContent = await fs.promises.readFile(xcodeprojHandle, 'utf8');
+            const match = xcodeprojContent.match(/PRODUCT_BUNDLE_IDENTIFIER = (?<bundleId>.+);/m);
+            core.debug(`$PRODUCT_BUNDLE_IDENTIFIER: ${match?.groups?.bundleId}`);
+            if (!match) {
+                throw new Error('No PRODUCT_BUNDLE_IDENTIFIER found in the xcodeproj file');
+            }
+            bundleId = match.groups?.bundleId;
+            if (!bundleId) {
+                throw new Error('Unable to determine the bundle id from the xcodeproj file');
+            }
+        } finally {
+            await xcodeprojHandle.close();
         }
     } else {
         bundleId = bundleIdInput;
