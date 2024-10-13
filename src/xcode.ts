@@ -36,20 +36,17 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     const bundleIdInput = core.getInput('bundle-id');
     let bundleId: string;
     if (!bundleIdInput || bundleIdInput === '') {
-        let projectInfoOutput = '';
-        await exec.getExecOutput(xcodebuild, [
-            '-list',
-            '-project', projectPath,
-            '-json'
-        ], {
-            listeners: {
-                stdout: (data: Buffer) => {
-                    projectInfoOutput += data.toString();
-                }
-            }
-        });
-        const projectInfo = JSON.parse(projectInfoOutput);
-        bundleId = projectInfo.project.targets[0].targetAttributes.PRODUCT_BUNDLE_IDENTIFIER;
+        // get bundle id from Info.plist
+        let infoPlistPath = `${projectDirectory}/${projectName}/Info.plist`;
+        if (!fs.existsSync(infoPlistPath)) {
+            infoPlistPath = `${projectDirectory}/Info.plist`;
+        }
+        if (!fs.existsSync(infoPlistPath)) {
+            throw new Error('Unable to find Info.plist');
+        }
+        const infoPlistContent = await fs.promises.readFile(infoPlistPath, 'utf8');
+        const infoPlist = plist.parse(infoPlistContent);
+        bundleId = infoPlist['CFBundleIdentifier'];
     } else {
         bundleId = bundleIdInput;
     }
