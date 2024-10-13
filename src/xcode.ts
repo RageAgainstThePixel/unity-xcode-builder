@@ -36,7 +36,6 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     const bundleIdInput = core.getInput('bundle-id');
     let bundleId: string;
     if (!bundleIdInput || bundleIdInput === '') {
-        // get bundle id from Info.plist
         let infoPlistPath = `${projectDirectory}/${projectName}/Info.plist`;
         if (!fs.existsSync(infoPlistPath)) {
             infoPlistPath = `${projectDirectory}/Info.plist`;
