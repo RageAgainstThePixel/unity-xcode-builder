@@ -14,6 +14,7 @@ export class XcodeProject {
     platform: string;
     archivePath: string;
     exportPath: string;
+    executablePath: string;
     exportOption: string;
     exportOptionsPath: string;
     entitlementsPath: string;

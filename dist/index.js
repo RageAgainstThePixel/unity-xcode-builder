@@ -51745,6 +51745,7 @@ async function ExportXcodeArchive(projectRef) {
         throw new Error(`No IPA or APP file found in the export path.\n${globPath}`);
     }
     core.setOutput('executable', files[0]);
+    projectRef.executablePath = files[0];
     return projectRef;
 }
 async function determinePlatform(projectPath, scheme) {
@@ -51915,11 +51916,11 @@ async function ValidateApp(projectRef) {
         'visionOS': 'xros'
     };
     let output = '';
-    core.info(`[command]${xcrun} altool --validate-app --file ${projectRef.exportPath} --type ${platforms[projectRef.platform]} *** --verbose --output-format json`);
+    core.info(`[command]${xcrun} altool --validate-app --file ${projectRef.executablePath} --type ${platforms[projectRef.platform]} *** --verbose --output-format json`);
     const exitCode = await exec.exec(xcrun, [
         'altool',
         '--validate-app',
-        '--file', projectRef.exportPath,
+        '--file', projectRef.executablePath,
         '--type', platforms[projectRef.platform],
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
@@ -51948,11 +51949,11 @@ async function UploadApp(projectRef) {
         'visionOS': 'xros'
     };
     let output = '';
-    core.info(`[command]${xcrun} altool --upload-package ${projectRef.archivePath} --type ${platforms[projectRef.platform]} *** --verbose --output-format json`);
+    core.info(`[command]${xcrun} altool --upload-package ${projectRef.executablePath} --type ${platforms[projectRef.platform]} *** --verbose --output-format json`);
     const exitCode = await exec.exec(xcrun, [
         'altool',
         '--upload-package',
-        projectRef.archivePath,
+        projectRef.executablePath,
         '--type', platforms[projectRef.platform],
         '--team-id', projectRef.credential.teamId,
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
