@@ -36,15 +36,25 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     const bundleIdInput = core.getInput('bundle-id');
     let bundleId: string;
     if (!bundleIdInput || bundleIdInput === '') {
-        const projectInfoOutput = await exec.getExecOutput(xcodebuild, [
+        let projectInfoOutput = '';
+        await exec.getExecOutput(xcodebuild, [
             '-list',
             '-project', projectPath,
             '-json'
-        ]);
-        const projectInfo = JSON.parse(projectInfoOutput.stdout);
+        ], {
+            listeners: {
+                stdout: (data: Buffer) => {
+                    projectInfoOutput += data.toString();
+                }
+            }
+        });
+        const projectInfo = JSON.parse(projectInfoOutput);
         bundleId = projectInfo.project.targets[0].targetAttributes.PRODUCT_BUNDLE_IDENTIFIER;
     } else {
         bundleId = bundleIdInput;
+    }
+    if (!bundleId) {
+        throw new Error('Unable to determine bundle identifier from the project');
     }
     return new XcodeProject(projectPath, projectName, bundleId, projectDirectory);
 }
