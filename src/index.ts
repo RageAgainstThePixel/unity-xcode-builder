@@ -10,9 +10,6 @@ import {
     UploadTestFlightBuild
 } from './AppStoreConnectClient';
 import {
-    XcodeProject
-} from './XcodeProject';
-import {
     ImportCredentials,
     RemoveCredentials
 } from './AppleCredential';
@@ -30,7 +27,8 @@ const main = async () => {
             }
             await exec.exec('xcodebuild', ['-version']);
             const credential = await ImportCredentials();
-            let projectRef: XcodeProject = await GetProjectDetails();
+            core.info('getting project details');
+            let projectRef = await GetProjectDetails();
             projectRef.credential = credential;
             projectRef = await ArchiveXcodeProject(projectRef);
             projectRef = await ExportXcodeArchive(projectRef);

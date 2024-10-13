@@ -40,24 +40,6 @@ class AppleCredential {
     signingIdentity?: string;
     provisioningProfileUUID?: string;
     bearerToken?: string;
-
-    /**
-    * Generates a JWT token for use with the App Store Connect API.
-    * @see https://developer.apple.com/documentation/appstoreconnectapi/generating_tokens_for_api_requests
-    * @returns The generated JWT token
-    * @throws {Error} If there is an issue generating the token
-    **/
-    async generateAuthToken() {
-        const alg = "ES256";
-        const key = await jose.importPKCS8(this.appStoreConnectKey, alg);
-        const token = await new jose.SignJWT({})
-            .setProtectedHeader({ alg, kid: this.appStoreConnectKeyId, typ: "JWT" })
-            .setIssuer(this.appStoreConnectIssuerId)
-            .setAudience("appstoreconnect-v1")
-            .setExpirationTime(new Date(Date.now() + 600 * 1000)) // expire in 10 minutes
-            .sign(key);
-        return token;
-    }
 }
 
 // https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
