@@ -53,7 +53,8 @@ class AppleCredential {
         const token = await new jose.SignJWT({})
             .setProtectedHeader({ alg, kid: this.appStoreConnectKeyId, typ: "JWT" })
             .setIssuer(this.appStoreConnectIssuerId)
-            .setAudience("appstoreconnect-v1").setExpirationTime(Math.floor(Date.now() / 1000) + 600) // Expires in 10 minutes
+            .setAudience("appstoreconnect-v1")
+            .setExpirationTime(new Date(Date.now() + 600 * 1000)) // expire in 10 minutes
             .sign(key);
         return token;
     }

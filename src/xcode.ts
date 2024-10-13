@@ -36,16 +36,19 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     const bundleIdInput = core.getInput('bundle-id');
     let bundleId: string;
     if (!bundleIdInput || bundleIdInput === '') {
-        const fd = await fs.promises.open(projectPath, 'r');
+        let fileHandle: fs.promises.FileHandle;
         try {
-            const projectContent = await fs.promises.readFile(fd, 'utf8');
+            fileHandle = await fs.promises.open(projectPath, 'r');
+            const projectContent = await fileHandle.readFile({ encoding: 'utf8' });
             const match = projectContent.match(/PRODUCT_BUNDLE_IDENTIFIER = (?<bundleId>[^;]+);/m);
-            bundleId = match.groups.bundleId;
             if (!match) {
                 throw new Error('Unable to determine bundle id from the project file!');
             }
+            bundleId = match.groups.bundleId;
         } finally {
-            await fd.close();
+            if (fileHandle) {
+                await fileHandle.close();
+            }
         }
     } else {
         bundleId = bundleIdInput;
