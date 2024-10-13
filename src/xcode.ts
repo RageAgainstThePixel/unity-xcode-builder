@@ -13,14 +13,14 @@ const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
 async function GetProjectDetails(): Promise<XcodeProject> {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
-    core.debug(`Project path input: ${projectPathInput}`);
+    core.info(`Project path input: ${projectPathInput}`);
     let projectPath = undefined;
     const globber = await glob.create(projectPathInput);
     const files = await globber.glob();
     for (const file of files) {
         if (file.endsWith(`GameAssembly.xcodeproj`)) { continue; }
         if (file.endsWith('.xcodeproj')) {
-            core.debug(`Found Xcode project: ${file}`);
+            core.info(`Found Xcode project: ${file}`);
             projectPath = file;
             break;
         }
