@@ -395,8 +395,7 @@ async function ValidateApp(projectRef: XcodeProject) {
         ignoreReturnCode: true
     });
     core.info('Validation result:');
-    const json = JSON.parse(output);
-    core.info(json);
+    core.info(output);
     if (exitCode > 0) {
         throw new Error('Failed to upload app');
     }
@@ -431,8 +430,7 @@ async function UploadApp(projectRef: XcodeProject) {
         ignoreReturnCode: true
     });
     core.info('Upload result:');
-    const json = JSON.parse(output);
-    core.info(json);
+    core.info(output);
     if (exitCode > 0) {
         throw new Error('Failed to upload app');
     }
