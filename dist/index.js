@@ -51583,16 +51583,22 @@ async function GetProjectDetails() {
     const bundleIdInput = core.getInput('bundle-id');
     let bundleId;
     if (!bundleIdInput || bundleIdInput === '') {
-        const projectInfoOutput = await exec.getExecOutput(xcodebuild, [
-            '-list',
-            '-project', projectPath,
-            '-json'
-        ]);
-        const projectInfo = JSON.parse(projectInfoOutput.stdout);
-        bundleId = projectInfo.project.targets[0].targetAttributes.PRODUCT_BUNDLE_IDENTIFIER;
+        let infoPlistPath = `${projectDirectory}/${projectName}/Info.plist`;
+        if (!fs.existsSync(infoPlistPath)) {
+            infoPlistPath = `${projectDirectory}/Info.plist`;
+        }
+        if (!fs.existsSync(infoPlistPath)) {
+            throw new Error('Unable to find Info.plist');
+        }
+        const infoPlistContent = await fs.promises.readFile(infoPlistPath, 'utf8');
+        const infoPlist = plist.parse(infoPlistContent);
+        bundleId = infoPlist['CFBundleIdentifier'];
     }
     else {
         bundleId = bundleIdInput;
+    }
+    if (!bundleId) {
+        throw new Error('Unable to determine bundle identifier from the project');
     }
     return new XcodeProject_1.XcodeProject(projectPath, projectName, bundleId, projectDirectory);
 }
