@@ -51913,7 +51913,7 @@ async function ValidateApp(projectRef) {
         'visionOS': 'xros'
     };
     let output = '';
-    await exec.exec(xcrun, [
+    const exitCode = await exec.exec(xcrun, [
         'altool',
         '--validate-app',
         '--file', projectRef.exportPath,
@@ -51928,11 +51928,15 @@ async function ValidateApp(projectRef) {
                 output += data.toString();
             }
         },
-        silent: !core.isDebug()
+        silent: !core.isDebug(),
+        failOnStdErr: false
     });
     core.info('Validation result:');
     const json = JSON.parse(output);
     core.info(json);
+    if (exitCode > 0) {
+        throw new Error('Failed to upload app');
+    }
 }
 async function UploadApp(projectRef) {
     const platforms = {
@@ -51942,7 +51946,7 @@ async function UploadApp(projectRef) {
         'visionOS': 'xros'
     };
     let output = '';
-    await exec.exec(xcrun, [
+    const exitCode = await exec.exec(xcrun, [
         'altool',
         '--upload-package',
         projectRef.archivePath,
@@ -51958,11 +51962,15 @@ async function UploadApp(projectRef) {
                 output += data.toString();
             }
         },
-        silent: !core.isDebug()
+        silent: !core.isDebug(),
+        failOnStdErr: false
     });
     core.info('Upload result:');
     const json = JSON.parse(output);
     core.info(json);
+    if (exitCode > 0) {
+        throw new Error('Failed to upload app');
+    }
 }
 
 
