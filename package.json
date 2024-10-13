@@ -32,11 +32,9 @@
     "typescript": "^5.5.4"
   },
   "scripts": {
-    "watch": "ncc build src/index.ts -o dist --source-map --license licenses.txt --watch",
     "build": "npm run clean && npm run bundle",
     "bundle": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
-    "clean": "npm install && shx rm -rf dist/ out/ node_modules/ && npm ci",
-    "openapi-ts": "openapi-ts",
-    "generate": "npx @hey-api/openapi-ts -f ./openapi-ts.config.ts"
+    "watch": "ncc build src/index.ts -o dist --source-map --license licenses.txt --watch",
+    "clean": "npm install && shx rm -rf dist/ out/ node_modules/ && npm ci"
   }
 }
