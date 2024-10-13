@@ -13,14 +13,14 @@ const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
 async function GetProjectDetails(): Promise<XcodeProject> {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
-    core.info(`Project path input: ${projectPathInput}`);
+    core.debug(`Project path input: ${projectPathInput}`);
     let projectPath = undefined;
     const globber = await glob.create(projectPathInput);
     const files = await globber.glob();
     for (const file of files) {
         if (file.endsWith(`GameAssembly.xcodeproj`)) { continue; }
         if (file.endsWith('.xcodeproj')) {
-            core.info(`Found Xcode project: ${file}`);
+            core.debug(`Found Xcode project: ${file}`);
             projectPath = file;
             break;
         }
@@ -28,26 +28,30 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     if (!projectPath) {
         throw new Error('Invalid project-path! Unable to find .xcodeproj');
     }
-    core.info(`Resolved Project path: ${projectPath}`);
+    core.debug(`Resolved Project path: ${projectPath}`);
     await fs.promises.access(projectPath, fs.constants.R_OK);
     const projectDirectory = path.dirname(projectPath);
-    core.info(`Project directory: ${projectDirectory}`);
+    core.debug(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
     const bundleIdInput = core.getInput('bundle-id');
     let bundleId: string;
+    let infoPlistPath = `${projectDirectory}/${projectName}/Info.plist`;
+    if (!fs.existsSync(infoPlistPath)) {
+        infoPlistPath = `${projectDirectory}/Info.plist`;
+    }
+    if (!fs.existsSync(infoPlistPath)) {
+        throw new Error('Unable to find Info.plist');
+    }
+    const infoPlistContent = await fs.promises.readFile(infoPlistPath, 'utf8');
+    const infoPlist = plist.parse(infoPlistContent);
     if (!bundleIdInput || bundleIdInput === '') {
-        let infoPlistPath = `${projectDirectory}/${projectName}/Info.plist`;
-        if (!fs.existsSync(infoPlistPath)) {
-            infoPlistPath = `${projectDirectory}/Info.plist`;
-        }
-        if (!fs.existsSync(infoPlistPath)) {
-            throw new Error('Unable to find Info.plist');
-        }
-        const infoPlistContent = await fs.promises.readFile(infoPlistPath, 'utf8');
-        const infoPlist = plist.parse(infoPlistContent);
         bundleId = infoPlist['CFBundleIdentifier'];
     } else {
         bundleId = bundleIdInput;
+        if (bundleId !== infoPlist['CFBundleIdentifier']) {
+            infoPlist['CFBundleIdentifier'] = bundleId;
+            await fs.promises.writeFile(infoPlistPath, plist.build(infoPlist));
+        }
     }
     if (!bundleId) {
         throw new Error('Unable to determine bundle identifier from the project');
@@ -192,7 +196,7 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     }
     await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
-    core.info(`Exported: ${exportPath}`);
+    core.debug(`Exported: ${exportPath}`);
     const globPath = `${exportPath}/**/*.ipa\n${exportPath}/**/*.app`;
     const globber = await glob.create(globPath);
     const files = await globber.glob();
@@ -383,8 +387,12 @@ async function ValidateApp(projectRef: XcodeProject) {
             stdout: (data: Buffer) => {
                 output += data.toString();
             }
-        }
+        },
+        silent: !core.isDebug()
     });
+    core.info('Validation result:');
+    const json = JSON.parse(output);
+    core.info(json);
 }
 
 async function UploadApp(projectRef: XcodeProject) {
@@ -410,8 +418,12 @@ async function UploadApp(projectRef: XcodeProject) {
             stdout: (data: Buffer) => {
                 output += data.toString();
             }
-        }
+        },
+        silent: !core.isDebug()
     });
+    core.info('Upload result:');
+    const json = JSON.parse(output);
+    core.info(json);
 }
 
 export {

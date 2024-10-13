@@ -27,7 +27,6 @@ const main = async () => {
             }
             await exec.exec('xcodebuild', ['-version']);
             const credential = await ImportCredentials();
-            core.info('getting project details');
             let projectRef = await GetProjectDetails();
             projectRef.credential = credential;
             projectRef = await ArchiveXcodeProject(projectRef);
