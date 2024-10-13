@@ -1,49 +1,19 @@
-import * as services from './app_store_connect_api/services.gen';
+import { AppStoreConnectClient, AppStoreConnectOptions } from '@rage-against-the-pixel/app-store-connect-api';
 import { XcodeProject } from './XcodeProject';
-import { AppleCredential } from './AppleCredential';
-import * as fs from 'fs';
 
 let appStoreConnectClient: AppStoreConnectClient | null = null;
 
-class AppStoreConnectClient {
-    private credentials: AppleCredential;
-    private bearerTokenGeneratedAt = 0;
-    api = services;
-
-    constructor(credentials: AppleCredential) {
-        if (!credentials) {
-            throw new Error('AppStoreConnectOptions is required');
-        }
-        this.credentials = credentials;
-        services.client.setConfig({ baseUrl: 'https://api.appstoreconnect.apple.com' });
-        services.client.interceptors.request.use(async (request, _options): Promise<Request> => {
-            request.headers.set('Authorization', `Bearer ${await this.getToken()}`);
-            return request;
-        });
-    }
-
-    private async getToken() {
-        const defaultExpirationTime = 600; // 10 minutes
-        if (this.credentials.appStoreConnectKeyId &&
-            this.credentials.appStoreConnectIssuerId &&
-            (this.credentials.appStoreConnectKey || this.credentials.appStoreConnectKeyPath)) {
-            if (!this.credentials.bearerToken || this.bearerTokenGeneratedAt + defaultExpirationTime * 1000 < Date.now()) {
-                if (!this.credentials.appStoreConnectKey && this.credentials.appStoreConnectKeyPath) {
-                    this.credentials.appStoreConnectKey = await fs.promises.readFile(this.credentials.appStoreConnectKeyPath, 'utf8');
-                }
-                this.credentials.bearerToken = await this.credentials.generateAuthToken();
-            }
-        } else {
-            throw new Error('Bearer token or private key information is required to generate a token');
-        }
-
-        return this.credentials.bearerToken;
-    }
-}
-
 async function getOrCreateClient(project: XcodeProject) {
     if (appStoreConnectClient) { return appStoreConnectClient; }
-    appStoreConnectClient = new AppStoreConnectClient(project.credential);
+    if (!project.credential) {
+        throw new Error('Missing AppleCredential');
+    }
+    const options: AppStoreConnectOptions = {
+        issuerId: project.credential.appStoreConnectIssuerId,
+        privateKeyId: project.credential.appStoreConnectKeyId,
+        privateKey: project.credential.appStoreConnectKey,
+    };
+    appStoreConnectClient = new AppStoreConnectClient(options);
 }
 
 async function getAppId(project: XcodeProject) {

@@ -36,25 +36,13 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     const bundleIdInput = core.getInput('bundle-id');
     let bundleId: string;
     if (!bundleIdInput || bundleIdInput === '') {
-        const xcodeprojHandle = await fs.promises.open(projectPath, 'r');
-        try {
-            const stat = await xcodeprojHandle.stat();
-            if (stat.isDirectory()) {
-                throw new Error(`The project path ${projectPath} is a directory, not a file!`);
-            }
-            const xcodeprojContent = await fs.promises.readFile(xcodeprojHandle, 'utf8');
-            const match = xcodeprojContent.match(/PRODUCT_BUNDLE_IDENTIFIER = (?<bundleId>.+);/m);
-            core.debug(`$PRODUCT_BUNDLE_IDENTIFIER: ${match?.groups?.bundleId}`);
-            if (!match) {
-                throw new Error('No PRODUCT_BUNDLE_IDENTIFIER found in the xcodeproj file');
-            }
-            bundleId = match.groups?.bundleId;
-            if (!bundleId) {
-                throw new Error('Unable to determine the bundle id from the xcodeproj file');
-            }
-        } finally {
-            await xcodeprojHandle.close();
-        }
+        const projectInfoOutput = await exec.getExecOutput(xcodebuild, [
+            '-list',
+            '-project', projectPath,
+            '-json'
+        ]);
+        const projectInfo = JSON.parse(projectInfoOutput.stdout);
+        bundleId = projectInfo.project.targets[0].targetAttributes.PRODUCT_BUNDLE_IDENTIFIER;
     } else {
         bundleId = bundleIdInput;
     }
