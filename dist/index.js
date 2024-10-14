@@ -40989,7 +40989,9 @@ async function determinePlatform(projectPath, scheme) {
         'watchos': 'watchOS',
         'xros': 'visionOS'
     };
-    await downloadPlatformSdkIfMissing(platforms[platformName]);
+    if (platforms[platformName] !== 'macOS') {
+        await downloadPlatformSdkIfMissing(platforms[platformName]);
+    }
     return platforms[platformName] || null;
 }
 async function downloadPlatformSdkIfMissing(platform) {

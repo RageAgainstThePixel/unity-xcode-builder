@@ -241,7 +241,9 @@ async function determinePlatform(projectPath: string, scheme: string): Promise<s
         'watchos': 'watchOS',
         'xros': 'visionOS'
     };
-    await downloadPlatformSdkIfMissing(platforms[platformName]);
+    if (platforms[platformName] !== 'macOS') {
+        await downloadPlatformSdkIfMissing(platforms[platformName]);
+    }
     return platforms[platformName] || null;
 }
 
