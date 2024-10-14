@@ -295,7 +295,6 @@ async function createMacOSInstallerPkg(projectRef: XcodeProject): Promise<string
     return pkgPath;
 }
 
-
 async function downloadPlatformSdkIfMissing(platform: string) {
     await exec(xcodebuild, ['-runFirstLaunch']);
     let output = '';
