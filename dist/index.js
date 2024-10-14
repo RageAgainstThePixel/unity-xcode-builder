@@ -40959,16 +40959,9 @@ async function ExportXcodeArchive(projectRef) {
     return projectRef;
 }
 async function createMacOSInstallerPkg(projectRef) {
-    const appPath = `${projectRef.exportPath}/${projectRef.projectName}.app`;
-    try {
-        await fs.promises.access(appPath, fs.constants.R_OK);
-    }
-    catch (error) {
-        throw new Error(`Failed to find the app at: ${appPath}!`);
-    }
     let output = '';
     const pkgPath = `${projectRef.exportPath}/${projectRef.projectName}.pkg`;
-    await exec.exec('productbuild', ['--component', appPath, '/Applications', pkgPath], {
+    await exec.exec('productbuild', ['--root', projectRef.exportPath, '/Applications', pkgPath], {
         listeners: {
             stdout: (data) => {
                 output += data.toString();
