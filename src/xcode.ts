@@ -507,10 +507,9 @@ async function UploadApp(projectRef: XcodeProject) {
         // silent: !core.isDebug(),
         ignoreReturnCode: true
     });
-    core.info('Upload result:');
-    core.info(JSON.stringify(JSON.parse(output), null, 2));
+    core.info(`Upload result: ${JSON.stringify(JSON.parse(output), null, 2)}`);
     if (exitCode > 0) {
-        throw new Error('Failed to upload app');
+        throw new Error(`Failed to upload app\n${JSON.stringify(JSON.parse(output), null, 2)}`);
     }
 }
 
