@@ -179,12 +179,13 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
 
 async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProject> {
     const { projectName, projectDirectory, archivePath, exportOptionsPath } = projectRef;
-    const exportPath = `${projectDirectory}/${projectName}`;
-    core.debug(`Export path: ${exportPath}`);
+    projectRef.exportPath = `${projectDirectory}/${projectName}`;
+    core.debug(`Export path: ${projectRef.exportPath}`);
+    core.setOutput('output-directory', projectRef.exportPath);
     const exportArgs = [
         '-exportArchive',
         '-archivePath', archivePath,
-        '-exportPath', exportPath,
+        '-exportPath', projectRef.exportPath,
         '-exportOptionsPlist', exportOptionsPath,
         '-allowProvisioningUpdates',
         `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
@@ -195,7 +196,6 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
         exportArgs.push('-quiet');
     }
     await execWithXcBeautify(exportArgs);
-    projectRef.exportPath = exportPath;
     if (projectRef.platform === 'macOS') {
         projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
     } else {
@@ -207,11 +207,12 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
         }
         projectRef.executablePath = files[0];
     }
+    core.setOutput('executable', projectRef.executablePath);
     return projectRef;
 }
 
 async function createMacOSInstallerPkg(projectRef: XcodeProject): Promise<string> {
-    const globPath = `${projectRef.exportPath}/**/*.app`;
+    const globPath = `${projectRef.exportPath}/${projectRef.projectName}.app`;
     const globber = await glob.create(globPath);
     const files = await globber.glob();
     if (files.length === 0) {

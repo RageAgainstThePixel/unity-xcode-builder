@@ -30,7 +30,6 @@ const main = async () => {
             projectRef = await ArchiveXcodeProject(projectRef);
             projectRef = await ExportXcodeArchive(projectRef);
             await ValidateApp(projectRef);
-            core.setOutput('output-directory', projectRef.exportPath);
             const uploadInput = core.getInput('upload') || 'true';
             if (uploadInput === 'true' && projectRef.exportOption === 'app-store') {
                 await UploadApp(projectRef);

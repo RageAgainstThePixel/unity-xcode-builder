@@ -40927,12 +40927,13 @@ async function ArchiveXcodeProject(projectRef) {
 }
 async function ExportXcodeArchive(projectRef) {
     const { projectName, projectDirectory, archivePath, exportOptionsPath } = projectRef;
-    const exportPath = `${projectDirectory}/${projectName}`;
-    core.debug(`Export path: ${exportPath}`);
+    projectRef.exportPath = `${projectDirectory}/${projectName}`;
+    core.debug(`Export path: ${projectRef.exportPath}`);
+    core.setOutput('output-directory', projectRef.exportPath);
     const exportArgs = [
         '-exportArchive',
         '-archivePath', archivePath,
-        '-exportPath', exportPath,
+        '-exportPath', projectRef.exportPath,
         '-exportOptionsPlist', exportOptionsPath,
         '-allowProvisioningUpdates',
         `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
@@ -40943,7 +40944,6 @@ async function ExportXcodeArchive(projectRef) {
         exportArgs.push('-quiet');
     }
     await execWithXcBeautify(exportArgs);
-    projectRef.exportPath = exportPath;
     if (projectRef.platform === 'macOS') {
         projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
     }
@@ -40956,10 +40956,11 @@ async function ExportXcodeArchive(projectRef) {
         }
         projectRef.executablePath = files[0];
     }
+    core.setOutput('executable', projectRef.executablePath);
     return projectRef;
 }
 async function createMacOSInstallerPkg(projectRef) {
-    const globPath = `${projectRef.exportPath}/**/*.app`;
+    const globPath = `${projectRef.exportPath}/${projectRef.projectName}.app`;
     const globber = await glob.create(globPath);
     const files = await globber.glob();
     if (files.length === 0) {
@@ -43177,7 +43178,6 @@ const main = async () => {
             projectRef = await (0, xcode_1.ArchiveXcodeProject)(projectRef);
             projectRef = await (0, xcode_1.ExportXcodeArchive)(projectRef);
             await (0, xcode_1.ValidateApp)(projectRef);
-            core.setOutput('output-directory', projectRef.exportPath);
             const uploadInput = core.getInput('upload') || 'true';
             if (uploadInput === 'true' && projectRef.exportOption === 'app-store') {
                 await (0, xcode_1.UploadApp)(projectRef);
