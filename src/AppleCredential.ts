@@ -1,4 +1,3 @@
-import * as jose from "jose";
 import core = require('@actions/core');
 import exec = require('@actions/exec');
 import uuid = require('uuid');
