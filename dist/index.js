@@ -45806,7 +45806,7 @@ const main = async () => {
                     }
                 }
             });
-            const xcodeVersionMatch = xcodeVersionOutput.match(/Xcode (<version>[\d.]+)/);
+            const xcodeVersionMatch = xcodeVersionOutput.match(/Xcode (?<version>\d+\.\d+)/);
             if (!xcodeVersionMatch) {
                 throw new Error('Failed to get Xcode version!');
             }
