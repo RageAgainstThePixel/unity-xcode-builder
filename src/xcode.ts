@@ -6,6 +6,7 @@ import glob = require('@actions/glob');
 import plist = require('plist');
 import path = require('path');
 import fs = require('fs');
+import { SemVer } from 'semver';
 
 const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
@@ -336,6 +337,23 @@ async function getExportOptions(projectRef: XcodeProject): Promise<void> {
         } else {
             method = exportOption;
         }
+        // As of Xcode 15.4, the old export methods 'app-store', 'ad-hoc', and 'development'
+        // are now deprecated. The new equivalents are 'app-store-connect', 'release-testing',
+        // and 'debugging'.
+        const xcodeVersion = new SemVer(core.getState('xcode-version'));
+        if (xcodeVersion && xcodeVersion.compare('15.4') >= 0) {
+            switch (method) {
+                case 'app-store':
+                    method = 'app-store-connect';
+                    break;
+                case 'ad-hoc':
+                    method = 'release-testing';
+                    break;
+                case 'development':
+                    method = 'debugging';
+                    break;
+            }
+        }
         const exportOptions = {
             method: method,
             signingStyle: projectRef.credential.signingIdentity ? 'manual' : 'automatic',
@@ -345,14 +363,14 @@ async function getExportOptions(projectRef: XcodeProject): Promise<void> {
     } else {
         exportOptionsPath = exportOptionPlistInput;
     }
-    core.debug(`Export options path: ${exportOptionsPath}`);
+    core.info(`Export options path: ${exportOptionsPath}`);
     if (!exportOptionsPath) {
         throw new Error(`Invalid path for export-option-plist: ${exportOptionsPath}`);
     }
     const exportOptionsHandle = await fs.promises.open(exportOptionsPath, 'r');
     try {
         const exportOptionContent = await fs.promises.readFile(exportOptionsHandle, 'utf8');
-        core.debug(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------`);
+        core.info(`----- Export options content: -----\n${exportOptionContent}\n---------------------------------`);
         const exportOptions = plist.parse(exportOptionContent);
         projectRef.exportOption = exportOptions['method'];
     } finally {
