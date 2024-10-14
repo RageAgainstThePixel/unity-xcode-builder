@@ -41236,6 +41236,8 @@ async function UploadApp(projectRef) {
         '--upload-package', projectRef.executablePath,
         '--type', platforms[projectRef.platform],
         '--bundle-id', projectRef.bundleId,
+        '--bundle-version', projectRef.version,
+        '--bundle-short-version-string', projectRef.versionString,
         '--team-id', projectRef.credential.teamId,
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
