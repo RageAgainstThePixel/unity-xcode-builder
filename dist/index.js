@@ -40958,6 +40958,12 @@ async function ExportXcodeArchive(projectRef) {
     else {
         projectRef.executablePath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.ipa`);
     }
+    try {
+        await fs.promises.access(projectRef.executablePath, fs.constants.R_OK);
+    }
+    catch (error) {
+        throw new Error(`Failed to export the archive at: ${projectRef.executablePath}`);
+    }
     core.setOutput('executable', projectRef.executablePath);
     return projectRef;
 }
