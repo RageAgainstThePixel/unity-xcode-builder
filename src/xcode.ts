@@ -1,11 +1,11 @@
+import { XcodeProject } from './XcodeProject';
 import { spawn } from 'child_process';
+import { exec } from '@actions/exec';
 import core = require('@actions/core');
-import exec = require('@actions/exec');
 import glob = require('@actions/glob');
 import plist = require('plist');
 import path = require('path');
 import fs = require('fs');
-import { XcodeProject } from './XcodeProject';
 
 const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
@@ -33,50 +33,98 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     const projectDirectory = path.dirname(projectPath);
     core.debug(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
-    const bundleIdInput = core.getInput('bundle-id');
-    let bundleId: string;
+    const scheme = await getProjectScheme(projectPath);
+    const [platform, bundleId] = await parseBuildSettings(projectPath, scheme);
+    core.info(`Platform: ${platform}`);
+    if (!platform) {
+        throw new Error('Unable to determine the platform to build for.');
+    }
+    core.info(`Bundle ID: ${bundleId}`);
+    if (!bundleId) {
+        throw new Error('Unable to determine the bundle ID');
+    }
     let infoPlistPath = `${projectDirectory}/${projectName}/Info.plist`;
     if (!fs.existsSync(infoPlistPath)) {
         infoPlistPath = `${projectDirectory}/Info.plist`;
     }
-    if (!fs.existsSync(infoPlistPath)) {
-        throw new Error('Unable to find Info.plist');
-    }
-    const infoPlistContent = await fs.promises.readFile(infoPlistPath, 'utf8');
-    const infoPlist = plist.parse(infoPlistContent);
-    if (!bundleIdInput || bundleIdInput === '') {
-        bundleId = infoPlist['CFBundleIdentifier'];
-    } else {
-        bundleId = bundleIdInput;
-        if (bundleId !== infoPlist['CFBundleIdentifier']) {
-            infoPlist['CFBundleIdentifier'] = bundleId;
-            await fs.promises.writeFile(infoPlistPath, plist.build(infoPlist));
-        }
-    }
-    if (!bundleId) {
-        throw new Error('Unable to determine bundle identifier from the project');
-    }
-    core.info(`Bundle ID: ${bundleId}`);
-    const version = infoPlist['CFBundleVersion'];
+    core.info(`Info.plist path: ${infoPlistPath}`);
+    let infoPlistContent = plist.parse(fs.readFileSync(infoPlistPath, 'utf8'));
+    const version = infoPlistContent['CFBundleVersion'];
     core.info(`Version: ${version}`);
-    const versionString = infoPlist['CFBundleShortVersionString'];
+    const versionString = infoPlistContent['CFBundleShortVersionString'];
     core.info(`Version string: ${versionString}`);
-    return new XcodeProject(projectPath, projectName, bundleId, projectDirectory, version, versionString);
+    return new XcodeProject(
+        projectPath,
+        projectName,
+        platform,
+        bundleId,
+        projectDirectory,
+        version,
+        versionString,
+        scheme
+    );
 }
 
-async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {
-    const { projectPath, projectName, projectDirectory } = projectRef;
-    const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
-    core.debug(`Archive path: ${archivePath}`);
+async function parseBuildSettings(projectPath: string, scheme: string): Promise<[string, string]> {
+    let buildSettingsOutput = '';
+    if (!core.isDebug()) {
+        core.info(`[command]${xcodebuild} -project ${projectPath} -scheme ${scheme} -showBuildSettings`);
+    }
+    await exec(xcodebuild, [
+        '-project', projectPath,
+        '-scheme', scheme,
+        '-showBuildSettings'
+    ], {
+        listeners: {
+            stdout: (data: Buffer) => {
+                buildSettingsOutput += data.toString();
+            }
+        },
+        silent: !core.isDebug()
+    });
+    let platformName = core.getInput('platform');
+    if (!platformName) {
+        const platformMatch = buildSettingsOutput.match(/\s+PLATFORM_NAME = (?<platformName>\w+)/m);
+        core.debug(`$PLATFORM_NAME: ${platformMatch?.groups?.platformName}`);
+        if (!platformMatch) {
+            throw new Error('No PLATFORM_NAME found in the build settings');
+        }
+        platformName = platformMatch.groups?.platformName;
+    }
+    if (!platformName) {
+        throw new Error('Unable to determine the platform name from the build settings');
+    }
+    let bundleId = core.getInput('bundle-id');
+    if (!bundleId) {
+        const bundleIdMatch = buildSettingsOutput.match(/PRODUCT_BUNDLE_IDENTIFIER = (.+)/);
+        if (!bundleIdMatch) {
+            throw new Error('Unable to resolve PRODUCT_BUNDLE_IDENTIFIER');
+        }
+        bundleId = bundleIdMatch[1];
+    }
+    if (!bundleId) {
+        throw new Error('Unable to determine the bundle ID from the build settings');
+    }
+    const platforms = {
+        'iphoneos': 'iOS',
+        'macosx': 'macOS',
+        'appletvos': 'tvOS',
+        'watchos': 'watchOS',
+        'xros': 'visionOS'
+    };
+    if (platforms[platformName] !== 'macOS') {
+        await downloadPlatformSdkIfMissing(platforms[platformName]);
+    }
+    return [platforms[platformName], bundleId];
+}
+
+async function getProjectScheme(projectPath: string): Promise<string> {
+    let scheme = core.getInput('scheme');
     let projectInfoOutput = '';
     if (!core.isDebug()) {
         core.info(`[command]${xcodebuild} -list -project ${projectPath} -json`);
     }
-    await exec.exec(xcodebuild, [
-        '-list',
-        '-project', projectPath,
-        `-json`
-    ], {
+    await exec(xcodebuild, ['-list', '-project', projectPath, `-json`], {
         listeners: {
             stdout: (data: Buffer) => {
                 projectInfoOutput += data.toString();
@@ -91,7 +139,6 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
     }
     core.debug(`Available schemes:`);
     schemes.forEach(s => core.debug(`  > ${s}`));
-    let scheme = core.getInput('scheme');
     if (!scheme) {
         if (schemes.includes('Unity-iPhone')) {
             scheme = 'Unity-iPhone';
@@ -104,19 +151,20 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         throw new Error('Unable to determine the scheme to build');
     }
     core.debug(`Using scheme: ${scheme}`);
-    let platform = core.getInput('platform') || await determinePlatform(projectPath, scheme);
-    if (!platform) {
-        throw new Error('Unable to determine the platform to build for.');
-    }
-    core.debug(`Platform: ${platform}`);
-    projectRef.platform = platform;
-    let destination = core.getInput('destination') || `generic/platform=${platform}`;
+    return scheme;
+}
+
+async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {
+    const { projectPath, projectName, projectDirectory } = projectRef;
+    const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
+    core.debug(`Archive path: ${archivePath}`);
+    let destination = core.getInput('destination') || `generic/platform=${projectRef.platform}`;
     core.debug(`Using destination: ${destination}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.debug(`Configuration: ${configuration}`);
     await getExportOptions(projectRef);
     let entitlementsPath = core.getInput('entitlements-plist');
-    if (!entitlementsPath && platform === 'macOS') {
+    if (!entitlementsPath && projectRef.platform === 'macOS') {
         await getDefaultEntitlementsMacOS(projectRef);
     } else {
         projectRef.entitlementsPath = entitlementsPath;
@@ -124,7 +172,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
     const archiveArgs = [
         'archive',
         '-project', projectPath,
-        '-scheme', scheme,
+        '-scheme', projectRef.scheme,
         '-destination', destination,
         '-configuration', configuration,
         '-archivePath', archivePath,
@@ -166,11 +214,11 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         }
         archiveArgs.push(`CODE_SIGN_ENTITLEMENTS=${projectRef.entitlementsPath}`);
     }
-    if (platform === 'iOS') {
+    if (projectRef.platform === 'iOS') {
         // don't strip debug symbols during copy
         archiveArgs.push('COPY_PHASE_STRIP=NO');
     }
-    if (platform === 'macOS' && projectRef.exportOption !== 'app-store') {
+    if (projectRef.platform === 'macOS' && projectRef.exportOption !== 'app-store') {
         // enable hardened runtime
         archiveArgs.push('ENABLE_HARDENED_RUNTIME=YES');
     }
@@ -237,7 +285,7 @@ async function createMacOSInstallerPkg(projectRef: XcodeProject): Promise<string
     let output = '';
     const pkgPath = `${projectRef.exportPath}/${projectRef.projectName}.pkg`;
     const appPath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.app`);
-    await exec.exec('productbuild', ['--component', appPath, '/Applications', pkgPath], {
+    await exec('productbuild', ['--component', appPath, '/Applications', pkgPath], {
         listeners: {
             stdout: (data: Buffer) => {
                 output += data.toString();
@@ -252,49 +300,11 @@ async function createMacOSInstallerPkg(projectRef: XcodeProject): Promise<string
     return pkgPath;
 }
 
-async function determinePlatform(projectPath: string, scheme: string): Promise<string> {
-    let buildSettingsOutput = '';
-    if (!core.isDebug()) {
-        core.info(`[command]${xcodebuild} -project ${projectPath} -scheme ${scheme} -showBuildSettings`);
-    }
-    await exec.exec(xcodebuild, [
-        '-project', projectPath,
-        '-scheme', scheme,
-        '-showBuildSettings'
-    ], {
-        listeners: {
-            stdout: (data: Buffer) => {
-                buildSettingsOutput += data.toString();
-            }
-        },
-        silent: !core.isDebug()
-    });
-    const match = buildSettingsOutput.match(/\s+PLATFORM_NAME = (?<platformName>\w+)/m);
-    core.debug(`$PLATFORM_NAME: ${match?.groups?.platformName}`);
-    if (!match) {
-        throw new Error('No PLATFORM_NAME found in the build settings');
-    }
-    const platformName = match.groups?.platformName;
-    if (!platformName) {
-        throw new Error('Unable to determine the platform name from the build settings');
-    }
-    const platforms = {
-        'iphoneos': 'iOS',
-        'macosx': 'macOS',
-        'appletvos': 'tvOS',
-        'watchos': 'watchOS',
-        'xros': 'visionOS'
-    };
-    if (platforms[platformName] !== 'macOS') {
-        await downloadPlatformSdkIfMissing(platforms[platformName]);
-    }
-    return platforms[platformName] || null;
-}
 
 async function downloadPlatformSdkIfMissing(platform: string) {
-    await exec.exec(xcodebuild, ['-runFirstLaunch']);
+    await exec(xcodebuild, ['-runFirstLaunch']);
     let output = '';
-    await exec.exec(xcrun, ['simctl', 'list'], {
+    await exec(xcrun, ['simctl', 'list'], {
         listeners: {
             stdout: (data: Buffer) => {
                 output += data.toString();
@@ -304,8 +314,8 @@ async function downloadPlatformSdkIfMissing(platform: string) {
     if (output.includes(platform)) {
         return;
     }
-    await exec.exec(xcodebuild, ['-downloadPlatform', platform]);
-    await exec.exec(xcodebuild, ['-runFirstLaunch']);
+    await exec(xcodebuild, ['-downloadPlatform', platform]);
+    await exec(xcodebuild, ['-runFirstLaunch']);
 }
 
 async function getExportOptions(projectRef: XcodeProject): Promise<void> {
@@ -394,17 +404,17 @@ async function getDefaultEntitlementsMacOS(projectRef: XcodeProject): Promise<vo
 
 async function execWithXcBeautify(xcodeBuildArgs: string[]) {
     try {
-        await exec.exec('xcbeautify', ['--version'], { silent: true });
+        await exec('xcbeautify', ['--version'], { silent: true });
     } catch (error) {
         core.debug('Installing xcbeautify...');
-        await exec.exec('brew', ['install', 'xcbeautify']);
+        await exec('brew', ['install', 'xcbeautify']);
     }
     const xcBeautifyProcess = spawn('xcbeautify', ['--quiet', '--is-ci', '--disable-logging'], {
         stdio: ['pipe', process.stdout, process.stderr]
     });
     core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
     let errorOutput = '';
-    const exitCode = await exec.exec(xcodebuild, xcodeBuildArgs, {
+    const exitCode = await exec(xcodebuild, xcodeBuildArgs, {
         listeners: {
             stdout: (data: Buffer) => {
                 xcBeautifyProcess.stdin.write(data);
@@ -459,7 +469,7 @@ async function ValidateApp(projectRef: XcodeProject) {
         core.info(`[command]${xcrun} ${validateArgs.join(' ')}`);
     }
     let output = '';
-    const exitCode = await exec.exec(xcrun, validateArgs, {
+    const exitCode = await exec(xcrun, validateArgs, {
         listeners: {
             stdout: (data: Buffer) => {
                 output += data.toString();
@@ -485,7 +495,7 @@ async function getProvider(projectRef: XcodeProject): Promise<XcodeProject> {
         '--output-format', 'json'
     ];
     let output = '';
-    const exitCode = await exec.exec(xcrun, providersArgs, {
+    const exitCode = await exec(xcrun, providersArgs, {
         listeners: {
             stdout: (data: Buffer) => {
                 output += data.toString();
@@ -537,7 +547,7 @@ async function UploadApp(projectRef: XcodeProject) {
     //     core.info(`[command]${xcrun} ${uploadArgs.join(' ')}`);
     // }
     let output = '';
-    const exitCode = await exec.exec(xcrun, uploadArgs, {
+    const exitCode = await exec(xcrun, uploadArgs, {
         listeners: {
             stdout: (data: Buffer) => {
                 output += data.toString();
