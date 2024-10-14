@@ -88,8 +88,7 @@ async function parseBuildSettings(projectPath: string, scheme: string): Promise<
     if (!platformName) {
         throw new Error('Unable to determine the platform name from the build settings');
     }
-    const bundleId = core.getInput('bundle-id') || matchRegexPattern(buildSettingsOutput, /\s+PRODUCT_BUNDLE_IDENTIFIER = (?<bundleId>[\w.]+)/, 'bundleId');
-    if (!bundleId || bundleId === 'NO') {
+    const bundleId = core.getInput('bundle-id') || matchRegexPattern(buildSettingsOutput, /\s+PRODUCT_BUNDLE_IDENTIFIER = (?<bundleId>[\w.-]+)/, 'bundleId'); if (!bundleId || bundleId === 'NO') {
         throw new Error('Unable to determine the bundle ID from the build settings');
     }
     const platforms = {
