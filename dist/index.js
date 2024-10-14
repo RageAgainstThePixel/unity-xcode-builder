@@ -40730,10 +40730,13 @@ async function RemoveCredentials() {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.XcodeProject = void 0;
 class XcodeProject {
-    constructor(projectPath, projectName, bundleId, projectDirectory) {
+    constructor(projectPath, projectName, bundleId, projectDirectory, version, versionString) {
         this.projectPath = projectPath;
         this.projectName = projectName;
+        this.bundleId = bundleId;
         this.projectDirectory = projectDirectory;
+        this.version = version;
+        this.versionString = versionString;
     }
 }
 exports.XcodeProject = XcodeProject;
@@ -40811,7 +40814,12 @@ async function GetProjectDetails() {
     if (!bundleId) {
         throw new Error('Unable to determine bundle identifier from the project');
     }
-    return new XcodeProject_1.XcodeProject(projectPath, projectName, bundleId, projectDirectory);
+    core.info(`Bundle ID: ${bundleId}`);
+    const version = infoPlist['CFBundleVersion'];
+    core.info(`Version: ${version}`);
+    const versionString = infoPlist['CFBundleShortVersionString'];
+    core.info(`Version string: ${versionString}`);
+    return new XcodeProject_1.XcodeProject(projectPath, projectName, bundleId, projectDirectory, version, versionString);
 }
 async function ArchiveXcodeProject(projectRef) {
     const { projectPath, projectName, projectDirectory } = projectRef;

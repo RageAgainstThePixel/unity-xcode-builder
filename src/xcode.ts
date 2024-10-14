@@ -56,7 +56,12 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     if (!bundleId) {
         throw new Error('Unable to determine bundle identifier from the project');
     }
-    return new XcodeProject(projectPath, projectName, bundleId, projectDirectory);
+    core.info(`Bundle ID: ${bundleId}`);
+    const version = infoPlist['CFBundleVersion'];
+    core.info(`Version: ${version}`);
+    const versionString = infoPlist['CFBundleShortVersionString'];
+    core.info(`Version string: ${versionString}`);
+    return new XcodeProject(projectPath, projectName, bundleId, projectDirectory, version, versionString);
 }
 
 async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {
