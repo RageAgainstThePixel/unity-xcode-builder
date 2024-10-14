@@ -39,6 +39,8 @@ class AppleCredential {
     signingIdentity?: string;
     provisioningProfileUUID?: string;
     bearerToken?: string;
+    appleId?: string;
+    ascPublicId?: string;
 }
 
 // https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow

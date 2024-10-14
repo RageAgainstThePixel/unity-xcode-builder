@@ -475,6 +475,31 @@ async function ValidateApp(projectRef: XcodeProject) {
     core.debug(`Validation results: ${outputJson}`);
 }
 
+async function getProvider(projectRef: XcodeProject) {
+    // altool --list-providers --apiKey <apiKey> --apiIssuer <apiIssuer> --output-format json
+    const providersArgs = [
+        'altool',
+        '--list-providers',
+        '--apiKey', projectRef.credential.appStoreConnectKeyId,
+        '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
+        '--output-format', 'json'
+    ];
+    let output = '';
+    const exitCode = await exec.exec(xcrun, providersArgs, {
+        listeners: {
+            stdout: (data: Buffer) => {
+                output += data.toString();
+            }
+        },
+        ignoreReturnCode: true
+    });
+    const outputJson = JSON.stringify(JSON.parse(output), null, 2);
+    if (exitCode > 0) {
+        throw new Error(`Failed to list providers\n${outputJson}`);
+    }
+    core.info(`Providers: ${outputJson}`);
+}
+
 async function UploadApp(projectRef: XcodeProject) {
     const platforms = {
         'iOS': 'ios',

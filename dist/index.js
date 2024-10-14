@@ -41225,6 +41225,29 @@ async function ValidateApp(projectRef) {
     }
     core.debug(`Validation results: ${outputJson}`);
 }
+async function getProvider(projectRef) {
+    const providersArgs = [
+        'altool',
+        '--list-providers',
+        '--apiKey', projectRef.credential.appStoreConnectKeyId,
+        '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
+        '--output-format', 'json'
+    ];
+    let output = '';
+    const exitCode = await exec.exec(xcrun, providersArgs, {
+        listeners: {
+            stdout: (data) => {
+                output += data.toString();
+            }
+        },
+        ignoreReturnCode: true
+    });
+    const outputJson = JSON.stringify(JSON.parse(output), null, 2);
+    if (exitCode > 0) {
+        throw new Error(`Failed to list providers\n${outputJson}`);
+    }
+    core.info(`Providers: ${outputJson}`);
+}
 async function UploadApp(projectRef) {
     const platforms = {
         'iOS': 'ios',
