@@ -40948,20 +40948,26 @@ async function ExportXcodeArchive(projectRef) {
         projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
     }
     else {
-        const globPath = `${exportPath}/**/*.ipa`;
+        const globPath = `${projectRef.exportPath}/**/*.ipa`;
         const globber = await glob.create(globPath);
         const files = await globber.glob();
         if (files.length === 0) {
-            throw new Error(`No IPA or APP file found in the export path.\n${globPath}`);
+            throw new Error(`No .ipa found in the export path.\n${globPath}`);
         }
         projectRef.executablePath = files[0];
     }
     return projectRef;
 }
 async function createMacOSInstallerPkg(projectRef) {
+    const globPath = `${projectRef.exportPath}/**/*.app`;
+    const globber = await glob.create(globPath);
+    const files = await globber.glob();
+    if (files.length === 0) {
+        throw new Error(`No .app found in the export path.\n${globPath}`);
+    }
     let output = '';
     const pkgPath = `${projectRef.exportPath}/${projectRef.projectName}.pkg`;
-    await exec.exec('productbuild', ['--root', projectRef.exportPath, '/Applications', pkgPath], {
+    await exec.exec('productbuild', ['--root', , '/Applications', pkgPath], {
         listeners: {
             stdout: (data) => {
                 output += data.toString();
