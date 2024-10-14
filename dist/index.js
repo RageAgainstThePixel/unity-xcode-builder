@@ -41219,10 +41219,11 @@ async function ValidateApp(projectRef) {
         silent: !core.isDebug(),
         ignoreReturnCode: true
     });
-    core.debug(`Validation results: ${JSON.stringify(JSON.parse(output), null, 2)}`);
+    const outputJson = JSON.stringify(JSON.parse(output), null, 2);
     if (exitCode > 0) {
-        throw new Error(`Failed to validate app: ${JSON.stringify(JSON.parse(output), null, 2)}`);
+        throw new Error(`Failed to validate app: ${outputJson}`);
     }
+    core.debug(`Validation results: ${outputJson}`);
 }
 async function UploadApp(projectRef) {
     const platforms = {
@@ -41253,10 +41254,11 @@ async function UploadApp(projectRef) {
         },
         ignoreReturnCode: true
     });
-    core.info(`Upload result: ${JSON.stringify(JSON.parse(output), null, 2)}`);
+    const outputJson = JSON.stringify(JSON.parse(output), null, 2);
     if (exitCode > 0) {
-        throw new Error(`Failed to upload app\n${JSON.stringify(JSON.parse(output), null, 2)}`);
+        throw new Error(`Failed to upload app\n${outputJson}`);
     }
+    core.info(`Upload result: ${outputJson}`);
 }
 
 
