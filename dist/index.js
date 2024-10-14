@@ -40945,7 +40945,10 @@ async function ExportXcodeArchive(projectRef) {
     await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
     core.info(`Exported: ${exportPath}`);
-    const exportedFiles = fs.readdirSync(exportPath, { recursive: true });
+    const exportedFiles = fs.readdirSync(exportPath, {
+        withFileTypes: true,
+        recursive: true
+    });
     core.info(`Exported files:`);
     exportedFiles.forEach((f) => core.debug(`  > ${f}`));
     const globPath = `${exportPath}/**/*.ipa\n${exportPath}/**/*.app`;
@@ -43172,8 +43175,8 @@ const main = async () => {
             projectRef = await (0, xcode_1.ExportXcodeArchive)(projectRef);
             await (0, xcode_1.ValidateApp)(projectRef);
             core.setOutput('output-directory', projectRef.exportPath);
-            const upload = core.getInput('upload') || projectRef.exportOption === 'app-store';
-            if (upload) {
+            const uploadInput = core.getInput('upload') || 'true';
+            if (uploadInput === 'true' && projectRef.exportOption === 'app-store') {
                 await (0, xcode_1.UploadApp)(projectRef);
             }
         }

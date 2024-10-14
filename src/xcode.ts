@@ -197,7 +197,10 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
     core.info(`Exported: ${exportPath}`);
-    const exportedFiles = fs.readdirSync(exportPath, { recursive: true });
+    const exportedFiles = fs.readdirSync(exportPath, {
+        withFileTypes: true,
+        recursive: true
+    });
     core.info(`Exported files:`);
     exportedFiles.forEach((f: any) => core.debug(`  > ${f}`));
     const globPath = `${exportPath}/**/*.ipa\n${exportPath}/**/*.app`;

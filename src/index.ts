@@ -8,9 +8,6 @@ import {
     UploadApp
 } from './xcode';
 import {
-    UploadTestFlightBuild
-} from './AppStoreConnectClient';
-import {
     ImportCredentials,
     RemoveCredentials
 } from './AppleCredential';
@@ -34,8 +31,8 @@ const main = async () => {
             projectRef = await ExportXcodeArchive(projectRef);
             await ValidateApp(projectRef);
             core.setOutput('output-directory', projectRef.exportPath);
-            const upload = core.getInput('upload') || projectRef.exportOption === 'app-store';
-            if (upload) {
+            const uploadInput = core.getInput('upload') || 'true';
+            if (uploadInput === 'true' && projectRef.exportOption === 'app-store') {
                 await UploadApp(projectRef);
             }
         } else {

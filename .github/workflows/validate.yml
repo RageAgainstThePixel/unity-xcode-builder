@@ -95,6 +95,7 @@ jobs:
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           team-id: ${{ secrets.APPLE_TEAM_ID }}
           export-option: app-store
+          upload: false
       - name: print outputs
         run: |
           echo "Executable: ${{ steps.xcode-build.outputs.executable }}"
