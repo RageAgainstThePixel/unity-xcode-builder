@@ -41234,9 +41234,6 @@ async function UploadApp(projectRef) {
         '--verbose',
         '--output-format', 'json'
     ];
-    if (!core.isDebug()) {
-        core.info(`[command]${xcrun} ${uploadArgs.join(' ')}`);
-    }
     let output = '';
     const exitCode = await exec.exec(xcrun, uploadArgs, {
         listeners: {
@@ -41244,7 +41241,6 @@ async function UploadApp(projectRef) {
                 output += data.toString();
             }
         },
-        silent: !core.isDebug(),
         ignoreReturnCode: true
     });
     core.info('Upload result:');
