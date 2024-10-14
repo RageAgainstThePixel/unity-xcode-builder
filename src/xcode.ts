@@ -493,23 +493,22 @@ async function getProvider(projectRef: XcodeProject): Promise<XcodeProject> {
         },
         ignoreReturnCode: true
     });
-    const outputJson = JSON.stringify(JSON.parse(output), null, 2);
+    const response = JSON.parse(output);
+    const outputJson = JSON.stringify(response, null, 2);
     if (exitCode > 0) {
         throw new Error(`Failed to list providers\n${outputJson}`);
     }
-    core.info(`Providers: ${outputJson}`);
-    // get appleId and ascPublicId
-    const providers = JSON.parse(output);
+    const providers = response.providers;
     for (const provider of providers) {
-        if (provider.providerType === 'appstore') {
-            projectRef.credential.appleId = provider.providerId;
-            projectRef.credential.ascPublicId = provider.providerId;
+        if (provider.WWDRTeamID === projectRef.credential.teamId) {
+            projectRef.credential.appleId = provider.PublicID;
             break;
         }
     }
-    if (!projectRef.credential.appleId || !projectRef.credential.ascPublicId) {
-        throw new Error('Failed to get provider details');
+    if (!projectRef.credential.appleId) {
+        throw new Error(`Failed to get appleId from providers\n${outputJson}`);
     }
+    core.debug(`Providers: ${outputJson}`);
     return projectRef;
 }
 
@@ -525,7 +524,6 @@ async function UploadApp(projectRef: XcodeProject) {
         'altool',
         '--upload-package', projectRef.executablePath,
         '--type', platforms[projectRef.platform],
-        '--asc-public-id', projectRef.credential.ascPublicId,
         '--apple-id', projectRef.credential.appleId,
         '--bundle-id', projectRef.bundleId,
         '--bundle-version', projectRef.version,
