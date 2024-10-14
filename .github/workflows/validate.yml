@@ -97,6 +97,7 @@ jobs:
           export-option: app-store
           upload: false
       - name: print outputs
+        if: always()
         run: |
           echo "Executable: ${{ steps.xcode-build.outputs.executable }}"
           echo "Output Directory: ${{ steps.xcode-build.outputs.output-directory }}"
