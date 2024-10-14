@@ -3,7 +3,7 @@
 A GitHub Action to build and archive Unity exported xcode projects.
 
 > [!NOTE]
-> The main goal of this action to to take what is provided from Unity, archive, sign, notarize and package it to be directly uploaded to the Apple app store or steam.
+> The main goal of this action to to take what is provided from Unity, archive, sign, notarize and package it to be directly uploaded to the Apple app store, test flight, or steam.
 
 ## How to use
 
@@ -62,6 +62,7 @@ This action requires several secrets that need to be setup in the repository or 
 | `export-option-plist` | The path to custom export option plist file to use when exporting the Xcode project. | Overrides `export-option`. |
 | `entitlements-plist` | The path to custom entitlements plist file. | Generates [default hardened runtime entitlements](https://developer.apple.com/documentation/security/hardened-runtime) if not provided. |
 | `notarize` | Whether to notarize the exported Xcode project. | Defaults to `true` if `export-option === steam`. |
+| `upload` | Whether to upload the exported Xcode project to App Store Connect. | Defaults to `true` if `export-option === app-store`. |
 
 ### outputs
 

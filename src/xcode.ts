@@ -241,7 +241,25 @@ async function determinePlatform(projectPath: string, scheme: string): Promise<s
         'watchos': 'watchOS',
         'xros': 'visionOS'
     };
+    await downloadPlatformSdkIfMissing(platforms[platformName]);
     return platforms[platformName] || null;
+}
+
+async function downloadPlatformSdkIfMissing(platform: string) {
+    await exec.exec(xcodebuild, ['-runFirstLaunch']);
+    let output = '';
+    await exec.exec(xcrun, ['simctl', 'list'], {
+        listeners: {
+            stdout: (data: Buffer) => {
+                output += data.toString();
+            }
+        }
+    });
+    if (output.includes(platform)) {
+        return;
+    }
+    await exec.exec(xcodebuild, ['-downloadPlatform', platform]);
+    await exec.exec(xcodebuild, ['-runFirstLaunch']);
 }
 
 async function getExportOptions(projectRef: XcodeProject): Promise<void> {

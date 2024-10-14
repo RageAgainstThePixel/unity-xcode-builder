@@ -86,13 +86,6 @@ jobs:
           build-target: ${{ matrix.build-target }}
           log-name: '${{ matrix.build-target }}-Build'
           args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -sceneList Assets/Scenes/SampleScene.unity -export -enableAppleAutomaticSigning -bundleIdentifier com.rageagainstthepixel.xcode'
-      - name: Download visionOS
-        if: ${{ matrix.build-target == 'VisionOS' }}
-        run: |
-            sudo xcodebuild -runFirstLaunch
-            sudo xcrun simctl list
-            sudo xcodebuild -downloadPlatform visionOS
-            sudo xcodebuild -runFirstLaunch
       - uses: ./ # RageAgainstThePixel/unity-xcode-builder
         id: xcode-build
         with:

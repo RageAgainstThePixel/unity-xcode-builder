@@ -4,7 +4,8 @@ import {
     GetProjectDetails,
     ArchiveXcodeProject,
     ExportXcodeArchive,
-    ValidateApp
+    ValidateApp,
+    UploadApp
 } from './xcode';
 import {
     UploadTestFlightBuild
@@ -33,7 +34,10 @@ const main = async () => {
             projectRef = await ExportXcodeArchive(projectRef);
             await ValidateApp(projectRef);
             core.setOutput('output-directory', projectRef.exportPath);
-            await UploadTestFlightBuild(projectRef);
+            const upload = core.getInput('upload') || projectRef.exportOption === 'app-store';
+            if (upload) {
+                await UploadApp(projectRef);
+            }
         } else {
             await RemoveCredentials();
         }

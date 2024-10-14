@@ -1,5 +1,6 @@
 import { AppStoreConnectClient, AppStoreConnectOptions } from '@rage-against-the-pixel/app-store-connect-api';
 import { XcodeProject } from './XcodeProject';
+import core = require('@actions/core');
 
 let appStoreConnectClient: AppStoreConnectClient | null = null;
 
@@ -59,8 +60,9 @@ async function getLatestAppStoreBuildNumber(project: XcodeProject): Promise<numb
 }
 
 async function UploadTestFlightBuild(project: XcodeProject) {
-    // await getOrCreateClient(project);
-    // const lastBuildNumber = await getLatestAppStoreBuildNumber(project);
+    await getOrCreateClient(project);
+    const lastBuildNumber = await getLatestAppStoreBuildNumber(project);
+    core.info(`Last build number: ${lastBuildNumber}`);
     // const nextBuildNumber = lastBuildNumber + 1;
     // const { data: response, error } = await appStoreConnectClient.api.build
 }
