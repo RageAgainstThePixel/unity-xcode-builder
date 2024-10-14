@@ -213,6 +213,7 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     } catch (error) {
         throw new Error(`Failed to export the archive at: ${projectRef.executablePath}`);
     }
+    core.info(`Exported executable: ${projectRef.executablePath}`);
     core.setOutput('executable', projectRef.executablePath);
     return projectRef;
 }
@@ -227,6 +228,7 @@ async function getFileAtGlobPath(globPattern: string): Promise<string> {
 }
 
 async function createMacOSInstallerPkg(projectRef: XcodeProject): Promise<string> {
+    core.info('Creating macOS installer pkg...');
     let output = '';
     const pkgPath = `${projectRef.exportPath}/${projectRef.projectName}.pkg`;
     const appPath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.app`);
@@ -432,6 +434,11 @@ async function ValidateApp(projectRef: XcodeProject) {
         'tvOS': 'appletvos',
         'visionOS': 'xros'
     };
+    try {
+        await fs.promises.access(projectRef.executablePath, fs.constants.R_OK);
+    } catch (error) {
+        throw new Error(`Failed to access the executable at: ${projectRef.executablePath}`);
+    }
     const validateArgs = [
         'altool',
         '--validate-app',
