@@ -30,9 +30,9 @@ const main = async () => {
             projectRef = await ArchiveXcodeProject(projectRef);
             projectRef = await ExportXcodeArchive(projectRef);
             await ValidateApp(projectRef);
-            const uploadInput = core.getInput('upload') || 'true';
-            core.debug(`uploadInput: ${uploadInput}`);
-            if (uploadInput === 'true' && projectRef.exportOption === 'app-store') {
+            const upload = core.getInput('upload') === 'true' && projectRef.exportOption === 'app-store';
+            core.info(`uploadInput: ${upload}`);
+            if (upload) {
                 await UploadApp(projectRef);
             }
         } else {
