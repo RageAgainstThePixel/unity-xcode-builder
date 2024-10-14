@@ -40815,16 +40815,17 @@ async function GetProjectDetails() {
     return new XcodeProject_1.XcodeProject(projectPath, projectName, platform, bundleId, projectDirectory, version, versionString, scheme);
 }
 async function parseBuildSettings(projectPath, scheme) {
-    var _a, _b;
     let buildSettingsOutput = '';
-    if (!core.isDebug()) {
-        core.info(`[command]${xcodebuild} -project ${projectPath} -scheme ${scheme} -showBuildSettings`);
-    }
-    await (0, exec_1.exec)(xcodebuild, [
+    const projectSettingsArgs = [
+        'build',
         '-project', projectPath,
         '-scheme', scheme,
         '-showBuildSettings'
-    ], {
+    ];
+    if (!core.isDebug()) {
+        core.info(`[command]${xcodebuild} ${projectSettingsArgs.join(' ')}`);
+    }
+    await (0, exec_1.exec)(xcodebuild, projectSettingsArgs, {
         listeners: {
             stdout: (data) => {
                 buildSettingsOutput += data.toString();
@@ -40832,27 +40833,12 @@ async function parseBuildSettings(projectPath, scheme) {
         },
         silent: !core.isDebug()
     });
-    let platformName = core.getInput('platform');
-    if (!platformName) {
-        const platformMatch = buildSettingsOutput.match(/\s+PLATFORM_NAME = (?<platformName>\w+)/m);
-        core.debug(`$PLATFORM_NAME: ${(_a = platformMatch === null || platformMatch === void 0 ? void 0 : platformMatch.groups) === null || _a === void 0 ? void 0 : _a.platformName}`);
-        if (!platformMatch) {
-            throw new Error('No PLATFORM_NAME found in the build settings');
-        }
-        platformName = (_b = platformMatch.groups) === null || _b === void 0 ? void 0 : _b.platformName;
-    }
+    const platformName = core.getInput('platform') || matchRegexPattern(buildSettingsOutput, /\s+PLATFORM_NAME = (?<platformName>\w+)/, 'platformName');
     if (!platformName) {
         throw new Error('Unable to determine the platform name from the build settings');
     }
-    let bundleId = core.getInput('bundle-id');
-    if (!bundleId) {
-        const bundleIdMatch = buildSettingsOutput.match(/PRODUCT_BUNDLE_IDENTIFIER = (.+)/);
-        if (!bundleIdMatch) {
-            throw new Error('Unable to resolve PRODUCT_BUNDLE_IDENTIFIER');
-        }
-        bundleId = bundleIdMatch[1];
-    }
-    if (!bundleId) {
+    const bundleId = core.getInput('bundle-id') || matchRegexPattern(buildSettingsOutput, /\s+PRODUCT_BUNDLE_IDENTIFIER = (?<bundleId>\w+)/, 'bundleId');
+    if (!bundleId || bundleId === 'NO') {
         throw new Error('Unable to determine the bundle ID from the build settings');
     }
     const platforms = {
@@ -40866,6 +40852,14 @@ async function parseBuildSettings(projectPath, scheme) {
         await downloadPlatformSdkIfMissing(platforms[platformName]);
     }
     return [platforms[platformName], bundleId];
+}
+function matchRegexPattern(string, pattern, group) {
+    var _a;
+    const match = string.match(pattern);
+    if (!match) {
+        throw new Error(`Failed to resolve: ${pattern}`);
+    }
+    return group ? (_a = match.groups) === null || _a === void 0 ? void 0 : _a[group] : match[1];
 }
 async function getProjectScheme(projectPath) {
     let scheme = core.getInput('scheme');
