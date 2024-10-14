@@ -40953,29 +40953,27 @@ async function ExportXcodeArchive(projectRef) {
         else {
             return projectRef;
         }
-        const globPath = `${projectRef.exportPath}/**/*.pkg`;
-        const globber = await glob.create(globPath);
-        const files = await globber.glob();
-        if (files.length === 0) {
-            throw new Error(`No .pkg found in the export path.\n${globPath}`);
-        }
+        projectRef.executablePath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.pkg`);
     }
     else {
-        const globPath = `${projectRef.exportPath}/**/*.ipa`;
-        const globber = await glob.create(globPath);
-        const files = await globber.glob();
-        if (files.length === 0) {
-            throw new Error(`No .ipa found in the export path.\n${globPath}`);
-        }
-        projectRef.executablePath = files[0];
+        projectRef.executablePath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.ipa`);
     }
     core.setOutput('executable', projectRef.executablePath);
     return projectRef;
 }
+async function getFileAtGlobPath(globPattern) {
+    const globber = await glob.create(globPattern);
+    const files = await globber.glob();
+    if (files.length === 0) {
+        throw new Error(`No file found at: ${globPattern}`);
+    }
+    return files[0];
+}
 async function createMacOSInstallerPkg(projectRef) {
     let output = '';
     const pkgPath = `${projectRef.exportPath}/${projectRef.projectName}.pkg`;
-    await exec.exec('productbuild', ['--component', `${projectRef.exportPath}/${projectRef.projectName}.app`, '/Applications', pkgPath], {
+    const appPath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.app`);
+    await exec.exec('productbuild', ['--component', appPath, '/Applications', pkgPath], {
         listeners: {
             stdout: (data) => {
                 output += data.toString();
