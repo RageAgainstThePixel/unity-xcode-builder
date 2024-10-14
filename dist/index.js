@@ -40945,7 +40945,20 @@ async function ExportXcodeArchive(projectRef) {
     }
     await execWithXcBeautify(exportArgs);
     if (projectRef.platform === 'macOS') {
-        projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
+        const notarizeInput = core.getInput('notarize') || 'true';
+        core.debug(`Notarize: ${notarizeInput}`);
+        if (notarizeInput && projectRef.exportOption !== 'app-store') {
+            projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
+        }
+        else {
+            return projectRef;
+        }
+        const globPath = `${projectRef.exportPath}/**/*.pkg`;
+        const globber = await glob.create(globPath);
+        const files = await globber.glob();
+        if (files.length === 0) {
+            throw new Error(`No .pkg found in the export path.\n${globPath}`);
+        }
     }
     else {
         const globPath = `${projectRef.exportPath}/**/*.ipa`;
@@ -43173,6 +43186,7 @@ const main = async () => {
             projectRef = await (0, xcode_1.ExportXcodeArchive)(projectRef);
             await (0, xcode_1.ValidateApp)(projectRef);
             const uploadInput = core.getInput('upload') || 'true';
+            core.debug(`uploadInput: ${uploadInput}`);
             if (uploadInput === 'true' && projectRef.exportOption === 'app-store') {
                 await (0, xcode_1.UploadApp)(projectRef);
             }

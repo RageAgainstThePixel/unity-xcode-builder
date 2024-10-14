@@ -18,6 +18,5 @@ export class XcodeProject {
     exportOption: string;
     exportOptionsPath: string;
     entitlementsPath: string;
-    notarize: boolean;
     appId: string;
 }

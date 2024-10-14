@@ -61,7 +61,7 @@ This action requires several secrets that need to be setup in the repository or 
 | `export-option` | The export option to use for exporting the Xcode project. Can be one of `app-store`, `steam`, `ad-hoc`, `package`, `enterprise`, `development`, `developer-id`, `mac-application`. | Defaults to `development` |
 | `export-option-plist` | The path to custom export option plist file to use when exporting the Xcode project. | Overrides `export-option`. |
 | `entitlements-plist` | The path to custom entitlements plist file. | Generates [default hardened runtime entitlements](https://developer.apple.com/documentation/security/hardened-runtime) if not provided. |
-| `notarize` | Whether to notarize the exported Xcode project. | Defaults to `true` if `export-option === steam`. |
+| `notarize` | Whether to notarize the exported Xcode project. | Defaults to `true` if `export-option !== app-store`. |
 | `upload` | Whether to upload the exported Xcode project to App Store Connect. | Defaults to `true` if `export-option === app-store`. |
 
 ### outputs
