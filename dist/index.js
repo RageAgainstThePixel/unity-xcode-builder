@@ -41247,8 +41247,21 @@ async function getProvider(projectRef) {
         throw new Error(`Failed to list providers\n${outputJson}`);
     }
     core.info(`Providers: ${outputJson}`);
+    const providers = JSON.parse(output);
+    for (const provider of providers) {
+        if (provider.providerType === 'appstore') {
+            projectRef.credential.appleId = provider.providerId;
+            projectRef.credential.ascPublicId = provider.providerId;
+            break;
+        }
+    }
+    if (!projectRef.credential.appleId || !projectRef.credential.ascPublicId) {
+        throw new Error('Failed to get provider details');
+    }
+    return projectRef;
 }
 async function UploadApp(projectRef) {
+    projectRef = await getProvider(projectRef);
     const platforms = {
         'iOS': 'ios',
         'macOS': 'macos',
@@ -41259,7 +41272,8 @@ async function UploadApp(projectRef) {
         'altool',
         '--upload-package', projectRef.executablePath,
         '--type', platforms[projectRef.platform],
-        '--team-id', projectRef.credential.teamId,
+        '--asc-public-id', projectRef.credential.ascPublicId,
+        '--apple-id', projectRef.credential.appleId,
         '--bundle-id', projectRef.bundleId,
         '--bundle-version', projectRef.version,
         '--bundle-short-version-string', projectRef.versionString,
