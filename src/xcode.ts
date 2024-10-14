@@ -196,28 +196,27 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     }
     await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
-    core.info(`Exported: ${exportPath}`);
-    const exportedFiles = fs.readdirSync(exportPath, {
-        withFileTypes: true,
-        recursive: true
-    });
-    core.info(`Exported files:`);
-    exportedFiles.forEach((f: any) => core.debug(`  > ${f}`));
-    const globPath = `${exportPath}/**/*.ipa\n${exportPath}/**/*.app`;
-    const globber = await glob.create(globPath);
-    const files = await globber.glob();
-    if (files.length === 0) {
-        throw new Error(`No IPA or APP file found in the export path.\n${globPath}`);
-    }
     if (projectRef.platform === 'macOS') {
-        projectRef.executablePath = await createMacOSInstallerPkg(projectRef, files[0]);
+        projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
     } else {
+        const globPath = `${exportPath}/**/*.ipa`;
+        const globber = await glob.create(globPath);
+        const files = await globber.glob();
+        if (files.length === 0) {
+            throw new Error(`No IPA or APP file found in the export path.\n${globPath}`);
+        }
         projectRef.executablePath = files[0];
     }
     return projectRef;
 }
 
-async function createMacOSInstallerPkg(projectRef: XcodeProject, appPath: string): Promise<string> {
+async function createMacOSInstallerPkg(projectRef: XcodeProject): Promise<string> {
+    const appPath = `${projectRef.exportPath}/${projectRef.projectName}.app`;
+    try {
+        await fs.promises.access(appPath, fs.constants.R_OK);
+    } catch (error) {
+        throw new Error(`Failed to find the app at: ${appPath}!`);
+    }
     let output = '';
     const pkgPath = `${projectRef.exportPath}/${projectRef.projectName}.pkg`;
     await exec.exec('productbuild', ['--component', appPath, '/Applications', pkgPath], {
@@ -227,7 +226,11 @@ async function createMacOSInstallerPkg(projectRef: XcodeProject, appPath: string
             }
         }
     });
-    await fs.promises.access(pkgPath, fs.constants.R_OK);
+    try {
+        await fs.promises.access(pkgPath, fs.constants.R_OK);
+    } catch (error) {
+        throw new Error(`Failed to create the pkg at: ${pkgPath}!`);
+    }
     return pkgPath;
 }
 
@@ -442,10 +445,9 @@ async function ValidateApp(projectRef: XcodeProject) {
         silent: !core.isDebug(),
         ignoreReturnCode: true
     });
-    core.info('Validation result:');
-    core.info(JSON.stringify(JSON.parse(output), null, 2));
+    core.debug(`Validation results: ${JSON.stringify(JSON.parse(output), null, 2)}`);
     if (exitCode > 0) {
-        throw new Error('Failed to validate app');
+        throw new Error(`Failed to validate app: ${JSON.stringify(JSON.parse(output), null, 2)}`);
     }
 }
 
