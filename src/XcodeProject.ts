@@ -36,4 +36,7 @@ export class XcodeProject {
     version: string;
     versionString: string;
     scheme: string;
+    isAppStoreUpload(): boolean {
+        return this.exportOption === 'app-store' || this.exportOption === 'app-store-connect';
+    }
 }

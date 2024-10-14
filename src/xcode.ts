@@ -213,7 +213,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         // don't strip debug symbols during copy
         archiveArgs.push('COPY_PHASE_STRIP=NO');
     }
-    if (projectRef.platform === 'macOS' && projectRef.exportOption !== 'app-store') {
+    if (projectRef.platform === 'macOS' && !projectRef.isAppStoreUpload()) {
         // enable hardened runtime
         archiveArgs.push('ENABLE_HARDENED_RUNTIME=YES');
     }
@@ -245,7 +245,7 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     }
     await execWithXcBeautify(exportArgs);
     if (projectRef.platform === 'macOS') {
-        const notarize = core.getInput('notarize') === 'true' && projectRef.exportOption !== 'app-store';
+        const notarize = core.getInput('notarize') === 'true' && !projectRef.isAppStoreUpload();
         core.debug(`Notarize? ${notarize}`);
         if (notarize) {
             projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
@@ -359,6 +359,7 @@ async function getExportOptions(projectRef: XcodeProject): Promise<void> {
             signingStyle: projectRef.credential.signingIdentity ? 'manual' : 'automatic',
             teamID: `${projectRef.credential.teamId}`
         };
+        projectRef.exportOption = method;
         exportOptionsPath = await writeExportOptions(projectRef.projectPath, exportOptions);
     } else {
         exportOptionsPath = exportOptionPlistInput;
@@ -400,6 +401,7 @@ async function getDefaultEntitlementsMacOS(projectRef: XcodeProject): Promise<vo
     // https://yemi.me/2020/02/17/en/submit-unity-macos-build-to-steam-appstore/#CodeSigning
     switch (exportOption) {
         case 'app-store':
+        case 'app-store-connect':
             defaultEntitlements = {
                 'com.apple.security.app-sandbox': true,
                 'com.apple.security.files.user-selected.read-only': true,

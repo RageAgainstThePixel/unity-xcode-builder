@@ -43289,6 +43289,9 @@ class XcodeProject {
         this.versionString = versionString;
         this.scheme = scheme;
     }
+    isAppStoreUpload() {
+        return this.exportOption === 'app-store' || this.exportOption === 'app-store-connect';
+    }
 }
 exports.XcodeProject = XcodeProject;
 
@@ -43506,7 +43509,7 @@ async function ArchiveXcodeProject(projectRef) {
     if (projectRef.platform === 'iOS') {
         archiveArgs.push('COPY_PHASE_STRIP=NO');
     }
-    if (projectRef.platform === 'macOS' && projectRef.exportOption !== 'app-store') {
+    if (projectRef.platform === 'macOS' && !projectRef.isAppStoreUpload()) {
         archiveArgs.push('ENABLE_HARDENED_RUNTIME=YES');
     }
     if (!core.isDebug()) {
@@ -43536,7 +43539,7 @@ async function ExportXcodeArchive(projectRef) {
     }
     await execWithXcBeautify(exportArgs);
     if (projectRef.platform === 'macOS') {
-        const notarize = core.getInput('notarize') === 'true' && projectRef.exportOption !== 'app-store';
+        const notarize = core.getInput('notarize') === 'true' && !projectRef.isAppStoreUpload();
         core.debug(`Notarize? ${notarize}`);
         if (notarize) {
             projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
@@ -43647,6 +43650,7 @@ async function getExportOptions(projectRef) {
             signingStyle: projectRef.credential.signingIdentity ? 'manual' : 'automatic',
             teamID: `${projectRef.credential.teamId}`
         };
+        projectRef.exportOption = method;
         exportOptionsPath = await writeExportOptions(projectRef.projectPath, exportOptions);
     }
     else {
@@ -43688,6 +43692,7 @@ async function getDefaultEntitlementsMacOS(projectRef) {
     let defaultEntitlements = undefined;
     switch (exportOption) {
         case 'app-store':
+        case 'app-store-connect':
             defaultEntitlements = {
                 'com.apple.security.app-sandbox': true,
                 'com.apple.security.files.user-selected.read-only': true,
@@ -45818,7 +45823,7 @@ const main = async () => {
             projectRef = await (0, xcode_1.ArchiveXcodeProject)(projectRef);
             projectRef = await (0, xcode_1.ExportXcodeArchive)(projectRef);
             await (0, xcode_1.ValidateApp)(projectRef);
-            const upload = core.getInput('upload') === 'true' && projectRef.exportOption === 'app-store';
+            const upload = core.getInput('upload') === 'true' && projectRef.isAppStoreUpload();
             core.info(`uploadInput: ${upload}`);
             if (upload) {
                 await (0, xcode_1.UploadApp)(projectRef);
