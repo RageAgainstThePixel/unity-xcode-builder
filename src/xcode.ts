@@ -297,12 +297,16 @@ async function createMacOSInstallerPkg(projectRef: XcodeProject): Promise<string
 async function downloadPlatformSdkIfMissing(platform: string) {
     await exec(xcodebuild, ['-runFirstLaunch']);
     let output = '';
+    if (!core.isDebug()) {
+        core.info(`[command]${xcrun} simctl list`);
+    }
     await exec(xcrun, ['simctl', 'list'], {
         listeners: {
             stdout: (data: Buffer) => {
                 output += data.toString();
             }
-        }
+        },
+        silent: !core.isDebug()
     });
     if (output.includes(platform)) {
         return;
@@ -478,8 +482,7 @@ async function ValidateApp(projectRef: XcodeProject) {
     core.debug(`Validation results: ${outputJson}`);
 }
 
-async function getProvider(projectRef: XcodeProject): Promise<XcodeProject> {
-    // altool --list-apps --apiKey <apiKey> --apiIssuer <apiIssuer> --output-format json
+async function getAppId(projectRef: XcodeProject): Promise<XcodeProject> {
     const providersArgs = [
         'altool',
         '--list-apps',
@@ -501,22 +504,20 @@ async function getProvider(projectRef: XcodeProject): Promise<XcodeProject> {
     if (exitCode > 0) {
         throw new Error(`Failed to list providers\n${outputJson}`);
     }
-    core.info(`Providers: ${outputJson}`);
-    const providers = response.providers;
-    for (const provider of providers) {
-        if (provider.WWDRTeamID === projectRef.credential.teamId) {
-            projectRef.credential.appleId = provider.PublicID;
-            break;
-        }
+    core.debug(`Apps: ${outputJson}`);
+    const app = response.applications.find((app: any) => app.ExistingBundleIdentifier === projectRef.bundleId);
+    if (!app) {
+        throw new Error(`App not found with bundleId: ${projectRef.bundleId}`);
     }
-    if (!projectRef.credential.appleId) {
-        throw new Error(`Failed to get appleId from providers!`);
+    if (!app.AppleID) {
+        throw new Error(`AppleID not found for app: ${JSON.stringify(app, null, 2)}`);
     }
+    projectRef.credential.appleId = app.AppleID;
     return projectRef;
 }
 
 async function UploadApp(projectRef: XcodeProject) {
-    projectRef = await getProvider(projectRef);
+    projectRef = await getAppId(projectRef);
     const platforms = {
         'iOS': 'ios',
         'macOS': 'macos',

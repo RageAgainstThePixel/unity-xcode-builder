@@ -41039,12 +41039,16 @@ async function createMacOSInstallerPkg(projectRef) {
 async function downloadPlatformSdkIfMissing(platform) {
     await (0, exec_1.exec)(xcodebuild, ['-runFirstLaunch']);
     let output = '';
+    if (!core.isDebug()) {
+        core.info(`[command]${xcrun} simctl list`);
+    }
     await (0, exec_1.exec)(xcrun, ['simctl', 'list'], {
         listeners: {
             stdout: (data) => {
                 output += data.toString();
             }
-        }
+        },
+        silent: !core.isDebug()
     });
     if (output.includes(platform)) {
         return;
@@ -41219,7 +41223,7 @@ async function ValidateApp(projectRef) {
     }
     core.debug(`Validation results: ${outputJson}`);
 }
-async function getProvider(projectRef) {
+async function getAppId(projectRef) {
     const providersArgs = [
         'altool',
         '--list-apps',
@@ -41241,21 +41245,19 @@ async function getProvider(projectRef) {
     if (exitCode > 0) {
         throw new Error(`Failed to list providers\n${outputJson}`);
     }
-    core.info(`Providers: ${outputJson}`);
-    const providers = response.providers;
-    for (const provider of providers) {
-        if (provider.WWDRTeamID === projectRef.credential.teamId) {
-            projectRef.credential.appleId = provider.PublicID;
-            break;
-        }
+    core.debug(`Apps: ${outputJson}`);
+    const app = response.applications.find((app) => app.ExistingBundleIdentifier === projectRef.bundleId);
+    if (!app) {
+        throw new Error(`App not found with bundleId: ${projectRef.bundleId}`);
     }
-    if (!projectRef.credential.appleId) {
-        throw new Error(`Failed to get appleId from providers!`);
+    if (!app.AppleID) {
+        throw new Error(`AppleID not found for app: ${JSON.stringify(app, null, 2)}`);
     }
+    projectRef.credential.appleId = app.AppleID;
     return projectRef;
 }
 async function UploadApp(projectRef) {
-    projectRef = await getProvider(projectRef);
+    projectRef = await getAppId(projectRef);
     const platforms = {
         'iOS': 'ios',
         'macOS': 'macos',
