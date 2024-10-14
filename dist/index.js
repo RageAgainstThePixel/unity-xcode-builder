@@ -40967,7 +40967,7 @@ async function createMacOSInstallerPkg(projectRef) {
     }
     let output = '';
     const pkgPath = `${projectRef.exportPath}/${projectRef.projectName}.pkg`;
-    await exec.exec('productbuild', ['--root', , '/Applications', pkgPath], {
+    await exec.exec('productbuild', ['--component', files[0], '/Applications', pkgPath], {
         listeners: {
             stdout: (data) => {
                 output += data.toString();
