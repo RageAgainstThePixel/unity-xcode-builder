@@ -436,6 +436,7 @@ async function UploadApp(projectRef: XcodeProject) {
         '--upload-package',
         projectRef.executablePath,
         '--type', platforms[projectRef.platform],
+        '--bundle-id', projectRef.bundleId,
         '--team-id', projectRef.credential.teamId,
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
