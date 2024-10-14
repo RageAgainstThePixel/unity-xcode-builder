@@ -212,15 +212,9 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
 }
 
 async function createMacOSInstallerPkg(projectRef: XcodeProject): Promise<string> {
-    const globPath = `${projectRef.exportPath}/${projectRef.projectName}.app`;
-    const globber = await glob.create(globPath);
-    const files = await globber.glob();
-    if (files.length === 0) {
-        throw new Error(`No .app found in the export path.\n${globPath}`);
-    }
     let output = '';
     const pkgPath = `${projectRef.exportPath}/${projectRef.projectName}.pkg`;
-    await exec.exec('productbuild', ['--component', files[0], '/Applications', pkgPath], {
+    await exec.exec('productbuild', ['--component', `${projectRef.exportPath}/${projectRef.projectName}.app`, '/Applications', pkgPath], {
         listeners: {
             stdout: (data: Buffer) => {
                 output += data.toString();
