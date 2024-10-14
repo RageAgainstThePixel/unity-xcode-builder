@@ -196,16 +196,36 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     }
     await execWithXcBeautify(exportArgs);
     projectRef.exportPath = exportPath;
-    core.debug(`Exported: ${exportPath}`);
+    core.info(`Exported: ${exportPath}`);
+    const exportedFiles = fs.readdirSync(exportPath, { recursive: true });
+    core.info(`Exported files:`);
+    exportedFiles.forEach((f: any) => core.debug(`  > ${f}`));
     const globPath = `${exportPath}/**/*.ipa\n${exportPath}/**/*.app`;
     const globber = await glob.create(globPath);
     const files = await globber.glob();
     if (files.length === 0) {
         throw new Error(`No IPA or APP file found in the export path.\n${globPath}`);
     }
-    core.setOutput('executable', files[0]);
-    projectRef.executablePath = files[0];
+    if (projectRef.platform === 'macOS') {
+        projectRef.executablePath = await createMacOSInstallerPkg(projectRef, files[0]);
+    } else {
+        projectRef.executablePath = files[0];
+    }
     return projectRef;
+}
+
+async function createMacOSInstallerPkg(projectRef: XcodeProject, appPath: string): Promise<string> {
+    let output = '';
+    const pkgPath = `${projectRef.exportPath}/${projectRef.projectName}.pkg`;
+    await exec.exec('productbuild', ['--component', appPath, '/Applications', pkgPath], {
+        listeners: {
+            stdout: (data: Buffer) => {
+                output += data.toString();
+            }
+        }
+    });
+    await fs.promises.access(pkgPath, fs.constants.R_OK);
+    return pkgPath;
 }
 
 async function determinePlatform(projectPath: string, scheme: string): Promise<string> {
@@ -395,18 +415,22 @@ async function ValidateApp(projectRef: XcodeProject) {
         'tvOS': 'appletvos',
         'visionOS': 'xros'
     };
-    let output = '';
-    core.info(`[command]${xcrun} altool --validate-app --file ${projectRef.executablePath} --type ${platforms[projectRef.platform]} *** --verbose --output-format json`);
-    const exitCode = await exec.exec(xcrun, [
+    const validateArgs = [
         'altool',
         '--validate-app',
+        '--bundle-id', projectRef.bundleId,
         '--file', projectRef.executablePath,
         '--type', platforms[projectRef.platform],
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
         '--verbose',
         '--output-format', 'json'
-    ], {
+    ];
+    if (!core.isDebug()) {
+        core.info(`[command]${xcrun} ${validateArgs.join(' ')}`);
+    }
+    let output = '';
+    const exitCode = await exec.exec(xcrun, validateArgs, {
         listeners: {
             stdout: (data: Buffer) => {
                 output += data.toString();
@@ -416,9 +440,9 @@ async function ValidateApp(projectRef: XcodeProject) {
         ignoreReturnCode: true
     });
     core.info('Validation result:');
-    core.info(output);
+    core.info(JSON.stringify(JSON.parse(output), null, 2));
     if (exitCode > 0) {
-        throw new Error('Failed to upload app');
+        throw new Error('Failed to validate app');
     }
 }
 
@@ -429,12 +453,9 @@ async function UploadApp(projectRef: XcodeProject) {
         'tvOS': 'appletvos',
         'visionOS': 'xros'
     };
-    let output = '';
-    core.info(`[command]${xcrun} altool --upload-package ${projectRef.executablePath} --type ${platforms[projectRef.platform]} *** --verbose --output-format json`);
-    const exitCode = await exec.exec(xcrun, [
+    const uploadArgs = [
         'altool',
-        '--upload-package',
-        projectRef.executablePath,
+        '--upload-package', projectRef.executablePath,
         '--type', platforms[projectRef.platform],
         '--bundle-id', projectRef.bundleId,
         '--team-id', projectRef.credential.teamId,
@@ -442,7 +463,12 @@ async function UploadApp(projectRef: XcodeProject) {
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
         '--verbose',
         '--output-format', 'json'
-    ], {
+    ];
+    if (!core.isDebug()) {
+        core.info(`[command]${xcrun} ${uploadArgs.join(' ')}`);
+    }
+    let output = '';
+    const exitCode = await exec.exec(xcrun, uploadArgs, {
         listeners: {
             stdout: (data: Buffer) => {
                 output += data.toString();
@@ -452,7 +478,7 @@ async function UploadApp(projectRef: XcodeProject) {
         ignoreReturnCode: true
     });
     core.info('Upload result:');
-    core.info(output);
+    core.info(JSON.stringify(JSON.parse(output), null, 2));
     if (exitCode > 0) {
         throw new Error('Failed to upload app');
     }
