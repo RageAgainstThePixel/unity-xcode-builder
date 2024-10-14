@@ -40945,14 +40945,6 @@ async function ExportXcodeArchive(projectRef) {
     }
     await execWithXcBeautify(exportArgs);
     if (projectRef.platform === 'macOS') {
-        const notarizeInput = core.getInput('notarize') || 'true';
-        core.debug(`Notarize: ${notarizeInput}`);
-        if (notarizeInput && projectRef.exportOption !== 'app-store') {
-            projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
-        }
-        else {
-            return projectRef;
-        }
         projectRef.executablePath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.pkg`);
     }
     else {

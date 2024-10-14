@@ -197,13 +197,13 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     }
     await execWithXcBeautify(exportArgs);
     if (projectRef.platform === 'macOS') {
-        const notarizeInput = core.getInput('notarize') || 'true';
-        core.debug(`Notarize: ${notarizeInput}`);
-        if (notarizeInput && projectRef.exportOption !== 'app-store') {
-            projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
-        } else {
-            return projectRef;
-        }
+        // const notarizeInput = core.getInput('notarize') || 'true';
+        // core.debug(`Notarize: ${notarizeInput}`);
+        // if (notarizeInput && projectRef.exportOption !== 'app-store') {
+        //     projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
+        // } else {
+        //     return projectRef;
+        // }
         projectRef.executablePath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.pkg`);
     } else {
         projectRef.executablePath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.ipa`);
