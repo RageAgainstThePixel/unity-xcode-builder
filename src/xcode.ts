@@ -480,10 +480,10 @@ async function ValidateApp(projectRef: XcodeProject) {
 }
 
 async function getProvider(projectRef: XcodeProject): Promise<XcodeProject> {
-    // altool --list-providers --apiKey <apiKey> --apiIssuer <apiIssuer> --output-format json
+    // altool --list-apps --apiKey <apiKey> --apiIssuer <apiIssuer> --output-format json
     const providersArgs = [
         'altool',
-        '--list-providers',
+        '--list-apps',
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
         '--output-format', 'json'
@@ -502,6 +502,7 @@ async function getProvider(projectRef: XcodeProject): Promise<XcodeProject> {
     if (exitCode > 0) {
         throw new Error(`Failed to list providers\n${outputJson}`);
     }
+    core.info(`Providers: ${outputJson}`);
     const providers = response.providers;
     for (const provider of providers) {
         if (provider.WWDRTeamID === projectRef.credential.teamId) {
@@ -510,9 +511,8 @@ async function getProvider(projectRef: XcodeProject): Promise<XcodeProject> {
         }
     }
     if (!projectRef.credential.appleId) {
-        throw new Error(`Failed to get appleId from providers\n${outputJson}`);
+        throw new Error(`Failed to get appleId from providers!`);
     }
-    core.debug(`Providers: ${outputJson}`);
     return projectRef;
 }
 
@@ -554,7 +554,9 @@ async function UploadApp(projectRef: XcodeProject) {
     if (exitCode > 0) {
         throw new Error(`Failed to upload app\n${outputJson}`);
     }
-    core.info(`Upload result: ${outputJson}`);
+    core.startGroup('Upload result');
+    core.info(outputJson);
+    core.endGroup();
 }
 
 export {

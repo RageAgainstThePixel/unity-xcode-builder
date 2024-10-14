@@ -41222,7 +41222,7 @@ async function ValidateApp(projectRef) {
 async function getProvider(projectRef) {
     const providersArgs = [
         'altool',
-        '--list-providers',
+        '--list-apps',
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
         '--output-format', 'json'
@@ -41241,6 +41241,7 @@ async function getProvider(projectRef) {
     if (exitCode > 0) {
         throw new Error(`Failed to list providers\n${outputJson}`);
     }
+    core.info(`Providers: ${outputJson}`);
     const providers = response.providers;
     for (const provider of providers) {
         if (provider.WWDRTeamID === projectRef.credential.teamId) {
@@ -41249,9 +41250,8 @@ async function getProvider(projectRef) {
         }
     }
     if (!projectRef.credential.appleId) {
-        throw new Error(`Failed to get appleId from providers\n${outputJson}`);
+        throw new Error(`Failed to get appleId from providers!`);
     }
-    core.debug(`Providers: ${outputJson}`);
     return projectRef;
 }
 async function UploadApp(projectRef) {
@@ -41288,7 +41288,9 @@ async function UploadApp(projectRef) {
     if (exitCode > 0) {
         throw new Error(`Failed to upload app\n${outputJson}`);
     }
-    core.info(`Upload result: ${outputJson}`);
+    core.startGroup('Upload result');
+    core.info(outputJson);
+    core.endGroup();
 }
 
 
