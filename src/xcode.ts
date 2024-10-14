@@ -491,13 +491,17 @@ async function getAppId(projectRef: XcodeProject): Promise<XcodeProject> {
         '--output-format', 'json'
     ];
     let output = '';
+    if (!core.isDebug()) {
+        core.info(`[command]${xcrun} ${providersArgs.join(' ')}`);
+    }
     const exitCode = await exec(xcrun, providersArgs, {
         listeners: {
             stdout: (data: Buffer) => {
                 output += data.toString();
             }
         },
-        ignoreReturnCode: true
+        ignoreReturnCode: true,
+        silent: !core.isDebug()
     });
     const response = JSON.parse(output);
     const outputJson = JSON.stringify(response, null, 2);
