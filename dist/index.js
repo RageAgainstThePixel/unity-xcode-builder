@@ -43539,10 +43539,13 @@ async function ExportXcodeArchive(projectRef) {
     }
     await execWithXcBeautify(exportArgs);
     if (projectRef.platform === 'macOS') {
-        const notarize = core.getInput('notarize') === 'true' && !projectRef.isAppStoreUpload();
-        core.debug(`Notarize? ${notarize}`);
-        if (notarize) {
-            projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
+        if (!projectRef.isAppStoreUpload()) {
+            const notarizeInput = core.getInput('notarize') || 'true';
+            const notarize = notarizeInput === 'true';
+            core.debug(`Notarize? ${notarize}`);
+            if (notarize) {
+                projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
+            }
         }
         else {
             projectRef.executablePath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.pkg`);
@@ -45827,7 +45830,8 @@ const main = async () => {
             projectRef = await (0, xcode_1.ArchiveXcodeProject)(projectRef);
             projectRef = await (0, xcode_1.ExportXcodeArchive)(projectRef);
             await (0, xcode_1.ValidateApp)(projectRef);
-            const upload = core.getInput('upload') === 'true' && projectRef.isAppStoreUpload();
+            const uploadInput = core.getInput('upload') || projectRef.isAppStoreUpload().toString();
+            const upload = projectRef.isAppStoreUpload() && uploadInput === 'true';
             core.info(`uploadInput: ${upload}`);
             if (upload) {
                 await (0, xcode_1.UploadApp)(projectRef);

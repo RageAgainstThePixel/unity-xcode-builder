@@ -47,7 +47,8 @@ const main = async () => {
             projectRef = await ArchiveXcodeProject(projectRef);
             projectRef = await ExportXcodeArchive(projectRef);
             await ValidateApp(projectRef);
-            const upload = core.getInput('upload') === 'true' && projectRef.isAppStoreUpload();
+            const uploadInput = core.getInput('upload') || projectRef.isAppStoreUpload().toString();
+            const upload = projectRef.isAppStoreUpload() && uploadInput === 'true';
             core.info(`uploadInput: ${upload}`);
             if (upload) {
                 await UploadApp(projectRef);
