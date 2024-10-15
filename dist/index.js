@@ -53854,7 +53854,7 @@ async function getOrCreateClient(project) {
         return appStoreConnectClient;
     }
     if (!project.credential) {
-        throw new Error('Missing AppleCredential');
+        throw new UnauthorizedError('Missing AppleCredential!');
     }
     const options = {
         issuerId: project.credential.appStoreConnectIssuerId,
@@ -53961,10 +53961,11 @@ async function getPreReleaseBuild(prereleaseVersion, buildVersion = null) {
     }
     return buildsResponse.data[0];
 }
-async function getBetaBuildLocalization(buildId) {
+async function getBetaBuildLocalization(preReleaseVersion, buildVersion) {
+    const build = await getPreReleaseBuild(preReleaseVersion, buildVersion);
     const betaBuildLocalizationRequest = {
         query: {
-            'filter[build]': [buildId],
+            'filter[build]': [build.id],
             limit: 1,
         }
     };
@@ -53978,21 +53979,27 @@ async function getBetaBuildLocalization(buildId) {
     }
     return betaBuildLocalizationResponse.data[0];
 }
-async function pollForBuildLocalization(buildId, maxRetries = 60, interval = 30) {
+async function pollForBuildLocalization(preReleaseVersion, buildVersion, maxRetries = 60, interval = 30) {
     let retries = 0;
     while (retries <= maxRetries) {
         core.info(`Polling for build localization... Attempt ${++retries}/${maxRetries}`);
-        const betaBuildLocalization = await getBetaBuildLocalization(buildId);
-        if (betaBuildLocalization) {
-            return betaBuildLocalization;
+        try {
+            const betaBuildLocalization = await getBetaBuildLocalization(preReleaseVersion, buildVersion);
+            if (betaBuildLocalization) {
+                return betaBuildLocalization;
+            }
+        }
+        catch (error) {
+            core.warning(error.message);
         }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }
     throw new Error('Timed out waiting for build localization');
 }
-async function UpdateTestDetails(project, buildId, whatsNew) {
+async function UpdateTestDetails(project, buildVersion, whatsNew) {
     await getOrCreateClient(project);
-    const betaBuildLocalization = await pollForBuildLocalization(buildId);
+    const prereleaseVersion = await getLastPreReleaseVersion(project);
+    const betaBuildLocalization = await pollForBuildLocalization(prereleaseVersion, buildVersion);
     const updateBuildLocalization = {
         data: {
             id: betaBuildLocalization.id,
@@ -54740,7 +54747,6 @@ async function getAppId(projectRef) {
     return projectRef;
 }
 async function UploadApp(projectRef) {
-    var _a;
     projectRef = await getAppId(projectRef);
     let bundleVersion = -1;
     try {
@@ -54791,13 +54797,13 @@ async function UploadApp(projectRef) {
     if (exitCode > 0) {
         throw new Error(`Failed to upload app\n${outputJson}`);
     }
-    core.info(outputJson);
-    const buildIdMatch = output.match(/Delivery UUID: (?<buildId>\w+)/);
-    if (!buildIdMatch) {
-        throw new Error('Failed to match build id!');
+    core.debug(outputJson);
+    try {
+        await (0, AppStoreConnectClient_1.UpdateTestDetails)(projectRef, bundleVersion, await getWhatsNew());
     }
-    const buildId = (_a = buildIdMatch.groups) === null || _a === void 0 ? void 0 : _a.buildId;
-    await (0, AppStoreConnectClient_1.UpdateTestDetails)(projectRef, buildId, await getWhatsNew());
+    catch (error) {
+        core.error(`Failed to update test details!\n${error.message}`);
+    }
 }
 async function getWhatsNew() {
     let whatsNew = core.getInput('whats-new');

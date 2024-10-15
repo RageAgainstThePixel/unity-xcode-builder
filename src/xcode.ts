@@ -593,13 +593,12 @@ async function UploadApp(projectRef: XcodeProject) {
     if (exitCode > 0) {
         throw new Error(`Failed to upload app\n${outputJson}`);
     }
-    core.info(outputJson);
-    const buildIdMatch = output.match(/Delivery UUID: (?<buildId>\w+)/);
-    if (!buildIdMatch) {
-        throw new Error('Failed to match build id!');
+    core.debug(outputJson);
+    try {
+        await UpdateTestDetails(projectRef, bundleVersion, await getWhatsNew());
+    } catch (error) {
+        core.error(`Failed to update test details!\n${error.message}`);
     }
-    const buildId = buildIdMatch.groups?.buildId;
-    await UpdateTestDetails(projectRef, buildId, await getWhatsNew());
 }
 
 async function getWhatsNew(): Promise<string> {

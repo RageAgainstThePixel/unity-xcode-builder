@@ -26,7 +26,7 @@ class UnauthorizedError extends Error {
 async function getOrCreateClient(project: XcodeProject) {
     if (appStoreConnectClient) { return appStoreConnectClient; }
     if (!project.credential) {
-        throw new Error('Missing AppleCredential');
+        throw new UnauthorizedError('Missing AppleCredential!');
     }
     const options: AppStoreConnectOptions = {
         issuerId: project.credential.appStoreConnectIssuerId,
@@ -136,10 +136,11 @@ async function getPreReleaseBuild(prereleaseVersion: PrereleaseVersion, buildVer
     return buildsResponse.data[0];
 }
 
-async function getBetaBuildLocalization(buildId: string): Promise<BetaBuildLocalization> {
+async function getBetaBuildLocalization(preReleaseVersion: PrereleaseVersion, buildVersion: number): Promise<BetaBuildLocalization> {
+    const build = await getPreReleaseBuild(preReleaseVersion, buildVersion);
     const betaBuildLocalizationRequest: BetaBuildLocalizationsGetCollectionData = {
         query: {
-            'filter[build]': [buildId],
+            'filter[build]': [build.id],
             limit: 1,
         }
     };
@@ -154,20 +155,25 @@ async function getBetaBuildLocalization(buildId: string): Promise<BetaBuildLocal
     return betaBuildLocalizationResponse.data[0];
 }
 
-async function pollForBuildLocalization(buildId: string, maxRetries: number = 60, interval: number = 30): Promise<BetaBuildLocalization> {
+async function pollForBuildLocalization(preReleaseVersion: PrereleaseVersion, buildVersion: number, maxRetries: number = 60, interval: number = 30): Promise<BetaBuildLocalization> {
     let retries = 0;
     while (retries <= maxRetries) {
         core.info(`Polling for build localization... Attempt ${++retries}/${maxRetries}`);
-        const betaBuildLocalization = await getBetaBuildLocalization(buildId);
-        if (betaBuildLocalization) { return betaBuildLocalization; }
+        try {
+            const betaBuildLocalization = await getBetaBuildLocalization(preReleaseVersion, buildVersion);
+            if (betaBuildLocalization) { return betaBuildLocalization; }
+        } catch (error) {
+            core.warning(error.message);
+        }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }
     throw new Error('Timed out waiting for build localization');
 }
 
-async function UpdateTestDetails(project: XcodeProject, buildId: string, whatsNew: string): Promise<void> {
+async function UpdateTestDetails(project: XcodeProject, buildVersion: number, whatsNew: string): Promise<void> {
     await getOrCreateClient(project);
-    const betaBuildLocalization = await pollForBuildLocalization(buildId);
+    const prereleaseVersion = await getLastPreReleaseVersion(project);
+    const betaBuildLocalization = await pollForBuildLocalization(prereleaseVersion, buildVersion);
     const updateBuildLocalization: BetaBuildLocalizationUpdateRequest = {
         data: {
             id: betaBuildLocalization.id,
