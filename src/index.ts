@@ -37,9 +37,9 @@ const main = async () => {
             }
             xcodeVersion = xcodeVersionMatch.groups.version;
             if (!xcodeVersion) {
-                throw new Error('Failed to get Xcode version!');
+                throw new Error('Failed to prase Xcode version!');
             }
-            core.saveState('xcode-version', xcodeVersion);
+            core.saveState('xcodeVersion', xcodeVersion);
             const credential = await ImportCredentials();
             let projectRef = await GetProjectDetails();
             projectRef.credential = credential;

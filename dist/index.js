@@ -43631,9 +43631,9 @@ async function getExportOptions(projectRef) {
         else {
             method = exportOption;
         }
-        const versionString = core.getState('xcode-version');
+        const versionString = core.getState('xcodeVersion');
         if (!versionString) {
-            throw new Error('Failed to get the Xcode version');
+            throw new Error('Failed to get xcodeVersion state!');
         }
         const xcodeVersion = new semver_1.SemVer(versionString, { loose: true });
         const xcodeMinVersion = new semver_1.SemVer('15.4', { loose: true });
@@ -45822,9 +45822,9 @@ const main = async () => {
             }
             xcodeVersion = xcodeVersionMatch.groups.version;
             if (!xcodeVersion) {
-                throw new Error('Failed to get Xcode version!');
+                throw new Error('Failed to prase Xcode version!');
             }
-            core.saveState('xcode-version', xcodeVersion);
+            core.saveState('xcodeVersion', xcodeVersion);
             const credential = await (0, AppleCredential_1.ImportCredentials)();
             let projectRef = await (0, xcode_1.GetProjectDetails)();
             projectRef.credential = credential;
