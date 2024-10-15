@@ -615,6 +615,9 @@ async function getWhatsNew(): Promise<string> {
         const commitMessage = await execGit(['log', head, '-1', '--format=%s']);
         whatsNew = `[${commitSha}]${branchName}\n${commitMessage}`;
     }
+    if (whatsNew.length === 0) {
+        throw new Error('Test details empty!');
+    }
     return whatsNew;
 }
 
