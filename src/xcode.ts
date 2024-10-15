@@ -588,8 +588,7 @@ async function UploadApp(projectRef: XcodeProject) {
     if (exitCode > 0) {
         throw new Error(`Failed to upload app\n${outputJson}`);
     }
-    core.debug(outputJson);
-    // Delivery UUID: XXXXXX
+    core.info(outputJson);
     const buildIdMatch = output.match(/Delivery UUID: (?<buildId>\w+)/);
     if (!buildIdMatch) {
         throw new Error('Failed to match build id!');

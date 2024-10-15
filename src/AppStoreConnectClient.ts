@@ -138,9 +138,7 @@ async function pollForBuildLocalization(buildId: string, maxRetries: number = 60
     while (retries <= maxRetries) {
         core.info(`Polling for build localization... Attempt ${++retries}/${maxRetries}`);
         const betaBuildLocalization = await getBetaBuildLocalization(buildId);
-        if (betaBuildLocalization) {
-            return betaBuildLocalization;
-        }
+        if (betaBuildLocalization) { return betaBuildLocalization; }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }
     throw new Error('Timed out waiting for build localization');
@@ -160,9 +158,7 @@ async function UpdateTestDetails(project: XcodeProject, buildId: string, whatsNe
     };
     core.info(`Updating beta build localization: ${JSON.stringify(updateBuildLocalization, null, 2)}`);
     const { error: updateError } = await appStoreConnectClient.api.betaBuildLocalizationsUpdateInstance({
-        path: {
-            id: betaBuildLocalization.id
-        },
+        path: { id: betaBuildLocalization.id },
         body: updateBuildLocalization
     });
     if (updateError) {

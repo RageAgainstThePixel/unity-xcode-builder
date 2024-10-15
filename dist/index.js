@@ -53983,9 +53983,7 @@ async function UpdateTestDetails(project, buildId, whatsNew) {
     };
     core.info(`Updating beta build localization: ${JSON.stringify(updateBuildLocalization, null, 2)}`);
     const { error: updateError } = await appStoreConnectClient.api.betaBuildLocalizationsUpdateInstance({
-        path: {
-            id: betaBuildLocalization.id
-        },
+        path: { id: betaBuildLocalization.id },
         body: updateBuildLocalization
     });
     if (updateError) {
@@ -54766,7 +54764,7 @@ async function UploadApp(projectRef) {
     if (exitCode > 0) {
         throw new Error(`Failed to upload app\n${outputJson}`);
     }
-    core.debug(outputJson);
+    core.info(outputJson);
     const buildIdMatch = output.match(/Delivery UUID: (?<buildId>\w+)/);
     if (!buildIdMatch) {
         throw new Error('Failed to match build id!');
