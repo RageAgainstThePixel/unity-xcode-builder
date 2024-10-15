@@ -59102,7 +59102,7 @@ async function UploadApp(projectRef) {
     }
 }
 async function getWhatsNew() {
-    var _a, _b;
+    var _a, _b, _c;
     let whatsNew = core.getInput('whats-new');
     if (!whatsNew || whatsNew.length === 0) {
         const head = github.context.eventName === 'pull_request'
@@ -59113,7 +59113,7 @@ async function getWhatsNew() {
         const branchNameMatch = branchNameDetails.match(/\((?<branch>.+)\)/);
         let branchName = '';
         if (branchNameMatch) {
-            branchName = (_b = branchNameMatch.groups) === null || _b === void 0 ? void 0 : _b.branch;
+            branchName = (_c = (_b = branchNameMatch.groups) === null || _b === void 0 ? void 0 : _b.branch) === null || _c === void 0 ? void 0 : _c.replace('origin/', '');
         }
         const commitMessage = await execGit(['log', head, '-1', '--format=%s']);
         whatsNew = `[${commitSha.trim()}]${branchName.trim()}\n${commitMessage.trim()}`;

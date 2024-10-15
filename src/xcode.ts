@@ -624,7 +624,7 @@ async function getWhatsNew(): Promise<string> {
         const branchNameMatch = branchNameDetails.match(/\((?<branch>.+)\)/);
         let branchName = '';
         if (branchNameMatch) {
-            branchName = branchNameMatch.groups?.branch;
+            branchName = branchNameMatch.groups?.branch?.replace('origin/', '');
         }
         const commitMessage = await execGit(['log', head, '-1', '--format=%s']);
         whatsNew = `[${commitSha.trim()}]${branchName.trim()}\n${commitMessage.trim()}`;
