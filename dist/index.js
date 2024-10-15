@@ -58913,7 +58913,6 @@ async function getDefaultEntitlementsMacOS(projectRef) {
     await fs.promises.writeFile(entitlementsPath, plist.build(defaultEntitlements));
 }
 async function execWithXcBeautify(xcodeBuildArgs) {
-    var _a;
     try {
         await (0, exec_1.exec)('xcbeautify', ['--version'], { silent: true });
     }
@@ -58951,18 +58950,6 @@ async function execWithXcBeautify(xcodeBuildArgs) {
         });
     });
     if (exitCode !== 0) {
-        const logsPath = (_a = errorOutput.match(/Created bundle at path "(.+)"/)) === null || _a === void 0 ? void 0 : _a[1];
-        if (logsPath) {
-            try {
-                const logs = await fs.promises.readFile(logsPath, 'utf8');
-                core.startGroup('Distribution logs');
-                core.info(`${logs}`);
-                core.endGroup();
-            }
-            catch (error) {
-                core.warning(`Failed to read logs at: ${logsPath}.\n${error.message}`);
-            }
-        }
         throw new Error(`xcodebuild exited with code ${exitCode}\n${errorOutput}`);
     }
 }

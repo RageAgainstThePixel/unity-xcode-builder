@@ -460,17 +460,6 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
         });
     });
     if (exitCode !== 0) {
-        const logsPath = errorOutput.match(/Created bundle at path "(.+)"/)?.[1];
-        if (logsPath) {
-            try {
-                const logs = await fs.promises.readFile(logsPath, 'utf8');
-                core.startGroup('Distribution logs');
-                core.info(`${logs}`);
-                core.endGroup();
-            } catch (error) {
-                core.warning(`Failed to read logs at: ${logsPath}.\n${error.message}`);
-            }
-        }
         throw new Error(`xcodebuild exited with code ${exitCode}\n${errorOutput}`);
     }
 }
