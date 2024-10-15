@@ -54658,7 +54658,13 @@ async function getAppId(projectRef) {
 }
 async function UploadApp(projectRef) {
     projectRef = await getAppId(projectRef);
-    const bundleVersion = await (0, AppStoreConnectClient_1.GetLatestBundleVersion)(projectRef);
+    let bundleVersion = -1;
+    try {
+        bundleVersion = await (0, AppStoreConnectClient_1.GetLatestBundleVersion)(projectRef);
+    }
+    catch (error) {
+        core.warning(`Failed to get the latest bundle version!\n${error.message}`);
+    }
     const platforms = {
         'iOS': 'ios',
         'macOS': 'macos',

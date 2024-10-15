@@ -542,7 +542,12 @@ async function getAppId(projectRef: XcodeProject): Promise<XcodeProject> {
 
 async function UploadApp(projectRef: XcodeProject) {
     projectRef = await getAppId(projectRef);
-    const bundleVersion = await GetLatestBundleVersion(projectRef);
+    let bundleVersion = -1;
+    try {
+        bundleVersion = await GetLatestBundleVersion(projectRef);
+    } catch (error) {
+        core.warning(`Failed to get the latest bundle version!\n${error.message}`);
+    }
     const platforms = {
         'iOS': 'ios',
         'macOS': 'macos',

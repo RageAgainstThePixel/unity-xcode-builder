@@ -15,8 +15,9 @@ jobs:
   unity-build:
     name: '(${{ matrix.unity-version }}) ${{ matrix.build-target }}'
     env:
+      VERSION: ''
       TEMPLATE_PATH: ''
-      UNITY_PROJECT_PATH: '' # set by unity-setup action
+      UNITY_PROJECT_PATH: ''
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -42,7 +43,7 @@ jobs:
           version-file: 'None'
           build-targets: ${{ matrix.build-target }}
           unity-version: ${{ matrix.unity-version }}
-      - name: Find Unity Template Path
+      - name: Find Unity Template Path and Version
         run: |
           $rootPath = $env:UNITY_EDITOR_PATH -replace "Editor.*", ""
           Write-Host "ROOT_PATH=$rootPath"
@@ -51,6 +52,9 @@ jobs:
           echo "TEMPLATE_PATH=$templatePath" >> $env:GITHUB_ENV
           $projectPath = "${{ github.workspace }}/UnityProject"
           echo "UNITY_PROJECT_PATH=$projectPath" >> $env:GITHUB_ENV
+          # get version from last git tag
+          $version = $(git describe --tags $(git rev-list --tags --max-count=1))
+          echo "VERSION=$version" >> $env:GITHUB_ENV
         shell: pwsh
         # Activates the installation with the provided credentials
       - uses: RageAgainstThePixel/activate-unity-license@v1
@@ -85,7 +89,7 @@ jobs:
         with:
           build-target: ${{ matrix.build-target }}
           log-name: '${{ matrix.build-target }}-Build'
-          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -sceneList Assets/Scenes/SampleScene.unity -export -enableAppleAutomaticSigning -bundleIdentifier com.rageagainstthepixel.xcode'
+          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -sceneList Assets/Scenes/SampleScene.unity -export -enableAppleAutomaticSigning -bundleIdentifier com.rageagainstthepixel.xcode -versionName ${{ env.VERSION }}'
       - uses: ./ # RageAgainstThePixel/unity-xcode-builder
         id: xcode-build
         with:
