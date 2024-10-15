@@ -9,7 +9,8 @@ import fs = require('fs');
 import semver = require('semver');
 import {
     GetLatestBundleVersion,
-    UpdateTestDetails
+    UpdateTestDetails,
+    UnauthorizedError
 } from './AppStoreConnectClient';
 
 const xcodebuild = '/usr/bin/xcodebuild';
@@ -549,7 +550,11 @@ async function UploadApp(projectRef: XcodeProject) {
     try {
         bundleVersion = await GetLatestBundleVersion(projectRef);
     } catch (error) {
-        core.warning(`Failed to get the latest bundle version!\n${error.message}`);
+        if (error instanceof UnauthorizedError) {
+            throw error;
+        } else {
+            core.warning(`Failed to get the latest bundle version!\n${error.message}`);
+        }
     }
     const platforms = {
         'iOS': 'ios',

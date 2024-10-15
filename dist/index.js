@@ -53835,12 +53835,20 @@ var _default = exports["default"] = version;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.UnauthorizedError = void 0;
 exports.GetAppId = GetAppId;
 exports.GetLatestBundleVersion = GetLatestBundleVersion;
 exports.UpdateTestDetails = UpdateTestDetails;
 const app_store_connect_api_1 = __nccwpck_require__(9073);
 const core = __nccwpck_require__(2186);
 let appStoreConnectClient = null;
+class UnauthorizedError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'UnauthorizedError';
+    }
+}
+exports.UnauthorizedError = UnauthorizedError;
 async function getOrCreateClient(project) {
     if (appStoreConnectClient) {
         return appStoreConnectClient;
@@ -53855,6 +53863,15 @@ async function getOrCreateClient(project) {
     };
     appStoreConnectClient = new app_store_connect_api_1.AppStoreConnectClient(options);
 }
+function checkAuthError(error) {
+    if (error && error.errors) {
+        for (const e of error.errors) {
+            if (e.status === '401') {
+                throw new UnauthorizedError(e.message);
+            }
+        }
+    }
+}
 async function GetAppId(project) {
     if (project.appId) {
         return project;
@@ -53864,6 +53881,7 @@ async function GetAppId(project) {
         query: { 'filter[bundleId]': [project.bundleId] }
     });
     if (error) {
+        checkAuthError(error);
         throw new Error(`Error fetching apps: ${JSON.stringify(error)}`);
     }
     if (!response) {
@@ -53914,6 +53932,7 @@ async function getLastPreReleaseVersion(project) {
     };
     const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
     if (preReleaseError) {
+        checkAuthError(preReleaseError);
         throw new Error(`Error fetching pre-release versions: ${JSON.stringify(preReleaseError, null, 2)}`);
     }
     if (!preReleaseResponse || preReleaseResponse.data.length === 0) {
@@ -53934,6 +53953,7 @@ async function getPreReleaseBuild(prereleaseVersion, buildVersion = null) {
     }
     const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
     if (buildsError) {
+        checkAuthError(buildsError);
         throw new Error(`Error fetching builds: ${JSON.stringify(buildsError, null, 2)}`);
     }
     if (!buildsResponse || buildsResponse.data.length === 0) {
@@ -53950,6 +53970,7 @@ async function getBetaBuildLocalization(buildId) {
     };
     const { data: betaBuildLocalizationResponse, error: betaBuildLocalizationError } = await appStoreConnectClient.api.betaBuildLocalizationsGetCollection(betaBuildLocalizationRequest);
     if (betaBuildLocalizationError) {
+        checkAuthError(betaBuildLocalizationError);
         throw new Error(`Error fetching beta build localization: ${JSON.stringify(betaBuildLocalizationError, null, 2)}`);
     }
     if (!betaBuildLocalizationResponse || betaBuildLocalizationResponse.data.length === 0) {
@@ -53987,6 +54008,7 @@ async function UpdateTestDetails(project, buildId, whatsNew) {
         body: updateBuildLocalization
     });
     if (updateError) {
+        checkAuthError(updateError);
         throw new Error(`Error updating beta build localization: ${JSON.stringify(updateError, null, 2)}`);
     }
 }
@@ -54725,7 +54747,12 @@ async function UploadApp(projectRef) {
         bundleVersion = await (0, AppStoreConnectClient_1.GetLatestBundleVersion)(projectRef);
     }
     catch (error) {
-        core.warning(`Failed to get the latest bundle version!\n${error.message}`);
+        if (error instanceof AppStoreConnectClient_1.UnauthorizedError) {
+            throw error;
+        }
+        else {
+            core.warning(`Failed to get the latest bundle version!\n${error.message}`);
+        }
     }
     const platforms = {
         'iOS': 'ios',
