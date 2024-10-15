@@ -43631,8 +43631,13 @@ async function getExportOptions(projectRef) {
         else {
             method = exportOption;
         }
-        const xcodeVersion = new semver_1.SemVer(core.getState('xcode-version'));
-        if (xcodeVersion && xcodeVersion.compare('15.4') >= 0) {
+        const versionString = core.getState('xcode-version');
+        if (!versionString) {
+            throw new Error('Failed to get the Xcode version');
+        }
+        const xcodeVersion = new semver_1.SemVer(versionString, { loose: true });
+        const xcodeMinVersion = new semver_1.SemVer('15.4', { loose: true });
+        if (xcodeVersion && xcodeVersion >= xcodeMinVersion) {
             switch (method) {
                 case 'app-store':
                     method = 'app-store-connect';
