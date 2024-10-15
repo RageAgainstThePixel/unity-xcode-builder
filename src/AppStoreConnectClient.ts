@@ -99,6 +99,7 @@ async function getLastPreReleaseVersion(project: XcodeProject): Promise<Prerelea
             'filter[app]': [project.appId],
             'filter[platform]': [reMapPlatform(project)],
             'filter[version]': [project.versionString],
+            include: ['builds'],
             sort: ['-version'],
             limit: 1,
         }
@@ -121,6 +122,9 @@ async function getPreReleaseBuild(prereleaseVersion: PrereleaseVersion, buildVer
     const buildsRequest: BuildsGetCollectionData = {
         query: {
             'filter[preReleaseVersion]': [prereleaseVersion.id],
+            'fields[betaBuildLocalizations]': ['whatsNew'],
+            'fields[builds]': ['version', 'preReleaseVersion', 'betaBuildLocalizations'],
+            include: ['preReleaseVersion', 'betaBuildLocalizations'],
             sort: ['-version']
         }
     };
@@ -147,6 +151,7 @@ async function getBetaBuildLocalization(preReleaseVersion: PrereleaseVersion, bu
         query: {
             'filter[build]': [build.id],
             "filter[locale]": ["en-US"],
+            'fields[betaBuildLocalizations]': ['whatsNew']
         }
     };
     core.info(`/betaBuildLocalizations?${JSON.stringify(betaBuildLocalizationRequest.query)}`);

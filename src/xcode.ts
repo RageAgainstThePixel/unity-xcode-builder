@@ -468,7 +468,7 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
                 core.info(`${logs}`);
                 core.endGroup();
             } catch (error) {
-                core.warning(`Failed to read logs at: ${logsPath}`);
+                core.warning(`Failed to read logs at: ${logsPath}.\n${error.message}`);
             }
         }
         throw new Error(`xcodebuild exited with code ${exitCode}\n${errorOutput}`);

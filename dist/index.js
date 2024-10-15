@@ -58198,6 +58198,7 @@ async function getLastPreReleaseVersion(project) {
             'filter[app]': [project.appId],
             'filter[platform]': [reMapPlatform(project)],
             'filter[version]': [project.versionString],
+            include: ['builds'],
             sort: ['-version'],
             limit: 1,
         }
@@ -58219,6 +58220,9 @@ async function getPreReleaseBuild(prereleaseVersion, buildVersion = null) {
     const buildsRequest = {
         query: {
             'filter[preReleaseVersion]': [prereleaseVersion.id],
+            'fields[betaBuildLocalizations]': ['whatsNew'],
+            'fields[builds]': ['version', 'preReleaseVersion', 'betaBuildLocalizations'],
+            include: ['preReleaseVersion', 'betaBuildLocalizations'],
             sort: ['-version']
         }
     };
@@ -58244,6 +58248,7 @@ async function getBetaBuildLocalization(preReleaseVersion, buildVersion) {
         query: {
             'filter[build]': [build.id],
             "filter[locale]": ["en-US"],
+            'fields[betaBuildLocalizations]': ['whatsNew']
         }
     };
     core.info(`/betaBuildLocalizations?${JSON.stringify(betaBuildLocalizationRequest.query)}`);
@@ -58956,7 +58961,7 @@ async function execWithXcBeautify(xcodeBuildArgs) {
                 core.endGroup();
             }
             catch (error) {
-                core.warning(`Failed to read logs at: ${logsPath}`);
+                core.warning(`Failed to read logs at: ${logsPath}.\n${error.message}`);
             }
         }
         throw new Error(`xcodebuild exited with code ${exitCode}\n${errorOutput}`);
