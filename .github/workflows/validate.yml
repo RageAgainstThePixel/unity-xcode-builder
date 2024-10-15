@@ -54,16 +54,13 @@ jobs:
           echo "TEMPLATE_PATH=$templatePath" >> $env:GITHUB_ENV
           $projectPath = "${{ github.workspace }}/UnityProject"
           echo "UNITY_PROJECT_PATH=$projectPath" >> $env:GITHUB_ENV
-          $tags = $(git rev-list --tags --max-count=2)
-          $version = $(git describe --tags $tags)
-          $version = $version -replace '-.*', ''
-          $version = $version.Substring(1)
+          $version = $(git tag --sort=-refname) | Select-Object -First 1 | $_.Substring(1)
           if ($version -match '^\d+\.\d+\.\d+$') {
-            Write-Host "Version: $version"
-          } else {
-            Write-Host "Version: $version is not a valid version string"
-            exit 1
-          }
+              Write-Host "Version: $version"
+            } else {
+              Write-Host "Version: $version is not a valid version string"
+              exit 1
+            }
           echo "VERSION=$version" >> $env:GITHUB_ENV
         shell: pwsh
         # Activates the installation with the provided credentials
