@@ -54,7 +54,7 @@ jobs:
           echo "TEMPLATE_PATH=$templatePath" >> $env:GITHUB_ENV
           $projectPath = "${{ github.workspace }}/UnityProject"
           echo "UNITY_PROJECT_PATH=$projectPath" >> $env:GITHUB_ENV
-          $version = $(git tag --sort=-refname) | Select-Object -First 1 | $_.Substring(1)
+          $version = $(git tag --sort=-v:refname) | Select-Object -First 1 | $_.Substring(1)
           if ($version -match '^\d+\.\d+\.\d+$') {
               Write-Host "Version: $version"
             } else {
