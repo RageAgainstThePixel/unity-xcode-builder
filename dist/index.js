@@ -43631,13 +43631,8 @@ async function getExportOptions(projectRef) {
         else {
             method = exportOption;
         }
-        const versionString = core.getState('xcodeVersion');
-        if (!versionString) {
-            throw new Error('Failed to get xcodeVersion state!');
-        }
-        const xcodeVersion = new semver_1.SemVer(versionString, { loose: true });
         const xcodeMinVersion = new semver_1.SemVer('15.4', { loose: true });
-        if (xcodeVersion && xcodeVersion >= xcodeMinVersion) {
+        if (projectRef.xcodeVersion >= xcodeMinVersion) {
             switch (method) {
                 case 'app-store':
                     method = 'app-store-connect';
@@ -45798,15 +45793,16 @@ const core = __nccwpck_require__(2186);
 const exec = __nccwpck_require__(1514);
 const xcode_1 = __nccwpck_require__(9157);
 const AppleCredential_1 = __nccwpck_require__(4199);
+const semver_1 = __nccwpck_require__(1383);
 const IS_POST = !!core.getState('isPost');
 const main = async () => {
     try {
         if (!IS_POST) {
             core.saveState('isPost', true);
-            let xcodeVersion = core.getInput('xcode-version');
-            if (xcodeVersion) {
-                core.info(`Setting xcode version to ${xcodeVersion}`);
-                await exec.exec('sudo', ['xcode-select', '-s', `/Applications/Xcode_${xcodeVersion}.app/Contents/Developer`]);
+            let xcodeVersionString = core.getInput('xcode-version');
+            if (xcodeVersionString) {
+                core.info(`Setting xcode version to ${xcodeVersionString}`);
+                await exec.exec('sudo', ['xcode-select', '-s', `/Applications/Xcode_${xcodeVersionString}.app/Contents/Developer`]);
             }
             let xcodeVersionOutput = '';
             await exec.exec('xcodebuild', ['-version'], {
@@ -45820,14 +45816,14 @@ const main = async () => {
             if (!xcodeVersionMatch) {
                 throw new Error('Failed to get Xcode version!');
             }
-            xcodeVersion = xcodeVersionMatch.groups.version;
-            if (!xcodeVersion) {
+            xcodeVersionString = xcodeVersionMatch.groups.version;
+            if (!xcodeVersionString) {
                 throw new Error('Failed to prase Xcode version!');
             }
-            core.saveState('xcodeVersion', xcodeVersion);
             const credential = await (0, AppleCredential_1.ImportCredentials)();
             let projectRef = await (0, xcode_1.GetProjectDetails)();
             projectRef.credential = credential;
+            projectRef.xcodeVersion = new semver_1.SemVer(xcodeVersionString, { loose: true });
             projectRef = await (0, xcode_1.ArchiveXcodeProject)(projectRef);
             projectRef = await (0, xcode_1.ExportXcodeArchive)(projectRef);
             await (0, xcode_1.ValidateApp)(projectRef);

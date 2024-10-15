@@ -339,13 +339,8 @@ async function getExportOptions(projectRef: XcodeProject): Promise<void> {
         }
         // As of Xcode 15.4, the old export methods 'app-store', 'ad-hoc', and 'development' are now deprecated.
         // The new equivalents are 'app-store-connect', 'release-testing', and 'debugging'.
-        const versionString = core.getState('xcodeVersion');
-        if (!versionString) {
-            throw new Error('Failed to get xcodeVersion state!');
-        }
-        const xcodeVersion = new SemVer(versionString, { loose: true });
         const xcodeMinVersion = new SemVer('15.4', { loose: true });
-        if (xcodeVersion && xcodeVersion >= xcodeMinVersion) {
+        if (projectRef.xcodeVersion >= xcodeMinVersion) {
             switch (method) {
                 case 'app-store':
                     method = 'app-store-connect';

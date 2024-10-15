@@ -1,4 +1,5 @@
 import { AppleCredential } from './AppleCredential';
+import { SemVer } from 'semver';
 
 export class XcodeProject {
     constructor(
@@ -36,6 +37,7 @@ export class XcodeProject {
     version: string;
     versionString: string;
     scheme: string;
+    xcodeVersion: SemVer;
     isAppStoreUpload(): boolean {
         return this.exportOption === 'app-store' || this.exportOption === 'app-store-connect';
     }

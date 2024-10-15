@@ -11,6 +11,7 @@ import {
     ImportCredentials,
     RemoveCredentials
 } from './AppleCredential';
+import { SemVer } from 'semver';
 
 const IS_POST = !!core.getState('isPost');
 
@@ -18,10 +19,10 @@ const main = async () => {
     try {
         if (!IS_POST) {
             core.saveState('isPost', true);
-            let xcodeVersion = core.getInput('xcode-version');
-            if (xcodeVersion) {
-                core.info(`Setting xcode version to ${xcodeVersion}`);
-                await exec.exec('sudo', ['xcode-select', '-s', `/Applications/Xcode_${xcodeVersion}.app/Contents/Developer`]);
+            let xcodeVersionString = core.getInput('xcode-version');
+            if (xcodeVersionString) {
+                core.info(`Setting xcode version to ${xcodeVersionString}`);
+                await exec.exec('sudo', ['xcode-select', '-s', `/Applications/Xcode_${xcodeVersionString}.app/Contents/Developer`]);
             }
             let xcodeVersionOutput = '';
             await exec.exec('xcodebuild', ['-version'], {
@@ -35,14 +36,14 @@ const main = async () => {
             if (!xcodeVersionMatch) {
                 throw new Error('Failed to get Xcode version!');
             }
-            xcodeVersion = xcodeVersionMatch.groups.version;
-            if (!xcodeVersion) {
+            xcodeVersionString = xcodeVersionMatch.groups.version;
+            if (!xcodeVersionString) {
                 throw new Error('Failed to prase Xcode version!');
             }
-            core.saveState('xcodeVersion', xcodeVersion);
             const credential = await ImportCredentials();
             let projectRef = await GetProjectDetails();
             projectRef.credential = credential;
+            projectRef.xcodeVersion = new SemVer(xcodeVersionString, { loose: true });
             projectRef = await ArchiveXcodeProject(projectRef);
             projectRef = await ExportXcodeArchive(projectRef);
             await ValidateApp(projectRef);
