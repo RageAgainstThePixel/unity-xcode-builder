@@ -262,7 +262,7 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     } catch (error) {
         throw new Error(`Failed to export the archive at: ${projectRef.executablePath}`);
     }
-    core.info(`Exported executable: ${projectRef.executablePath}`);
+    core.debug(`Exported executable: ${projectRef.executablePath}`);
     core.setOutput('executable', projectRef.executablePath);
     return projectRef;
 }
@@ -429,7 +429,7 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
     const xcBeautifyProcess = spawn('xcbeautify', ['--quiet', '--is-ci', '--disable-logging'], {
         stdio: ['pipe', process.stdout, process.stderr]
     });
-    core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
+    core.startGroup(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
     let errorOutput = '';
     const exitCode = await exec(xcodebuild, xcodeBuildArgs, {
         listeners: {
@@ -447,6 +447,7 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
     xcBeautifyProcess.stdin.end();
     await new Promise<void>((resolve, reject) => {
         xcBeautifyProcess.on('close', (code) => {
+            core.endGroup();
             if (code !== 0) {
                 reject(new Error(`xcbeautify exited with code ${code}`));
             } else {

@@ -49,7 +49,7 @@ const main = async () => {
             await ValidateApp(projectRef);
             const uploadInput = core.getInput('upload') || projectRef.isAppStoreUpload().toString();
             const upload = projectRef.isAppStoreUpload() && uploadInput === 'true';
-            core.info(`uploadInput: ${upload}`);
+            core.debug(`uploadInput: ${upload}`);
             if (upload) {
                 await UploadApp(projectRef);
             }
