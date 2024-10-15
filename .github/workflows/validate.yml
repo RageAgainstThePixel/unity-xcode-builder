@@ -54,7 +54,6 @@ jobs:
           echo "TEMPLATE_PATH=$templatePath" >> $env:GITHUB_ENV
           $projectPath = "${{ github.workspace }}/UnityProject"
           echo "UNITY_PROJECT_PATH=$projectPath" >> $env:GITHUB_ENV
-          # get version from last git tag
           $version = $(git describe --tags $(git rev-list --tags --max-count=1))
           echo "VERSION=$version" >> $env:GITHUB_ENV
         shell: pwsh
