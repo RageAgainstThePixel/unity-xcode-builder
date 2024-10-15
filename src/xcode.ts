@@ -7,6 +7,7 @@ import plist = require('plist');
 import path = require('path');
 import fs = require('fs');
 import semver = require('semver');
+import { GetLatestBundleVersion } from './AppStoreConnectClient';
 
 const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
@@ -50,8 +51,6 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     }
     core.info(`Info.plist path: ${infoPlistPath}`);
     let infoPlistContent = plist.parse(fs.readFileSync(infoPlistPath, 'utf8'));
-    const version = infoPlistContent['CFBundleVersion'];
-    core.info(`Version: ${version}`);
     const versionString = infoPlistContent['CFBundleShortVersionString'];
     core.info(`Version string: ${versionString}`);
     return new XcodeProject(
@@ -60,7 +59,6 @@ async function GetProjectDetails(): Promise<XcodeProject> {
         platform,
         bundleId,
         projectDirectory,
-        version,
         versionString,
         scheme
     );
@@ -530,7 +528,7 @@ async function getAppId(projectRef: XcodeProject): Promise<XcodeProject> {
     if (exitCode > 0) {
         throw new Error(`Failed to list providers\n${outputJson}`);
     }
-    core.debug(`Apps: ${outputJson}`);
+    core.info(`Apps: ${outputJson}`);
     const app = response.applications.find((app: any) => app.ExistingBundleIdentifier === projectRef.bundleId);
     if (!app) {
         throw new Error(`App not found with bundleId: ${projectRef.bundleId}`);
@@ -544,6 +542,7 @@ async function getAppId(projectRef: XcodeProject): Promise<XcodeProject> {
 
 async function UploadApp(projectRef: XcodeProject) {
     projectRef = await getAppId(projectRef);
+    const bundleVersion = await GetLatestBundleVersion(projectRef);
     const platforms = {
         'iOS': 'ios',
         'macOS': 'macos',
@@ -556,7 +555,7 @@ async function UploadApp(projectRef: XcodeProject) {
         '--type', platforms[projectRef.platform],
         '--apple-id', projectRef.credential.appleId,
         '--bundle-id', projectRef.bundleId,
-        '--bundle-version', projectRef.version,
+        '--bundle-version', bundleVersion + 1,
         '--bundle-short-version-string', projectRef.versionString,
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,

@@ -4940,6 +4940,6080 @@ function copyFile(srcFile, destFile, force) {
 
 /***/ }),
 
+/***/ 4128:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.urlSearchParamsBodySerializer = exports.jsonBodySerializer = exports.formDataBodySerializer = exports.createConfig = exports.createClient = void 0;
+const utils_1 = __nccwpck_require__(155);
+const createClient = (config = {}) => {
+    let _config = (0, utils_1.mergeConfigs)((0, utils_1.createConfig)(), config);
+    const getConfig = () => ({ ..._config });
+    const setConfig = (config) => {
+        _config = (0, utils_1.mergeConfigs)(_config, config);
+        return getConfig();
+    };
+    const interceptors = (0, utils_1.createInterceptors)();
+    // @ts-expect-error
+    const request = async (options) => {
+        // @ts-expect-error
+        const opts = {
+            ..._config,
+            ...options,
+            headers: (0, utils_1.mergeHeaders)(_config.headers, options.headers),
+        };
+        if (opts.body && opts.bodySerializer) {
+            opts.body = opts.bodySerializer(opts.body);
+        }
+        // remove Content-Type header if body is empty to avoid sending invalid requests
+        if (!opts.body) {
+            opts.headers.delete('Content-Type');
+        }
+        const url = (0, utils_1.getUrl)({
+            baseUrl: opts.baseUrl ?? '',
+            path: opts.path,
+            query: opts.query,
+            querySerializer: typeof opts.querySerializer === 'function'
+                ? opts.querySerializer
+                : (0, utils_1.createQuerySerializer)(opts.querySerializer),
+            url: opts.url,
+        });
+        const requestInit = {
+            redirect: 'follow',
+            ...opts,
+        };
+        let request = new Request(url, requestInit);
+        for (const fn of interceptors.request._fns) {
+            request = await fn(request, opts);
+        }
+        const _fetch = opts.fetch;
+        let response = await _fetch(request);
+        for (const fn of interceptors.response._fns) {
+            response = await fn(response, request, opts);
+        }
+        const result = {
+            request,
+            response,
+        };
+        if (response.ok) {
+            if (response.status === 204 ||
+                response.headers.get('Content-Length') === '0') {
+                return {
+                    data: {},
+                    ...result,
+                };
+            }
+            if (opts.parseAs === 'stream') {
+                return {
+                    data: response.body,
+                    ...result,
+                };
+            }
+            const parseAs = (opts.parseAs === 'auto'
+                ? (0, utils_1.getParseAs)(response.headers.get('Content-Type'))
+                : opts.parseAs) ?? 'json';
+            let data = await response[parseAs]();
+            if (parseAs === 'json' && opts.responseTransformer) {
+                data = await opts.responseTransformer(data);
+            }
+            return {
+                data,
+                ...result,
+            };
+        }
+        let error = await response.text();
+        try {
+            error = JSON.parse(error);
+        }
+        catch {
+            // noop
+        }
+        let finalError = error;
+        for (const fn of interceptors.error._fns) {
+            finalError = (await fn(error, response, request, opts));
+        }
+        finalError = finalError || {};
+        if (opts.throwOnError) {
+            throw finalError;
+        }
+        return {
+            error: finalError,
+            ...result,
+        };
+    };
+    return {
+        connect: (options) => request({ ...options, method: 'CONNECT' }),
+        delete: (options) => request({ ...options, method: 'DELETE' }),
+        get: (options) => request({ ...options, method: 'GET' }),
+        getConfig,
+        head: (options) => request({ ...options, method: 'HEAD' }),
+        interceptors,
+        options: (options) => request({ ...options, method: 'OPTIONS' }),
+        patch: (options) => request({ ...options, method: 'PATCH' }),
+        post: (options) => request({ ...options, method: 'POST' }),
+        put: (options) => request({ ...options, method: 'PUT' }),
+        request,
+        setConfig,
+        trace: (options) => request({ ...options, method: 'TRACE' }),
+    };
+};
+exports.createClient = createClient;
+var utils_2 = __nccwpck_require__(155);
+Object.defineProperty(exports, "createConfig", ({ enumerable: true, get: function () { return utils_2.createConfig; } }));
+Object.defineProperty(exports, "formDataBodySerializer", ({ enumerable: true, get: function () { return utils_2.formDataBodySerializer; } }));
+Object.defineProperty(exports, "jsonBodySerializer", ({ enumerable: true, get: function () { return utils_2.jsonBodySerializer; } }));
+Object.defineProperty(exports, "urlSearchParamsBodySerializer", ({ enumerable: true, get: function () { return utils_2.urlSearchParamsBodySerializer; } }));
+
+
+/***/ }),
+
+/***/ 155:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.createConfig = exports.urlSearchParamsBodySerializer = exports.jsonBodySerializer = exports.formDataBodySerializer = exports.createInterceptors = exports.mergeHeaders = exports.mergeConfigs = exports.getUrl = exports.getParseAs = exports.createQuerySerializer = void 0;
+const PATH_PARAM_RE = /\{[^{}]+\}/g;
+const serializePrimitiveParam = ({ allowReserved, name, value, }) => {
+    if (value === undefined || value === null) {
+        return '';
+    }
+    if (typeof value === 'object') {
+        throw new Error('Deeply-nested arrays/objects aren’t supported. Provide your own `querySerializer()` to handle these.');
+    }
+    return `${name}=${allowReserved ? value : encodeURIComponent(value)}`;
+};
+const separatorArrayExplode = (style) => {
+    switch (style) {
+        case 'label':
+            return '.';
+        case 'matrix':
+            return ';';
+        case 'simple':
+            return ',';
+        default:
+            return '&';
+    }
+};
+const separatorArrayNoExplode = (style) => {
+    switch (style) {
+        case 'form':
+            return ',';
+        case 'pipeDelimited':
+            return '|';
+        case 'spaceDelimited':
+            return '%20';
+        default:
+            return ',';
+    }
+};
+const separatorObjectExplode = (style) => {
+    switch (style) {
+        case 'label':
+            return '.';
+        case 'matrix':
+            return ';';
+        case 'simple':
+            return ',';
+        default:
+            return '&';
+    }
+};
+const serializeArrayParam = ({ allowReserved, explode, name, style, value, }) => {
+    if (!explode) {
+        const joinedValues = (allowReserved ? value : value.map((v) => encodeURIComponent(v))).join(separatorArrayNoExplode(style));
+        switch (style) {
+            case 'label':
+                return `.${joinedValues}`;
+            case 'matrix':
+                return `;${name}=${joinedValues}`;
+            case 'simple':
+                return joinedValues;
+            default:
+                return `${name}=${joinedValues}`;
+        }
+    }
+    const separator = separatorArrayExplode(style);
+    const joinedValues = value
+        .map((v) => {
+        if (style === 'label' || style === 'simple') {
+            return allowReserved ? v : encodeURIComponent(v);
+        }
+        return serializePrimitiveParam({
+            allowReserved,
+            name,
+            value: v,
+        });
+    })
+        .join(separator);
+    return style === 'label' || style === 'matrix'
+        ? separator + joinedValues
+        : joinedValues;
+};
+const serializeObjectParam = ({ allowReserved, explode, name, style, value, }) => {
+    if (value instanceof Date) {
+        return `${name}=${value.toISOString()}`;
+    }
+    if (style !== 'deepObject' && !explode) {
+        let values = [];
+        Object.entries(value).forEach(([key, v]) => {
+            values = [
+                ...values,
+                key,
+                allowReserved ? v : encodeURIComponent(v),
+            ];
+        });
+        const joinedValues = values.join(',');
+        switch (style) {
+            case 'form':
+                return `${name}=${joinedValues}`;
+            case 'label':
+                return `.${joinedValues}`;
+            case 'matrix':
+                return `;${name}=${joinedValues}`;
+            default:
+                return joinedValues;
+        }
+    }
+    const separator = separatorObjectExplode(style);
+    const joinedValues = Object.entries(value)
+        .map(([key, v]) => serializePrimitiveParam({
+        allowReserved,
+        name: style === 'deepObject' ? `${name}[${key}]` : key,
+        value: v,
+    }))
+        .join(separator);
+    return style === 'label' || style === 'matrix'
+        ? separator + joinedValues
+        : joinedValues;
+};
+const defaultPathSerializer = ({ path, url: _url }) => {
+    let url = _url;
+    const matches = _url.match(PATH_PARAM_RE);
+    if (matches) {
+        for (const match of matches) {
+            let explode = false;
+            let name = match.substring(1, match.length - 1);
+            let style = 'simple';
+            if (name.endsWith('*')) {
+                explode = true;
+                name = name.substring(0, name.length - 1);
+            }
+            if (name.startsWith('.')) {
+                name = name.substring(1);
+                style = 'label';
+            }
+            else if (name.startsWith(';')) {
+                name = name.substring(1);
+                style = 'matrix';
+            }
+            const value = path[name];
+            if (value === undefined || value === null) {
+                continue;
+            }
+            if (Array.isArray(value)) {
+                url = url.replace(match, serializeArrayParam({ explode, name, style, value }));
+                continue;
+            }
+            if (typeof value === 'object') {
+                url = url.replace(match, serializeObjectParam({
+                    explode,
+                    name,
+                    style,
+                    value: value,
+                }));
+                continue;
+            }
+            if (style === 'matrix') {
+                url = url.replace(match, `;${serializePrimitiveParam({
+                    name,
+                    value: value,
+                })}`);
+                continue;
+            }
+            const replaceValue = encodeURIComponent(style === 'label' ? `.${value}` : value);
+            url = url.replace(match, replaceValue);
+        }
+    }
+    return url;
+};
+const createQuerySerializer = ({ allowReserved, array, object, } = {}) => {
+    const querySerializer = (queryParams) => {
+        let search = [];
+        if (queryParams && typeof queryParams === 'object') {
+            for (const name in queryParams) {
+                const value = queryParams[name];
+                if (value === undefined || value === null) {
+                    continue;
+                }
+                if (Array.isArray(value)) {
+                    search = [
+                        ...search,
+                        serializeArrayParam({
+                            allowReserved,
+                            explode: true,
+                            name,
+                            style: 'form',
+                            value,
+                            ...array,
+                        }),
+                    ];
+                    continue;
+                }
+                if (typeof value === 'object') {
+                    search = [
+                        ...search,
+                        serializeObjectParam({
+                            allowReserved,
+                            explode: true,
+                            name,
+                            style: 'deepObject',
+                            value: value,
+                            ...object,
+                        }),
+                    ];
+                    continue;
+                }
+                search = [
+                    ...search,
+                    serializePrimitiveParam({
+                        allowReserved,
+                        name,
+                        value: value,
+                    }),
+                ];
+            }
+        }
+        return search.join('&');
+    };
+    return querySerializer;
+};
+exports.createQuerySerializer = createQuerySerializer;
+/**
+ * Infers parseAs value from provided Content-Type header.
+ */
+const getParseAs = (content) => {
+    if (!content) {
+        return;
+    }
+    if (content.startsWith('application/json') || content.endsWith('+json')) {
+        return 'json';
+    }
+    if (content === 'multipart/form-data') {
+        return 'formData';
+    }
+    if (['application/', 'audio/', 'image/', 'video/'].some((type) => content.startsWith(type))) {
+        return 'blob';
+    }
+    if (content.startsWith('text/')) {
+        return 'text';
+    }
+};
+exports.getParseAs = getParseAs;
+const getUrl = ({ baseUrl, path, query, querySerializer, url: _url, }) => {
+    const pathUrl = _url.startsWith('/') ? _url : `/${_url}`;
+    let url = baseUrl + pathUrl;
+    if (path) {
+        url = defaultPathSerializer({ path, url });
+    }
+    let search = query ? querySerializer(query) : '';
+    if (search.startsWith('?')) {
+        search = search.substring(1);
+    }
+    if (search) {
+        url += `?${search}`;
+    }
+    return url;
+};
+exports.getUrl = getUrl;
+const mergeConfigs = (a, b) => {
+    const config = { ...a, ...b };
+    if (config.baseUrl?.endsWith('/')) {
+        config.baseUrl = config.baseUrl.substring(0, config.baseUrl.length - 1);
+    }
+    config.headers = (0, exports.mergeHeaders)(a.headers, b.headers);
+    return config;
+};
+exports.mergeConfigs = mergeConfigs;
+const mergeHeaders = (...headers) => {
+    const mergedHeaders = new Headers();
+    for (const header of headers) {
+        if (!header || typeof header !== 'object') {
+            continue;
+        }
+        const iterator = header instanceof Headers ? header.entries() : Object.entries(header);
+        for (const [key, value] of iterator) {
+            if (value === null) {
+                mergedHeaders.delete(key);
+            }
+            else if (Array.isArray(value)) {
+                for (const v of value) {
+                    mergedHeaders.append(key, v);
+                }
+            }
+            else if (value !== undefined) {
+                // assume object headers are meant to be JSON stringified, i.e. their
+                // content value in OpenAPI specification is 'application/json'
+                mergedHeaders.set(key, typeof value === 'object' ? JSON.stringify(value) : value);
+            }
+        }
+    }
+    return mergedHeaders;
+};
+exports.mergeHeaders = mergeHeaders;
+class Interceptors {
+    _fns;
+    constructor() {
+        this._fns = [];
+    }
+    clear() {
+        this._fns = [];
+    }
+    exists(fn) {
+        return this._fns.indexOf(fn) !== -1;
+    }
+    eject(fn) {
+        const index = this._fns.indexOf(fn);
+        if (index !== -1) {
+            this._fns = [...this._fns.slice(0, index), ...this._fns.slice(index + 1)];
+        }
+    }
+    use(fn) {
+        this._fns = [...this._fns, fn];
+    }
+}
+// do not add `Middleware` as return type so we can use _fns internally
+const createInterceptors = () => ({
+    error: new Interceptors(),
+    request: new Interceptors(),
+    response: new Interceptors(),
+});
+exports.createInterceptors = createInterceptors;
+const serializeFormDataPair = (data, key, value) => {
+    if (typeof value === 'string' || value instanceof Blob) {
+        data.append(key, value);
+    }
+    else {
+        data.append(key, JSON.stringify(value));
+    }
+};
+exports.formDataBodySerializer = {
+    bodySerializer: (body) => {
+        const data = new FormData();
+        Object.entries(body).forEach(([key, value]) => {
+            if (value === undefined || value === null) {
+                return;
+            }
+            if (Array.isArray(value)) {
+                value.forEach((v) => serializeFormDataPair(data, key, v));
+            }
+            else {
+                serializeFormDataPair(data, key, value);
+            }
+        });
+        return data;
+    },
+};
+exports.jsonBodySerializer = {
+    bodySerializer: (body) => JSON.stringify(body),
+};
+const serializeUrlSearchParamsPair = (data, key, value) => {
+    if (typeof value === 'string') {
+        data.append(key, value);
+    }
+    else {
+        data.append(key, JSON.stringify(value));
+    }
+};
+exports.urlSearchParamsBodySerializer = {
+    bodySerializer: (body) => {
+        const data = new URLSearchParams();
+        Object.entries(body).forEach(([key, value]) => {
+            if (value === undefined || value === null) {
+                return;
+            }
+            if (Array.isArray(value)) {
+                value.forEach((v) => serializeUrlSearchParamsPair(data, key, v));
+            }
+            else {
+                serializeUrlSearchParamsPair(data, key, value);
+            }
+        });
+        return data;
+    },
+};
+const defaultQuerySerializer = (0, exports.createQuerySerializer)({
+    allowReserved: false,
+    array: {
+        explode: true,
+        style: 'form',
+    },
+    object: {
+        explode: true,
+        style: 'deepObject',
+    },
+});
+const defaultHeaders = {
+    'Content-Type': 'application/json',
+};
+const createConfig = (override = {}) => ({
+    ...exports.jsonBodySerializer,
+    baseUrl: '',
+    fetch: globalThis.fetch,
+    headers: defaultHeaders,
+    parseAs: 'auto',
+    querySerializer: defaultQuerySerializer,
+    ...override,
+});
+exports.createConfig = createConfig;
+
+
+/***/ }),
+
+/***/ 6413:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+// This file is auto-generated by @hey-api/openapi-ts
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.appClipHeaderImagesDeleteInstance = exports.appClipHeaderImagesUpdateInstance = exports.appClipHeaderImagesGetInstance = exports.appClipHeaderImagesCreateInstance = exports.appClipDefaultExperiencesDeleteInstance = exports.appClipDefaultExperiencesUpdateInstance = exports.appClipDefaultExperiencesGetInstance = exports.appClipDefaultExperiencesCreateInstance = exports.appClipDefaultExperienceLocalizationsDeleteInstance = exports.appClipDefaultExperienceLocalizationsUpdateInstance = exports.appClipDefaultExperienceLocalizationsGetInstance = exports.appClipDefaultExperienceLocalizationsCreateInstance = exports.appClipAppStoreReviewDetailsUpdateInstance = exports.appClipAppStoreReviewDetailsGetInstance = exports.appClipAppStoreReviewDetailsCreateInstance = exports.appClipAdvancedExperiencesUpdateInstance = exports.appClipAdvancedExperiencesGetInstance = exports.appClipAdvancedExperiencesCreateInstance = exports.appClipAdvancedExperienceImagesUpdateInstance = exports.appClipAdvancedExperienceImagesGetInstance = exports.appClipAdvancedExperienceImagesCreateInstance = exports.appCategoriesGetInstance = exports.appCategoriesGetCollection = exports.appAvailabilitiesGetInstance = exports.appAvailabilitiesCreateInstance = exports.appAvailabilitiesV2GetInstance = exports.appAvailabilitiesV2CreateInstance = exports.analyticsReportsGetInstance = exports.analyticsReportSegmentsGetInstance = exports.analyticsReportRequestsDeleteInstance = exports.analyticsReportRequestsGetInstance = exports.analyticsReportRequestsCreateInstance = exports.analyticsReportInstancesGetInstance = exports.alternativeDistributionPackagesGetInstance = exports.alternativeDistributionPackagesCreateInstance = exports.alternativeDistributionPackageVersionsGetInstance = exports.alternativeDistributionPackageVariantsGetInstance = exports.alternativeDistributionPackageDeltasGetInstance = exports.alternativeDistributionKeysDeleteInstance = exports.alternativeDistributionKeysGetInstance = exports.alternativeDistributionKeysCreateInstance = exports.alternativeDistributionKeysGetCollection = exports.alternativeDistributionDomainsDeleteInstance = exports.alternativeDistributionDomainsGetInstance = exports.alternativeDistributionDomainsCreateInstance = exports.alternativeDistributionDomainsGetCollection = exports.ageRatingDeclarationsUpdateInstance = exports.actorsGetInstance = exports.actorsGetCollection = exports.client = void 0;
+exports.appPreviewsUpdateInstance = exports.appPreviewsGetInstance = exports.appPreviewsCreateInstance = exports.appPreviewSetsDeleteInstance = exports.appPreviewSetsGetInstance = exports.appPreviewSetsCreateInstance = exports.appPreOrdersDeleteInstance = exports.appPreOrdersUpdateInstance = exports.appPreOrdersGetInstance = exports.appPreOrdersCreateInstance = exports.appInfosUpdateInstance = exports.appInfosGetInstance = exports.appInfoLocalizationsDeleteInstance = exports.appInfoLocalizationsUpdateInstance = exports.appInfoLocalizationsGetInstance = exports.appInfoLocalizationsCreateInstance = exports.appEventsDeleteInstance = exports.appEventsUpdateInstance = exports.appEventsGetInstance = exports.appEventsCreateInstance = exports.appEventVideoClipsDeleteInstance = exports.appEventVideoClipsUpdateInstance = exports.appEventVideoClipsGetInstance = exports.appEventVideoClipsCreateInstance = exports.appEventScreenshotsDeleteInstance = exports.appEventScreenshotsUpdateInstance = exports.appEventScreenshotsGetInstance = exports.appEventScreenshotsCreateInstance = exports.appEventLocalizationsDeleteInstance = exports.appEventLocalizationsUpdateInstance = exports.appEventLocalizationsGetInstance = exports.appEventLocalizationsCreateInstance = exports.appEncryptionDeclarationsGetInstance = exports.appEncryptionDeclarationsCreateInstance = exports.appEncryptionDeclarationsGetCollection = exports.appEncryptionDeclarationDocumentsUpdateInstance = exports.appEncryptionDeclarationDocumentsGetInstance = exports.appEncryptionDeclarationDocumentsCreateInstance = exports.appCustomProductPagesDeleteInstance = exports.appCustomProductPagesUpdateInstance = exports.appCustomProductPagesGetInstance = exports.appCustomProductPagesCreateInstance = exports.appCustomProductPageVersionsUpdateInstance = exports.appCustomProductPageVersionsGetInstance = exports.appCustomProductPageVersionsCreateInstance = exports.appCustomProductPageLocalizationsDeleteInstance = exports.appCustomProductPageLocalizationsUpdateInstance = exports.appCustomProductPageLocalizationsGetInstance = exports.appCustomProductPageLocalizationsCreateInstance = exports.appClipsGetInstance = void 0;
+exports.appsGetInstance = exports.appsGetCollection = exports.appStoreVersionsDeleteInstance = exports.appStoreVersionsUpdateInstance = exports.appStoreVersionsGetInstance = exports.appStoreVersionsCreateInstance = exports.appStoreVersionSubmissionsDeleteInstance = exports.appStoreVersionSubmissionsCreateInstance = exports.appStoreVersionReleaseRequestsCreateInstance = exports.appStoreVersionPromotionsCreateInstance = exports.appStoreVersionPhasedReleasesDeleteInstance = exports.appStoreVersionPhasedReleasesUpdateInstance = exports.appStoreVersionPhasedReleasesCreateInstance = exports.appStoreVersionLocalizationsDeleteInstance = exports.appStoreVersionLocalizationsUpdateInstance = exports.appStoreVersionLocalizationsGetInstance = exports.appStoreVersionLocalizationsCreateInstance = exports.appStoreVersionExperimentsDeleteInstance = exports.appStoreVersionExperimentsUpdateInstance = exports.appStoreVersionExperimentsGetInstance = exports.appStoreVersionExperimentsCreateInstance = exports.appStoreVersionExperimentsV2DeleteInstance = exports.appStoreVersionExperimentsV2UpdateInstance = exports.appStoreVersionExperimentsV2GetInstance = exports.appStoreVersionExperimentsV2CreateInstance = exports.appStoreVersionExperimentTreatmentsDeleteInstance = exports.appStoreVersionExperimentTreatmentsUpdateInstance = exports.appStoreVersionExperimentTreatmentsGetInstance = exports.appStoreVersionExperimentTreatmentsCreateInstance = exports.appStoreVersionExperimentTreatmentLocalizationsDeleteInstance = exports.appStoreVersionExperimentTreatmentLocalizationsGetInstance = exports.appStoreVersionExperimentTreatmentLocalizationsCreateInstance = exports.appStoreReviewDetailsUpdateInstance = exports.appStoreReviewDetailsGetInstance = exports.appStoreReviewDetailsCreateInstance = exports.appStoreReviewAttachmentsDeleteInstance = exports.appStoreReviewAttachmentsUpdateInstance = exports.appStoreReviewAttachmentsGetInstance = exports.appStoreReviewAttachmentsCreateInstance = exports.appScreenshotsDeleteInstance = exports.appScreenshotsUpdateInstance = exports.appScreenshotsGetInstance = exports.appScreenshotsCreateInstance = exports.appScreenshotSetsDeleteInstance = exports.appScreenshotSetsGetInstance = exports.appScreenshotSetsCreateInstance = exports.appPriceSchedulesGetInstance = exports.appPriceSchedulesCreateInstance = exports.appPricePointsV3GetInstance = exports.appPreviewsDeleteInstance = void 0;
+exports.bundleIdsGetInstance = exports.bundleIdsCreateInstance = exports.bundleIdsGetCollection = exports.bundleIdCapabilitiesDeleteInstance = exports.bundleIdCapabilitiesUpdateInstance = exports.bundleIdCapabilitiesCreateInstance = exports.buildsUpdateInstance = exports.buildsGetInstance = exports.buildsGetCollection = exports.buildBetaNotificationsCreateInstance = exports.buildBetaDetailsUpdateInstance = exports.buildBetaDetailsGetInstance = exports.buildBetaDetailsGetCollection = exports.betaTestersDeleteInstance = exports.betaTestersGetInstance = exports.betaTestersCreateInstance = exports.betaTestersGetCollection = exports.betaTesterInvitationsCreateInstance = exports.betaLicenseAgreementsUpdateInstance = exports.betaLicenseAgreementsGetInstance = exports.betaLicenseAgreementsGetCollection = exports.betaGroupsDeleteInstance = exports.betaGroupsUpdateInstance = exports.betaGroupsGetInstance = exports.betaGroupsCreateInstance = exports.betaGroupsGetCollection = exports.betaBuildLocalizationsDeleteInstance = exports.betaBuildLocalizationsUpdateInstance = exports.betaBuildLocalizationsGetInstance = exports.betaBuildLocalizationsCreateInstance = exports.betaBuildLocalizationsGetCollection = exports.betaAppReviewSubmissionsGetInstance = exports.betaAppReviewSubmissionsCreateInstance = exports.betaAppReviewSubmissionsGetCollection = exports.betaAppReviewDetailsUpdateInstance = exports.betaAppReviewDetailsGetInstance = exports.betaAppReviewDetailsGetCollection = exports.betaAppLocalizationsDeleteInstance = exports.betaAppLocalizationsUpdateInstance = exports.betaAppLocalizationsGetInstance = exports.betaAppLocalizationsCreateInstance = exports.betaAppLocalizationsGetCollection = exports.betaAppClipInvocationsDeleteInstance = exports.betaAppClipInvocationsUpdateInstance = exports.betaAppClipInvocationsGetInstance = exports.betaAppClipInvocationsCreateInstance = exports.betaAppClipInvocationLocalizationsDeleteInstance = exports.betaAppClipInvocationLocalizationsUpdateInstance = exports.betaAppClipInvocationLocalizationsCreateInstance = exports.appsUpdateInstance = void 0;
+exports.gameCenterAchievementsGetInstance = exports.gameCenterAchievementsCreateInstance = exports.gameCenterAchievementReleasesDeleteInstance = exports.gameCenterAchievementReleasesGetInstance = exports.gameCenterAchievementReleasesCreateInstance = exports.gameCenterAchievementLocalizationsDeleteInstance = exports.gameCenterAchievementLocalizationsUpdateInstance = exports.gameCenterAchievementLocalizationsGetInstance = exports.gameCenterAchievementLocalizationsCreateInstance = exports.gameCenterAchievementImagesDeleteInstance = exports.gameCenterAchievementImagesUpdateInstance = exports.gameCenterAchievementImagesGetInstance = exports.gameCenterAchievementImagesCreateInstance = exports.financeReportsGetCollection = exports.endUserLicenseAgreementsDeleteInstance = exports.endUserLicenseAgreementsUpdateInstance = exports.endUserLicenseAgreementsGetInstance = exports.endUserLicenseAgreementsCreateInstance = exports.endAppAvailabilityPreOrdersCreateInstance = exports.devicesUpdateInstance = exports.devicesGetInstance = exports.devicesCreateInstance = exports.devicesGetCollection = exports.customerReviewsGetInstance = exports.customerReviewResponsesDeleteInstance = exports.customerReviewResponsesGetInstance = exports.customerReviewResponsesCreateInstance = exports.ciXcodeVersionsGetInstance = exports.ciXcodeVersionsGetCollection = exports.ciWorkflowsDeleteInstance = exports.ciWorkflowsUpdateInstance = exports.ciWorkflowsGetInstance = exports.ciWorkflowsCreateInstance = exports.ciTestResultsGetInstance = exports.ciProductsDeleteInstance = exports.ciProductsGetInstance = exports.ciProductsGetCollection = exports.ciMacOsVersionsGetInstance = exports.ciMacOsVersionsGetCollection = exports.ciIssuesGetInstance = exports.ciBuildRunsGetInstance = exports.ciBuildRunsCreateInstance = exports.ciBuildActionsGetInstance = exports.ciArtifactsGetInstance = exports.certificatesDeleteInstance = exports.certificatesGetInstance = exports.certificatesCreateInstance = exports.certificatesGetCollection = exports.bundleIdsDeleteInstance = exports.bundleIdsUpdateInstance = void 0;
+exports.gameCenterMatchmakingQueuesCreateInstance = exports.gameCenterMatchmakingQueuesGetCollection = exports.gameCenterLeaderboardsDeleteInstance = exports.gameCenterLeaderboardsUpdateInstance = exports.gameCenterLeaderboardsGetInstance = exports.gameCenterLeaderboardsCreateInstance = exports.gameCenterLeaderboardSetsDeleteInstance = exports.gameCenterLeaderboardSetsUpdateInstance = exports.gameCenterLeaderboardSetsGetInstance = exports.gameCenterLeaderboardSetsCreateInstance = exports.gameCenterLeaderboardSetReleasesDeleteInstance = exports.gameCenterLeaderboardSetReleasesGetInstance = exports.gameCenterLeaderboardSetReleasesCreateInstance = exports.gameCenterLeaderboardSetMemberLocalizationsDeleteInstance = exports.gameCenterLeaderboardSetMemberLocalizationsUpdateInstance = exports.gameCenterLeaderboardSetMemberLocalizationsCreateInstance = exports.gameCenterLeaderboardSetMemberLocalizationsGetCollection = exports.gameCenterLeaderboardSetLocalizationsDeleteInstance = exports.gameCenterLeaderboardSetLocalizationsUpdateInstance = exports.gameCenterLeaderboardSetLocalizationsGetInstance = exports.gameCenterLeaderboardSetLocalizationsCreateInstance = exports.gameCenterLeaderboardSetImagesDeleteInstance = exports.gameCenterLeaderboardSetImagesUpdateInstance = exports.gameCenterLeaderboardSetImagesGetInstance = exports.gameCenterLeaderboardSetImagesCreateInstance = exports.gameCenterLeaderboardReleasesDeleteInstance = exports.gameCenterLeaderboardReleasesGetInstance = exports.gameCenterLeaderboardReleasesCreateInstance = exports.gameCenterLeaderboardLocalizationsDeleteInstance = exports.gameCenterLeaderboardLocalizationsUpdateInstance = exports.gameCenterLeaderboardLocalizationsGetInstance = exports.gameCenterLeaderboardLocalizationsCreateInstance = exports.gameCenterLeaderboardImagesDeleteInstance = exports.gameCenterLeaderboardImagesUpdateInstance = exports.gameCenterLeaderboardImagesGetInstance = exports.gameCenterLeaderboardImagesCreateInstance = exports.gameCenterLeaderboardEntrySubmissionsCreateInstance = exports.gameCenterGroupsDeleteInstance = exports.gameCenterGroupsUpdateInstance = exports.gameCenterGroupsGetInstance = exports.gameCenterGroupsCreateInstance = exports.gameCenterGroupsGetCollection = exports.gameCenterDetailsUpdateInstance = exports.gameCenterDetailsGetInstance = exports.gameCenterDetailsCreateInstance = exports.gameCenterAppVersionsUpdateInstance = exports.gameCenterAppVersionsGetInstance = exports.gameCenterAppVersionsCreateInstance = exports.gameCenterAchievementsDeleteInstance = exports.gameCenterAchievementsUpdateInstance = void 0;
+exports.marketplaceWebhooksDeleteInstance = exports.marketplaceWebhooksUpdateInstance = exports.marketplaceWebhooksCreateInstance = exports.marketplaceWebhooksGetCollection = exports.marketplaceSearchDetailsDeleteInstance = exports.marketplaceSearchDetailsUpdateInstance = exports.marketplaceSearchDetailsCreateInstance = exports.marketplaceDomainsDeleteInstance = exports.marketplaceDomainsGetInstance = exports.marketplaceDomainsCreateInstance = exports.marketplaceDomainsGetCollection = exports.inAppPurchasesV2DeleteInstance = exports.inAppPurchasesV2UpdateInstance = exports.inAppPurchasesV2GetInstance = exports.inAppPurchasesV2CreateInstance = exports.inAppPurchasesGetInstance = exports.inAppPurchaseSubmissionsCreateInstance = exports.inAppPurchasePriceSchedulesGetInstance = exports.inAppPurchasePriceSchedulesCreateInstance = exports.inAppPurchaseLocalizationsDeleteInstance = exports.inAppPurchaseLocalizationsUpdateInstance = exports.inAppPurchaseLocalizationsGetInstance = exports.inAppPurchaseLocalizationsCreateInstance = exports.inAppPurchaseImagesDeleteInstance = exports.inAppPurchaseImagesUpdateInstance = exports.inAppPurchaseImagesGetInstance = exports.inAppPurchaseImagesCreateInstance = exports.inAppPurchaseContentsGetInstance = exports.inAppPurchaseAvailabilitiesGetInstance = exports.inAppPurchaseAvailabilitiesCreateInstance = exports.inAppPurchaseAppStoreReviewScreenshotsDeleteInstance = exports.inAppPurchaseAppStoreReviewScreenshotsUpdateInstance = exports.inAppPurchaseAppStoreReviewScreenshotsGetInstance = exports.inAppPurchaseAppStoreReviewScreenshotsCreateInstance = exports.gameCenterPlayerAchievementSubmissionsCreateInstance = exports.gameCenterMatchmakingTeamsDeleteInstance = exports.gameCenterMatchmakingTeamsUpdateInstance = exports.gameCenterMatchmakingTeamsCreateInstance = exports.gameCenterMatchmakingRulesDeleteInstance = exports.gameCenterMatchmakingRulesUpdateInstance = exports.gameCenterMatchmakingRulesCreateInstance = exports.gameCenterMatchmakingRuleSetsDeleteInstance = exports.gameCenterMatchmakingRuleSetsUpdateInstance = exports.gameCenterMatchmakingRuleSetsGetInstance = exports.gameCenterMatchmakingRuleSetsCreateInstance = exports.gameCenterMatchmakingRuleSetsGetCollection = exports.gameCenterMatchmakingRuleSetTestsCreateInstance = exports.gameCenterMatchmakingQueuesDeleteInstance = exports.gameCenterMatchmakingQueuesUpdateInstance = exports.gameCenterMatchmakingQueuesGetInstance = void 0;
+exports.subscriptionGroupsGetInstance = exports.subscriptionGroupsCreateInstance = exports.subscriptionGroupSubmissionsCreateInstance = exports.subscriptionGroupLocalizationsDeleteInstance = exports.subscriptionGroupLocalizationsUpdateInstance = exports.subscriptionGroupLocalizationsGetInstance = exports.subscriptionGroupLocalizationsCreateInstance = exports.subscriptionGracePeriodsUpdateInstance = exports.subscriptionGracePeriodsGetInstance = exports.subscriptionAvailabilitiesGetInstance = exports.subscriptionAvailabilitiesCreateInstance = exports.subscriptionAppStoreReviewScreenshotsDeleteInstance = exports.subscriptionAppStoreReviewScreenshotsUpdateInstance = exports.subscriptionAppStoreReviewScreenshotsGetInstance = exports.subscriptionAppStoreReviewScreenshotsCreateInstance = exports.scmRepositoriesGetInstance = exports.scmRepositoriesGetCollection = exports.scmPullRequestsGetInstance = exports.scmProvidersGetInstance = exports.scmProvidersGetCollection = exports.scmGitReferencesGetInstance = exports.sandboxTestersClearPurchaseHistoryRequestV2CreateInstance = exports.sandboxTestersV2UpdateInstance = exports.sandboxTestersV2GetCollection = exports.salesReportsGetCollection = exports.routingAppCoveragesDeleteInstance = exports.routingAppCoveragesUpdateInstance = exports.routingAppCoveragesGetInstance = exports.routingAppCoveragesCreateInstance = exports.reviewSubmissionsUpdateInstance = exports.reviewSubmissionsGetInstance = exports.reviewSubmissionsCreateInstance = exports.reviewSubmissionsGetCollection = exports.reviewSubmissionItemsDeleteInstance = exports.reviewSubmissionItemsUpdateInstance = exports.reviewSubmissionItemsCreateInstance = exports.promotedPurchasesDeleteInstance = exports.promotedPurchasesUpdateInstance = exports.promotedPurchasesGetInstance = exports.promotedPurchasesCreateInstance = exports.promotedPurchaseImagesDeleteInstance = exports.promotedPurchaseImagesUpdateInstance = exports.promotedPurchaseImagesGetInstance = exports.promotedPurchaseImagesCreateInstance = exports.profilesDeleteInstance = exports.profilesGetInstance = exports.profilesCreateInstance = exports.profilesGetCollection = exports.preReleaseVersionsGetInstance = exports.preReleaseVersionsGetCollection = void 0;
+exports.alternativeDistributionPackageVersionsVariantsGetToManyRelated = exports.alternativeDistributionPackageVersionsDeltasGetToManyRelated = exports.winBackOffersDeleteInstance = exports.winBackOffersUpdateInstance = exports.winBackOffersGetInstance = exports.winBackOffersCreateInstance = exports.usersDeleteInstance = exports.usersUpdateInstance = exports.usersGetInstance = exports.usersGetCollection = exports.userInvitationsDeleteInstance = exports.userInvitationsGetInstance = exports.userInvitationsCreateInstance = exports.userInvitationsGetCollection = exports.territoryAvailabilitiesUpdateInstance = exports.territoriesGetCollection = exports.subscriptionsDeleteInstance = exports.subscriptionsUpdateInstance = exports.subscriptionsGetInstance = exports.subscriptionsCreateInstance = exports.subscriptionSubmissionsCreateInstance = exports.subscriptionPromotionalOffersDeleteInstance = exports.subscriptionPromotionalOffersUpdateInstance = exports.subscriptionPromotionalOffersGetInstance = exports.subscriptionPromotionalOffersCreateInstance = exports.subscriptionPricesDeleteInstance = exports.subscriptionPricesCreateInstance = exports.subscriptionPricePointsGetInstance = exports.subscriptionOfferCodesUpdateInstance = exports.subscriptionOfferCodesGetInstance = exports.subscriptionOfferCodesCreateInstance = exports.subscriptionOfferCodeOneTimeUseCodesUpdateInstance = exports.subscriptionOfferCodeOneTimeUseCodesGetInstance = exports.subscriptionOfferCodeOneTimeUseCodesCreateInstance = exports.subscriptionOfferCodeCustomCodesUpdateInstance = exports.subscriptionOfferCodeCustomCodesGetInstance = exports.subscriptionOfferCodeCustomCodesCreateInstance = exports.subscriptionLocalizationsDeleteInstance = exports.subscriptionLocalizationsUpdateInstance = exports.subscriptionLocalizationsGetInstance = exports.subscriptionLocalizationsCreateInstance = exports.subscriptionIntroductoryOffersDeleteInstance = exports.subscriptionIntroductoryOffersUpdateInstance = exports.subscriptionIntroductoryOffersCreateInstance = exports.subscriptionImagesDeleteInstance = exports.subscriptionImagesUpdateInstance = exports.subscriptionImagesGetInstance = exports.subscriptionImagesCreateInstance = exports.subscriptionGroupsDeleteInstance = exports.subscriptionGroupsUpdateInstance = void 0;
+exports.appStoreVersionExperimentsAppStoreVersionExperimentTreatmentsGetToManyRelated = exports.appStoreVersionExperimentsV2AppStoreVersionExperimentTreatmentsGetToManyRelated = exports.appStoreVersionExperimentTreatmentsAppStoreVersionExperimentTreatmentLocalizationsGetToManyRelated = exports.appStoreVersionExperimentTreatmentLocalizationsAppScreenshotSetsGetToManyRelated = exports.appStoreVersionExperimentTreatmentLocalizationsAppPreviewSetsGetToManyRelated = exports.appStoreReviewDetailsAppStoreReviewAttachmentsGetToManyRelated = exports.appScreenshotSetsAppScreenshotsGetToManyRelated = exports.appScreenshotSetsAppScreenshotsReplaceToManyRelationship = exports.appScreenshotSetsAppScreenshotsGetToManyRelationship = exports.appPriceSchedulesManualPricesGetToManyRelated = exports.appPriceSchedulesBaseTerritoryGetToOneRelated = exports.appPriceSchedulesAutomaticPricesGetToManyRelated = exports.appPricePointsV3EqualizationsGetToManyRelated = exports.appPreviewSetsAppPreviewsGetToManyRelated = exports.appPreviewSetsAppPreviewsReplaceToManyRelationship = exports.appPreviewSetsAppPreviewsGetToManyRelationship = exports.appInfosSecondarySubcategoryTwoGetToOneRelated = exports.appInfosSecondarySubcategoryOneGetToOneRelated = exports.appInfosSecondaryCategoryGetToOneRelated = exports.appInfosPrimarySubcategoryTwoGetToOneRelated = exports.appInfosPrimarySubcategoryOneGetToOneRelated = exports.appInfosPrimaryCategoryGetToOneRelated = exports.appInfosAppInfoLocalizationsGetToManyRelated = exports.appInfosAgeRatingDeclarationGetToOneRelated = exports.appEventsLocalizationsGetToManyRelated = exports.appEventLocalizationsAppEventVideoClipsGetToManyRelated = exports.appEventLocalizationsAppEventScreenshotsGetToManyRelated = exports.appEncryptionDeclarationsBuildsCreateToManyRelationship = exports.appEncryptionDeclarationsAppEncryptionDeclarationDocumentGetToOneRelated = exports.appEncryptionDeclarationsAppGetToOneRelated = exports.appCustomProductPagesAppCustomProductPageVersionsGetToManyRelated = exports.appCustomProductPageVersionsAppCustomProductPageLocalizationsGetToManyRelated = exports.appCustomProductPageLocalizationsAppScreenshotSetsGetToManyRelated = exports.appCustomProductPageLocalizationsAppPreviewSetsGetToManyRelated = exports.appClipsAppClipDefaultExperiencesGetToManyRelated = exports.appClipsAppClipAdvancedExperiencesGetToManyRelated = exports.appClipDefaultExperiencesReleaseWithAppStoreVersionGetToOneRelated = exports.appClipDefaultExperiencesReleaseWithAppStoreVersionUpdateToOneRelationship = exports.appClipDefaultExperiencesReleaseWithAppStoreVersionGetToOneRelationship = exports.appClipDefaultExperiencesAppClipDefaultExperienceLocalizationsGetToManyRelated = exports.appClipDefaultExperiencesAppClipAppStoreReviewDetailGetToOneRelated = exports.appClipDefaultExperienceLocalizationsAppClipHeaderImageGetToOneRelated = exports.appCategoriesSubcategoriesGetToManyRelated = exports.appCategoriesParentGetToOneRelated = exports.appAvailabilitiesAvailableTerritoriesGetToManyRelated = exports.appAvailabilitiesV2TerritoryAvailabilitiesGetToManyRelated = exports.analyticsReportsInstancesGetToManyRelated = exports.analyticsReportRequestsReportsGetToManyRelated = exports.analyticsReportInstancesSegmentsGetToManyRelated = exports.alternativeDistributionPackagesVersionsGetToManyRelated = void 0;
+exports.appsPromotedPurchasesGetToManyRelationship = exports.appsPreReleaseVersionsGetToManyRelated = exports.appsPreOrderGetToOneRelated = exports.appsPerfPowerMetricsGetToManyRelated = exports.appsMarketplaceSearchDetailGetToOneRelated = exports.appsInAppPurchasesV2GetToManyRelated = exports.appsInAppPurchasesGetToManyRelated = exports.appsGameCenterEnabledVersionsGetToManyRelated = exports.appsGameCenterDetailGetToOneRelated = exports.appsEndUserLicenseAgreementGetToOneRelated = exports.appsCustomerReviewsGetToManyRelated = exports.appsCiProductGetToOneRelated = exports.appsBuildsGetToManyRelated = exports.appsBetaTestersDeleteToManyRelationship = exports.appsBetaLicenseAgreementGetToOneRelated = exports.appsBetaGroupsGetToManyRelated = exports.appsBetaAppReviewDetailGetToOneRelated = exports.appsBetaAppLocalizationsGetToManyRelated = exports.appsAppStoreVersionsGetToManyRelated = exports.appsAppStoreVersionExperimentsV2GetToManyRelated = exports.appsAppPriceScheduleGetToOneRelated = exports.appsAppPricePointsGetToManyRelated = exports.appsAppInfosGetToManyRelated = exports.appsAppEventsGetToManyRelated = exports.appsAppEncryptionDeclarationsGetToManyRelated = exports.appsAppCustomProductPagesGetToManyRelated = exports.appsAppClipsGetToManyRelated = exports.appsAppAvailabilityV2GetToOneRelated = exports.appsAppAvailabilityGetToOneRelated = exports.appsAnalyticsReportRequestsGetToManyRelated = exports.appsAlternativeDistributionKeyGetToOneRelated = exports.appStoreVersionsRoutingAppCoverageGetToOneRelated = exports.appStoreVersionsGameCenterAppVersionGetToOneRelated = exports.appStoreVersionsCustomerReviewsGetToManyRelated = exports.appStoreVersionsBuildGetToOneRelated = exports.appStoreVersionsBuildUpdateToOneRelationship = exports.appStoreVersionsBuildGetToOneRelationship = exports.appStoreVersionsAppStoreVersionSubmissionGetToOneRelated = exports.appStoreVersionsAppStoreVersionPhasedReleaseGetToOneRelated = exports.appStoreVersionsAppStoreVersionLocalizationsGetToManyRelated = exports.appStoreVersionsAppStoreVersionExperimentsV2GetToManyRelated = exports.appStoreVersionsAppStoreVersionExperimentsGetToManyRelated = exports.appStoreVersionsAppStoreReviewDetailGetToOneRelated = exports.appStoreVersionsAppClipDefaultExperienceGetToOneRelated = exports.appStoreVersionsAppClipDefaultExperienceUpdateToOneRelationship = exports.appStoreVersionsAppClipDefaultExperienceGetToOneRelationship = exports.appStoreVersionsAlternativeDistributionPackageGetToOneRelated = exports.appStoreVersionsAgeRatingDeclarationGetToOneRelated = exports.appStoreVersionLocalizationsAppScreenshotSetsGetToManyRelated = exports.appStoreVersionLocalizationsAppPreviewSetsGetToManyRelated = void 0;
+exports.buildsIndividualTestersDeleteToManyRelationship = exports.buildsIndividualTestersCreateToManyRelationship = exports.buildsIndividualTestersGetToManyRelationship = exports.buildsIconsGetToManyRelated = exports.buildsDiagnosticSignaturesGetToManyRelated = exports.buildsBuildBetaDetailGetToOneRelated = exports.buildsBetaGroupsDeleteToManyRelationship = exports.buildsBetaGroupsCreateToManyRelationship = exports.buildsBetaBuildLocalizationsGetToManyRelated = exports.buildsBetaAppReviewSubmissionGetToOneRelated = exports.buildsAppStoreVersionGetToOneRelated = exports.buildsAppEncryptionDeclarationGetToOneRelated = exports.buildsAppEncryptionDeclarationUpdateToOneRelationship = exports.buildsAppEncryptionDeclarationGetToOneRelationship = exports.buildsAppGetToOneRelated = exports.buildBundlesBuildBundleFileSizesGetToManyRelated = exports.buildBundlesBetaAppClipInvocationsGetToManyRelated = exports.buildBundlesAppClipDomainDebugStatusGetToOneRelated = exports.buildBundlesAppClipDomainCacheStatusGetToOneRelated = exports.buildBetaDetailsBuildGetToOneRelated = exports.betaTestersBuildsGetToManyRelated = exports.betaTestersBuildsDeleteToManyRelationship = exports.betaTestersBuildsCreateToManyRelationship = exports.betaTestersBuildsGetToManyRelationship = exports.betaTestersBetaGroupsGetToManyRelated = exports.betaTestersBetaGroupsDeleteToManyRelationship = exports.betaTestersBetaGroupsCreateToManyRelationship = exports.betaTestersBetaGroupsGetToManyRelationship = exports.betaTestersAppsGetToManyRelated = exports.betaTestersAppsDeleteToManyRelationship = exports.betaTestersAppsGetToManyRelationship = exports.betaLicenseAgreementsAppGetToOneRelated = exports.betaGroupsBuildsGetToManyRelated = exports.betaGroupsBuildsDeleteToManyRelationship = exports.betaGroupsBuildsCreateToManyRelationship = exports.betaGroupsBuildsGetToManyRelationship = exports.betaGroupsBetaTestersGetToManyRelated = exports.betaGroupsBetaTestersDeleteToManyRelationship = exports.betaGroupsBetaTestersCreateToManyRelationship = exports.betaGroupsBetaTestersGetToManyRelationship = exports.betaGroupsAppGetToOneRelated = exports.betaBuildLocalizationsBuildGetToOneRelated = exports.betaAppReviewSubmissionsBuildGetToOneRelated = exports.betaAppReviewDetailsAppGetToOneRelated = exports.betaAppLocalizationsAppGetToOneRelated = exports.appsSubscriptionGroupsGetToManyRelated = exports.appsSubscriptionGracePeriodGetToOneRelated = exports.appsReviewSubmissionsGetToManyRelated = exports.appsPromotedPurchasesGetToManyRelated = exports.appsPromotedPurchasesReplaceToManyRelationship = void 0;
+exports.gameCenterDetailsLeaderboardSetReleasesGetToManyRelated = exports.gameCenterDetailsLeaderboardReleasesGetToManyRelated = exports.gameCenterDetailsGameCenterLeaderboardsGetToManyRelated = exports.gameCenterDetailsGameCenterLeaderboardsReplaceToManyRelationship = exports.gameCenterDetailsGameCenterLeaderboardsGetToManyRelationship = exports.gameCenterDetailsGameCenterLeaderboardSetsGetToManyRelated = exports.gameCenterDetailsGameCenterLeaderboardSetsReplaceToManyRelationship = exports.gameCenterDetailsGameCenterLeaderboardSetsGetToManyRelationship = exports.gameCenterDetailsGameCenterGroupGetToOneRelated = exports.gameCenterDetailsGameCenterAppVersionsGetToManyRelated = exports.gameCenterDetailsGameCenterAchievementsGetToManyRelated = exports.gameCenterDetailsGameCenterAchievementsReplaceToManyRelationship = exports.gameCenterDetailsGameCenterAchievementsGetToManyRelationship = exports.gameCenterDetailsAchievementReleasesGetToManyRelated = exports.gameCenterAppVersionsCompatibilityVersionsGetToManyRelated = exports.gameCenterAppVersionsCompatibilityVersionsDeleteToManyRelationship = exports.gameCenterAppVersionsCompatibilityVersionsCreateToManyRelationship = exports.gameCenterAppVersionsCompatibilityVersionsGetToManyRelationship = exports.gameCenterAppVersionsAppStoreVersionGetToOneRelated = exports.gameCenterAchievementsReleasesGetToManyRelated = exports.gameCenterAchievementsLocalizationsGetToManyRelated = exports.gameCenterAchievementsGroupAchievementGetToOneRelated = exports.gameCenterAchievementsGroupAchievementUpdateToOneRelationship = exports.gameCenterAchievementsGroupAchievementGetToOneRelationship = exports.gameCenterAchievementLocalizationsGameCenterAchievementImageGetToOneRelated = exports.gameCenterAchievementLocalizationsGameCenterAchievementGetToOneRelated = exports.endUserLicenseAgreementsTerritoriesGetToManyRelated = exports.diagnosticSignaturesLogsGetToManyRelated = exports.customerReviewsResponseGetToOneRelated = exports.ciXcodeVersionsMacOsVersionsGetToManyRelated = exports.ciWorkflowsRepositoryGetToOneRelated = exports.ciWorkflowsBuildRunsGetToManyRelated = exports.ciProductsWorkflowsGetToManyRelated = exports.ciProductsPrimaryRepositoriesGetToManyRelated = exports.ciProductsBuildRunsGetToManyRelated = exports.ciProductsAppGetToOneRelated = exports.ciProductsAdditionalRepositoriesGetToManyRelated = exports.ciMacOsVersionsXcodeVersionsGetToManyRelated = exports.ciBuildRunsBuildsGetToManyRelated = exports.ciBuildRunsActionsGetToManyRelated = exports.ciBuildActionsTestResultsGetToManyRelated = exports.ciBuildActionsIssuesGetToManyRelated = exports.ciBuildActionsBuildRunGetToOneRelated = exports.ciBuildActionsArtifactsGetToManyRelated = exports.bundleIdsProfilesGetToManyRelated = exports.bundleIdsBundleIdCapabilitiesGetToManyRelated = exports.bundleIdsAppGetToOneRelated = exports.buildsPreReleaseVersionGetToOneRelated = exports.buildsPerfPowerMetricsGetToManyRelated = exports.buildsIndividualTestersGetToManyRelated = void 0;
+exports.preReleaseVersionsAppGetToOneRelated = exports.inAppPurchasesV2PromotedPurchaseGetToOneRelated = exports.inAppPurchasesV2PricePointsGetToManyRelated = exports.inAppPurchasesV2InAppPurchaseLocalizationsGetToManyRelated = exports.inAppPurchasesV2InAppPurchaseAvailabilityGetToOneRelated = exports.inAppPurchasesV2ImagesGetToManyRelated = exports.inAppPurchasesV2IapPriceScheduleGetToOneRelated = exports.inAppPurchasesV2ContentGetToOneRelated = exports.inAppPurchasesV2AppStoreReviewScreenshotGetToOneRelated = exports.inAppPurchasePriceSchedulesManualPricesGetToManyRelated = exports.inAppPurchasePriceSchedulesBaseTerritoryGetToOneRelated = exports.inAppPurchasePriceSchedulesAutomaticPricesGetToManyRelated = exports.inAppPurchaseAvailabilitiesAvailableTerritoriesGetToManyRelated = exports.gameCenterMatchmakingRuleSetsTeamsGetToManyRelated = exports.gameCenterMatchmakingRuleSetsRulesGetToManyRelated = exports.gameCenterMatchmakingRuleSetsMatchmakingQueuesGetToManyRelated = exports.gameCenterLeaderboardsReleasesGetToManyRelated = exports.gameCenterLeaderboardsLocalizationsGetToManyRelated = exports.gameCenterLeaderboardsGroupLeaderboardGetToOneRelated = exports.gameCenterLeaderboardsGroupLeaderboardUpdateToOneRelationship = exports.gameCenterLeaderboardsGroupLeaderboardGetToOneRelationship = exports.gameCenterLeaderboardSetsReleasesGetToManyRelated = exports.gameCenterLeaderboardSetsLocalizationsGetToManyRelated = exports.gameCenterLeaderboardSetsGroupLeaderboardSetGetToOneRelated = exports.gameCenterLeaderboardSetsGroupLeaderboardSetUpdateToOneRelationship = exports.gameCenterLeaderboardSetsGroupLeaderboardSetGetToOneRelationship = exports.gameCenterLeaderboardSetsGameCenterLeaderboardsGetToManyRelated = exports.gameCenterLeaderboardSetsGameCenterLeaderboardsDeleteToManyRelationship = exports.gameCenterLeaderboardSetsGameCenterLeaderboardsReplaceToManyRelationship = exports.gameCenterLeaderboardSetsGameCenterLeaderboardsCreateToManyRelationship = exports.gameCenterLeaderboardSetsGameCenterLeaderboardsGetToManyRelationship = exports.gameCenterLeaderboardSetMemberLocalizationsGameCenterLeaderboardSetGetToOneRelated = exports.gameCenterLeaderboardSetMemberLocalizationsGameCenterLeaderboardGetToOneRelated = exports.gameCenterLeaderboardSetLocalizationsGameCenterLeaderboardSetImageGetToOneRelated = exports.gameCenterLeaderboardLocalizationsGameCenterLeaderboardImageGetToOneRelated = exports.gameCenterGroupsGameCenterLeaderboardsGetToManyRelated = exports.gameCenterGroupsGameCenterLeaderboardsReplaceToManyRelationship = exports.gameCenterGroupsGameCenterLeaderboardsGetToManyRelationship = exports.gameCenterGroupsGameCenterLeaderboardSetsGetToManyRelated = exports.gameCenterGroupsGameCenterLeaderboardSetsReplaceToManyRelationship = exports.gameCenterGroupsGameCenterLeaderboardSetsGetToManyRelationship = exports.gameCenterGroupsGameCenterDetailsGetToManyRelated = exports.gameCenterGroupsGameCenterAchievementsGetToManyRelated = exports.gameCenterGroupsGameCenterAchievementsReplaceToManyRelationship = exports.gameCenterGroupsGameCenterAchievementsGetToManyRelationship = exports.gameCenterEnabledVersionsCompatibleVersionsGetToManyRelated = exports.gameCenterEnabledVersionsCompatibleVersionsDeleteToManyRelationship = exports.gameCenterEnabledVersionsCompatibleVersionsReplaceToManyRelationship = exports.gameCenterEnabledVersionsCompatibleVersionsCreateToManyRelationship = exports.gameCenterEnabledVersionsCompatibleVersionsGetToManyRelationship = void 0;
+exports.gameCenterMatchmakingQueuesMatchmakingRequestsGetMetrics = exports.gameCenterMatchmakingQueuesMatchmakingQueueSizesGetMetrics = exports.gameCenterMatchmakingQueuesExperimentMatchmakingRequestsGetMetrics = exports.gameCenterMatchmakingQueuesExperimentMatchmakingQueueSizesGetMetrics = exports.gameCenterDetailsRuleBasedMatchmakingRequestsGetMetrics = exports.gameCenterDetailsClassicMatchmakingRequestsGetMetrics = exports.buildsBetaBuildUsagesGetMetrics = exports.betaTestersBetaTesterUsagesGetMetrics = exports.betaGroupsBetaTesterUsagesGetMetrics = exports.appsBetaTesterUsagesGetMetrics = exports.winBackOffersPricesGetToManyRelated = exports.usersVisibleAppsGetToManyRelated = exports.usersVisibleAppsDeleteToManyRelationship = exports.usersVisibleAppsReplaceToManyRelationship = exports.usersVisibleAppsCreateToManyRelationship = exports.usersVisibleAppsGetToManyRelationship = exports.userInvitationsVisibleAppsGetToManyRelated = exports.subscriptionsWinBackOffersGetToManyRelated = exports.subscriptionsSubscriptionLocalizationsGetToManyRelated = exports.subscriptionsSubscriptionAvailabilityGetToOneRelated = exports.subscriptionsPromotionalOffersGetToManyRelated = exports.subscriptionsPromotedPurchaseGetToOneRelated = exports.subscriptionsPricesGetToManyRelated = exports.subscriptionsPricesDeleteToManyRelationship = exports.subscriptionsPricesGetToManyRelationship = exports.subscriptionsPricePointsGetToManyRelated = exports.subscriptionsOfferCodesGetToManyRelated = exports.subscriptionsIntroductoryOffersGetToManyRelated = exports.subscriptionsIntroductoryOffersDeleteToManyRelationship = exports.subscriptionsIntroductoryOffersGetToManyRelationship = exports.subscriptionsImagesGetToManyRelated = exports.subscriptionsAppStoreReviewScreenshotGetToOneRelated = exports.subscriptionPromotionalOffersPricesGetToManyRelated = exports.subscriptionPricePointsEqualizationsGetToManyRelated = exports.subscriptionOfferCodesPricesGetToManyRelated = exports.subscriptionOfferCodesOneTimeUseCodesGetToManyRelated = exports.subscriptionOfferCodesCustomCodesGetToManyRelated = exports.subscriptionOfferCodeOneTimeUseCodesValuesGetToOneRelated = exports.subscriptionGroupsSubscriptionsGetToManyRelated = exports.subscriptionGroupsSubscriptionGroupLocalizationsGetToManyRelated = exports.subscriptionAvailabilitiesAvailableTerritoriesGetToManyRelated = exports.scmRepositoriesPullRequestsGetToManyRelated = exports.scmRepositoriesGitReferencesGetToManyRelated = exports.scmProvidersRepositoriesGetToManyRelated = exports.reviewSubmissionsItemsGetToManyRelated = exports.promotedPurchasesPromotionImagesGetToManyRelated = exports.profilesDevicesGetToManyRelated = exports.profilesCertificatesGetToManyRelated = exports.profilesBundleIdGetToOneRelated = exports.preReleaseVersionsBuildsGetToManyRelated = void 0;
+exports.gameCenterMatchmakingRulesMatchmakingRuleErrorsGetMetrics = exports.gameCenterMatchmakingRulesMatchmakingNumberRuleResultsGetMetrics = exports.gameCenterMatchmakingRulesMatchmakingBooleanRuleResultsGetMetrics = exports.gameCenterMatchmakingQueuesMatchmakingSessionsGetMetrics = void 0;
+const client_1 = __nccwpck_require__(4128);
+exports.client = (0, client_1.createClient)((0, client_1.createConfig)());
+const actorsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/actors'
+    });
+};
+exports.actorsGetCollection = actorsGetCollection;
+const actorsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/actors/{id}'
+    });
+};
+exports.actorsGetInstance = actorsGetInstance;
+const ageRatingDeclarationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/ageRatingDeclarations/{id}'
+    });
+};
+exports.ageRatingDeclarationsUpdateInstance = ageRatingDeclarationsUpdateInstance;
+const alternativeDistributionDomainsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/alternativeDistributionDomains'
+    });
+};
+exports.alternativeDistributionDomainsGetCollection = alternativeDistributionDomainsGetCollection;
+const alternativeDistributionDomainsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/alternativeDistributionDomains'
+    });
+};
+exports.alternativeDistributionDomainsCreateInstance = alternativeDistributionDomainsCreateInstance;
+const alternativeDistributionDomainsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/alternativeDistributionDomains/{id}'
+    });
+};
+exports.alternativeDistributionDomainsGetInstance = alternativeDistributionDomainsGetInstance;
+const alternativeDistributionDomainsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/alternativeDistributionDomains/{id}'
+    });
+};
+exports.alternativeDistributionDomainsDeleteInstance = alternativeDistributionDomainsDeleteInstance;
+const alternativeDistributionKeysGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/alternativeDistributionKeys'
+    });
+};
+exports.alternativeDistributionKeysGetCollection = alternativeDistributionKeysGetCollection;
+const alternativeDistributionKeysCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/alternativeDistributionKeys'
+    });
+};
+exports.alternativeDistributionKeysCreateInstance = alternativeDistributionKeysCreateInstance;
+const alternativeDistributionKeysGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/alternativeDistributionKeys/{id}'
+    });
+};
+exports.alternativeDistributionKeysGetInstance = alternativeDistributionKeysGetInstance;
+const alternativeDistributionKeysDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/alternativeDistributionKeys/{id}'
+    });
+};
+exports.alternativeDistributionKeysDeleteInstance = alternativeDistributionKeysDeleteInstance;
+const alternativeDistributionPackageDeltasGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/alternativeDistributionPackageDeltas/{id}'
+    });
+};
+exports.alternativeDistributionPackageDeltasGetInstance = alternativeDistributionPackageDeltasGetInstance;
+const alternativeDistributionPackageVariantsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/alternativeDistributionPackageVariants/{id}'
+    });
+};
+exports.alternativeDistributionPackageVariantsGetInstance = alternativeDistributionPackageVariantsGetInstance;
+const alternativeDistributionPackageVersionsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/alternativeDistributionPackageVersions/{id}'
+    });
+};
+exports.alternativeDistributionPackageVersionsGetInstance = alternativeDistributionPackageVersionsGetInstance;
+const alternativeDistributionPackagesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/alternativeDistributionPackages'
+    });
+};
+exports.alternativeDistributionPackagesCreateInstance = alternativeDistributionPackagesCreateInstance;
+const alternativeDistributionPackagesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/alternativeDistributionPackages/{id}'
+    });
+};
+exports.alternativeDistributionPackagesGetInstance = alternativeDistributionPackagesGetInstance;
+const analyticsReportInstancesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/analyticsReportInstances/{id}'
+    });
+};
+exports.analyticsReportInstancesGetInstance = analyticsReportInstancesGetInstance;
+const analyticsReportRequestsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/analyticsReportRequests'
+    });
+};
+exports.analyticsReportRequestsCreateInstance = analyticsReportRequestsCreateInstance;
+const analyticsReportRequestsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/analyticsReportRequests/{id}'
+    });
+};
+exports.analyticsReportRequestsGetInstance = analyticsReportRequestsGetInstance;
+const analyticsReportRequestsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/analyticsReportRequests/{id}'
+    });
+};
+exports.analyticsReportRequestsDeleteInstance = analyticsReportRequestsDeleteInstance;
+const analyticsReportSegmentsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/analyticsReportSegments/{id}'
+    });
+};
+exports.analyticsReportSegmentsGetInstance = analyticsReportSegmentsGetInstance;
+const analyticsReportsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/analyticsReports/{id}'
+    });
+};
+exports.analyticsReportsGetInstance = analyticsReportsGetInstance;
+const appAvailabilitiesV2CreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v2/appAvailabilities'
+    });
+};
+exports.appAvailabilitiesV2CreateInstance = appAvailabilitiesV2CreateInstance;
+const appAvailabilitiesV2GetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/appAvailabilities/{id}'
+    });
+};
+exports.appAvailabilitiesV2GetInstance = appAvailabilitiesV2GetInstance;
+/**
+ * @deprecated
+ */
+const appAvailabilitiesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appAvailabilities'
+    });
+};
+exports.appAvailabilitiesCreateInstance = appAvailabilitiesCreateInstance;
+/**
+ * @deprecated
+ */
+const appAvailabilitiesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appAvailabilities/{id}'
+    });
+};
+exports.appAvailabilitiesGetInstance = appAvailabilitiesGetInstance;
+const appCategoriesGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appCategories'
+    });
+};
+exports.appCategoriesGetCollection = appCategoriesGetCollection;
+const appCategoriesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appCategories/{id}'
+    });
+};
+exports.appCategoriesGetInstance = appCategoriesGetInstance;
+const appClipAdvancedExperienceImagesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appClipAdvancedExperienceImages'
+    });
+};
+exports.appClipAdvancedExperienceImagesCreateInstance = appClipAdvancedExperienceImagesCreateInstance;
+const appClipAdvancedExperienceImagesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClipAdvancedExperienceImages/{id}'
+    });
+};
+exports.appClipAdvancedExperienceImagesGetInstance = appClipAdvancedExperienceImagesGetInstance;
+const appClipAdvancedExperienceImagesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appClipAdvancedExperienceImages/{id}'
+    });
+};
+exports.appClipAdvancedExperienceImagesUpdateInstance = appClipAdvancedExperienceImagesUpdateInstance;
+const appClipAdvancedExperiencesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appClipAdvancedExperiences'
+    });
+};
+exports.appClipAdvancedExperiencesCreateInstance = appClipAdvancedExperiencesCreateInstance;
+const appClipAdvancedExperiencesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClipAdvancedExperiences/{id}'
+    });
+};
+exports.appClipAdvancedExperiencesGetInstance = appClipAdvancedExperiencesGetInstance;
+const appClipAdvancedExperiencesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appClipAdvancedExperiences/{id}'
+    });
+};
+exports.appClipAdvancedExperiencesUpdateInstance = appClipAdvancedExperiencesUpdateInstance;
+const appClipAppStoreReviewDetailsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appClipAppStoreReviewDetails'
+    });
+};
+exports.appClipAppStoreReviewDetailsCreateInstance = appClipAppStoreReviewDetailsCreateInstance;
+const appClipAppStoreReviewDetailsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClipAppStoreReviewDetails/{id}'
+    });
+};
+exports.appClipAppStoreReviewDetailsGetInstance = appClipAppStoreReviewDetailsGetInstance;
+const appClipAppStoreReviewDetailsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appClipAppStoreReviewDetails/{id}'
+    });
+};
+exports.appClipAppStoreReviewDetailsUpdateInstance = appClipAppStoreReviewDetailsUpdateInstance;
+const appClipDefaultExperienceLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appClipDefaultExperienceLocalizations'
+    });
+};
+exports.appClipDefaultExperienceLocalizationsCreateInstance = appClipDefaultExperienceLocalizationsCreateInstance;
+const appClipDefaultExperienceLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClipDefaultExperienceLocalizations/{id}'
+    });
+};
+exports.appClipDefaultExperienceLocalizationsGetInstance = appClipDefaultExperienceLocalizationsGetInstance;
+const appClipDefaultExperienceLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appClipDefaultExperienceLocalizations/{id}'
+    });
+};
+exports.appClipDefaultExperienceLocalizationsUpdateInstance = appClipDefaultExperienceLocalizationsUpdateInstance;
+const appClipDefaultExperienceLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appClipDefaultExperienceLocalizations/{id}'
+    });
+};
+exports.appClipDefaultExperienceLocalizationsDeleteInstance = appClipDefaultExperienceLocalizationsDeleteInstance;
+const appClipDefaultExperiencesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appClipDefaultExperiences'
+    });
+};
+exports.appClipDefaultExperiencesCreateInstance = appClipDefaultExperiencesCreateInstance;
+const appClipDefaultExperiencesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClipDefaultExperiences/{id}'
+    });
+};
+exports.appClipDefaultExperiencesGetInstance = appClipDefaultExperiencesGetInstance;
+const appClipDefaultExperiencesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appClipDefaultExperiences/{id}'
+    });
+};
+exports.appClipDefaultExperiencesUpdateInstance = appClipDefaultExperiencesUpdateInstance;
+const appClipDefaultExperiencesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appClipDefaultExperiences/{id}'
+    });
+};
+exports.appClipDefaultExperiencesDeleteInstance = appClipDefaultExperiencesDeleteInstance;
+const appClipHeaderImagesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appClipHeaderImages'
+    });
+};
+exports.appClipHeaderImagesCreateInstance = appClipHeaderImagesCreateInstance;
+const appClipHeaderImagesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClipHeaderImages/{id}'
+    });
+};
+exports.appClipHeaderImagesGetInstance = appClipHeaderImagesGetInstance;
+const appClipHeaderImagesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appClipHeaderImages/{id}'
+    });
+};
+exports.appClipHeaderImagesUpdateInstance = appClipHeaderImagesUpdateInstance;
+const appClipHeaderImagesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appClipHeaderImages/{id}'
+    });
+};
+exports.appClipHeaderImagesDeleteInstance = appClipHeaderImagesDeleteInstance;
+const appClipsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClips/{id}'
+    });
+};
+exports.appClipsGetInstance = appClipsGetInstance;
+const appCustomProductPageLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appCustomProductPageLocalizations'
+    });
+};
+exports.appCustomProductPageLocalizationsCreateInstance = appCustomProductPageLocalizationsCreateInstance;
+const appCustomProductPageLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appCustomProductPageLocalizations/{id}'
+    });
+};
+exports.appCustomProductPageLocalizationsGetInstance = appCustomProductPageLocalizationsGetInstance;
+const appCustomProductPageLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appCustomProductPageLocalizations/{id}'
+    });
+};
+exports.appCustomProductPageLocalizationsUpdateInstance = appCustomProductPageLocalizationsUpdateInstance;
+const appCustomProductPageLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appCustomProductPageLocalizations/{id}'
+    });
+};
+exports.appCustomProductPageLocalizationsDeleteInstance = appCustomProductPageLocalizationsDeleteInstance;
+const appCustomProductPageVersionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appCustomProductPageVersions'
+    });
+};
+exports.appCustomProductPageVersionsCreateInstance = appCustomProductPageVersionsCreateInstance;
+const appCustomProductPageVersionsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appCustomProductPageVersions/{id}'
+    });
+};
+exports.appCustomProductPageVersionsGetInstance = appCustomProductPageVersionsGetInstance;
+const appCustomProductPageVersionsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appCustomProductPageVersions/{id}'
+    });
+};
+exports.appCustomProductPageVersionsUpdateInstance = appCustomProductPageVersionsUpdateInstance;
+const appCustomProductPagesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appCustomProductPages'
+    });
+};
+exports.appCustomProductPagesCreateInstance = appCustomProductPagesCreateInstance;
+const appCustomProductPagesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appCustomProductPages/{id}'
+    });
+};
+exports.appCustomProductPagesGetInstance = appCustomProductPagesGetInstance;
+const appCustomProductPagesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appCustomProductPages/{id}'
+    });
+};
+exports.appCustomProductPagesUpdateInstance = appCustomProductPagesUpdateInstance;
+const appCustomProductPagesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appCustomProductPages/{id}'
+    });
+};
+exports.appCustomProductPagesDeleteInstance = appCustomProductPagesDeleteInstance;
+const appEncryptionDeclarationDocumentsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appEncryptionDeclarationDocuments'
+    });
+};
+exports.appEncryptionDeclarationDocumentsCreateInstance = appEncryptionDeclarationDocumentsCreateInstance;
+const appEncryptionDeclarationDocumentsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEncryptionDeclarationDocuments/{id}'
+    });
+};
+exports.appEncryptionDeclarationDocumentsGetInstance = appEncryptionDeclarationDocumentsGetInstance;
+const appEncryptionDeclarationDocumentsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appEncryptionDeclarationDocuments/{id}'
+    });
+};
+exports.appEncryptionDeclarationDocumentsUpdateInstance = appEncryptionDeclarationDocumentsUpdateInstance;
+const appEncryptionDeclarationsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEncryptionDeclarations'
+    });
+};
+exports.appEncryptionDeclarationsGetCollection = appEncryptionDeclarationsGetCollection;
+const appEncryptionDeclarationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appEncryptionDeclarations'
+    });
+};
+exports.appEncryptionDeclarationsCreateInstance = appEncryptionDeclarationsCreateInstance;
+const appEncryptionDeclarationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEncryptionDeclarations/{id}'
+    });
+};
+exports.appEncryptionDeclarationsGetInstance = appEncryptionDeclarationsGetInstance;
+const appEventLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appEventLocalizations'
+    });
+};
+exports.appEventLocalizationsCreateInstance = appEventLocalizationsCreateInstance;
+const appEventLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEventLocalizations/{id}'
+    });
+};
+exports.appEventLocalizationsGetInstance = appEventLocalizationsGetInstance;
+const appEventLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appEventLocalizations/{id}'
+    });
+};
+exports.appEventLocalizationsUpdateInstance = appEventLocalizationsUpdateInstance;
+const appEventLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appEventLocalizations/{id}'
+    });
+};
+exports.appEventLocalizationsDeleteInstance = appEventLocalizationsDeleteInstance;
+const appEventScreenshotsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appEventScreenshots'
+    });
+};
+exports.appEventScreenshotsCreateInstance = appEventScreenshotsCreateInstance;
+const appEventScreenshotsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEventScreenshots/{id}'
+    });
+};
+exports.appEventScreenshotsGetInstance = appEventScreenshotsGetInstance;
+const appEventScreenshotsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appEventScreenshots/{id}'
+    });
+};
+exports.appEventScreenshotsUpdateInstance = appEventScreenshotsUpdateInstance;
+const appEventScreenshotsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appEventScreenshots/{id}'
+    });
+};
+exports.appEventScreenshotsDeleteInstance = appEventScreenshotsDeleteInstance;
+const appEventVideoClipsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appEventVideoClips'
+    });
+};
+exports.appEventVideoClipsCreateInstance = appEventVideoClipsCreateInstance;
+const appEventVideoClipsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEventVideoClips/{id}'
+    });
+};
+exports.appEventVideoClipsGetInstance = appEventVideoClipsGetInstance;
+const appEventVideoClipsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appEventVideoClips/{id}'
+    });
+};
+exports.appEventVideoClipsUpdateInstance = appEventVideoClipsUpdateInstance;
+const appEventVideoClipsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appEventVideoClips/{id}'
+    });
+};
+exports.appEventVideoClipsDeleteInstance = appEventVideoClipsDeleteInstance;
+const appEventsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appEvents'
+    });
+};
+exports.appEventsCreateInstance = appEventsCreateInstance;
+const appEventsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEvents/{id}'
+    });
+};
+exports.appEventsGetInstance = appEventsGetInstance;
+const appEventsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appEvents/{id}'
+    });
+};
+exports.appEventsUpdateInstance = appEventsUpdateInstance;
+const appEventsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appEvents/{id}'
+    });
+};
+exports.appEventsDeleteInstance = appEventsDeleteInstance;
+const appInfoLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appInfoLocalizations'
+    });
+};
+exports.appInfoLocalizationsCreateInstance = appInfoLocalizationsCreateInstance;
+const appInfoLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appInfoLocalizations/{id}'
+    });
+};
+exports.appInfoLocalizationsGetInstance = appInfoLocalizationsGetInstance;
+const appInfoLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appInfoLocalizations/{id}'
+    });
+};
+exports.appInfoLocalizationsUpdateInstance = appInfoLocalizationsUpdateInstance;
+const appInfoLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appInfoLocalizations/{id}'
+    });
+};
+exports.appInfoLocalizationsDeleteInstance = appInfoLocalizationsDeleteInstance;
+const appInfosGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appInfos/{id}'
+    });
+};
+exports.appInfosGetInstance = appInfosGetInstance;
+const appInfosUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appInfos/{id}'
+    });
+};
+exports.appInfosUpdateInstance = appInfosUpdateInstance;
+/**
+ * @deprecated
+ */
+const appPreOrdersCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appPreOrders'
+    });
+};
+exports.appPreOrdersCreateInstance = appPreOrdersCreateInstance;
+/**
+ * @deprecated
+ */
+const appPreOrdersGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appPreOrders/{id}'
+    });
+};
+exports.appPreOrdersGetInstance = appPreOrdersGetInstance;
+/**
+ * @deprecated
+ */
+const appPreOrdersUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appPreOrders/{id}'
+    });
+};
+exports.appPreOrdersUpdateInstance = appPreOrdersUpdateInstance;
+/**
+ * @deprecated
+ */
+const appPreOrdersDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appPreOrders/{id}'
+    });
+};
+exports.appPreOrdersDeleteInstance = appPreOrdersDeleteInstance;
+const appPreviewSetsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appPreviewSets'
+    });
+};
+exports.appPreviewSetsCreateInstance = appPreviewSetsCreateInstance;
+const appPreviewSetsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appPreviewSets/{id}'
+    });
+};
+exports.appPreviewSetsGetInstance = appPreviewSetsGetInstance;
+const appPreviewSetsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appPreviewSets/{id}'
+    });
+};
+exports.appPreviewSetsDeleteInstance = appPreviewSetsDeleteInstance;
+const appPreviewsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appPreviews'
+    });
+};
+exports.appPreviewsCreateInstance = appPreviewsCreateInstance;
+const appPreviewsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appPreviews/{id}'
+    });
+};
+exports.appPreviewsGetInstance = appPreviewsGetInstance;
+const appPreviewsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appPreviews/{id}'
+    });
+};
+exports.appPreviewsUpdateInstance = appPreviewsUpdateInstance;
+const appPreviewsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appPreviews/{id}'
+    });
+};
+exports.appPreviewsDeleteInstance = appPreviewsDeleteInstance;
+const appPricePointsV3GetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v3/appPricePoints/{id}'
+    });
+};
+exports.appPricePointsV3GetInstance = appPricePointsV3GetInstance;
+const appPriceSchedulesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appPriceSchedules'
+    });
+};
+exports.appPriceSchedulesCreateInstance = appPriceSchedulesCreateInstance;
+const appPriceSchedulesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appPriceSchedules/{id}'
+    });
+};
+exports.appPriceSchedulesGetInstance = appPriceSchedulesGetInstance;
+const appScreenshotSetsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appScreenshotSets'
+    });
+};
+exports.appScreenshotSetsCreateInstance = appScreenshotSetsCreateInstance;
+const appScreenshotSetsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appScreenshotSets/{id}'
+    });
+};
+exports.appScreenshotSetsGetInstance = appScreenshotSetsGetInstance;
+const appScreenshotSetsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appScreenshotSets/{id}'
+    });
+};
+exports.appScreenshotSetsDeleteInstance = appScreenshotSetsDeleteInstance;
+const appScreenshotsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appScreenshots'
+    });
+};
+exports.appScreenshotsCreateInstance = appScreenshotsCreateInstance;
+const appScreenshotsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appScreenshots/{id}'
+    });
+};
+exports.appScreenshotsGetInstance = appScreenshotsGetInstance;
+const appScreenshotsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appScreenshots/{id}'
+    });
+};
+exports.appScreenshotsUpdateInstance = appScreenshotsUpdateInstance;
+const appScreenshotsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appScreenshots/{id}'
+    });
+};
+exports.appScreenshotsDeleteInstance = appScreenshotsDeleteInstance;
+const appStoreReviewAttachmentsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appStoreReviewAttachments'
+    });
+};
+exports.appStoreReviewAttachmentsCreateInstance = appStoreReviewAttachmentsCreateInstance;
+const appStoreReviewAttachmentsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreReviewAttachments/{id}'
+    });
+};
+exports.appStoreReviewAttachmentsGetInstance = appStoreReviewAttachmentsGetInstance;
+const appStoreReviewAttachmentsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appStoreReviewAttachments/{id}'
+    });
+};
+exports.appStoreReviewAttachmentsUpdateInstance = appStoreReviewAttachmentsUpdateInstance;
+const appStoreReviewAttachmentsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appStoreReviewAttachments/{id}'
+    });
+};
+exports.appStoreReviewAttachmentsDeleteInstance = appStoreReviewAttachmentsDeleteInstance;
+const appStoreReviewDetailsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appStoreReviewDetails'
+    });
+};
+exports.appStoreReviewDetailsCreateInstance = appStoreReviewDetailsCreateInstance;
+const appStoreReviewDetailsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreReviewDetails/{id}'
+    });
+};
+exports.appStoreReviewDetailsGetInstance = appStoreReviewDetailsGetInstance;
+const appStoreReviewDetailsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appStoreReviewDetails/{id}'
+    });
+};
+exports.appStoreReviewDetailsUpdateInstance = appStoreReviewDetailsUpdateInstance;
+const appStoreVersionExperimentTreatmentLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appStoreVersionExperimentTreatmentLocalizations'
+    });
+};
+exports.appStoreVersionExperimentTreatmentLocalizationsCreateInstance = appStoreVersionExperimentTreatmentLocalizationsCreateInstance;
+const appStoreVersionExperimentTreatmentLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersionExperimentTreatmentLocalizations/{id}'
+    });
+};
+exports.appStoreVersionExperimentTreatmentLocalizationsGetInstance = appStoreVersionExperimentTreatmentLocalizationsGetInstance;
+const appStoreVersionExperimentTreatmentLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appStoreVersionExperimentTreatmentLocalizations/{id}'
+    });
+};
+exports.appStoreVersionExperimentTreatmentLocalizationsDeleteInstance = appStoreVersionExperimentTreatmentLocalizationsDeleteInstance;
+const appStoreVersionExperimentTreatmentsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appStoreVersionExperimentTreatments'
+    });
+};
+exports.appStoreVersionExperimentTreatmentsCreateInstance = appStoreVersionExperimentTreatmentsCreateInstance;
+const appStoreVersionExperimentTreatmentsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersionExperimentTreatments/{id}'
+    });
+};
+exports.appStoreVersionExperimentTreatmentsGetInstance = appStoreVersionExperimentTreatmentsGetInstance;
+const appStoreVersionExperimentTreatmentsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appStoreVersionExperimentTreatments/{id}'
+    });
+};
+exports.appStoreVersionExperimentTreatmentsUpdateInstance = appStoreVersionExperimentTreatmentsUpdateInstance;
+const appStoreVersionExperimentTreatmentsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appStoreVersionExperimentTreatments/{id}'
+    });
+};
+exports.appStoreVersionExperimentTreatmentsDeleteInstance = appStoreVersionExperimentTreatmentsDeleteInstance;
+const appStoreVersionExperimentsV2CreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v2/appStoreVersionExperiments'
+    });
+};
+exports.appStoreVersionExperimentsV2CreateInstance = appStoreVersionExperimentsV2CreateInstance;
+const appStoreVersionExperimentsV2GetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/appStoreVersionExperiments/{id}'
+    });
+};
+exports.appStoreVersionExperimentsV2GetInstance = appStoreVersionExperimentsV2GetInstance;
+const appStoreVersionExperimentsV2UpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v2/appStoreVersionExperiments/{id}'
+    });
+};
+exports.appStoreVersionExperimentsV2UpdateInstance = appStoreVersionExperimentsV2UpdateInstance;
+const appStoreVersionExperimentsV2DeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v2/appStoreVersionExperiments/{id}'
+    });
+};
+exports.appStoreVersionExperimentsV2DeleteInstance = appStoreVersionExperimentsV2DeleteInstance;
+/**
+ * @deprecated
+ */
+const appStoreVersionExperimentsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appStoreVersionExperiments'
+    });
+};
+exports.appStoreVersionExperimentsCreateInstance = appStoreVersionExperimentsCreateInstance;
+/**
+ * @deprecated
+ */
+const appStoreVersionExperimentsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersionExperiments/{id}'
+    });
+};
+exports.appStoreVersionExperimentsGetInstance = appStoreVersionExperimentsGetInstance;
+/**
+ * @deprecated
+ */
+const appStoreVersionExperimentsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appStoreVersionExperiments/{id}'
+    });
+};
+exports.appStoreVersionExperimentsUpdateInstance = appStoreVersionExperimentsUpdateInstance;
+/**
+ * @deprecated
+ */
+const appStoreVersionExperimentsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appStoreVersionExperiments/{id}'
+    });
+};
+exports.appStoreVersionExperimentsDeleteInstance = appStoreVersionExperimentsDeleteInstance;
+const appStoreVersionLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appStoreVersionLocalizations'
+    });
+};
+exports.appStoreVersionLocalizationsCreateInstance = appStoreVersionLocalizationsCreateInstance;
+const appStoreVersionLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersionLocalizations/{id}'
+    });
+};
+exports.appStoreVersionLocalizationsGetInstance = appStoreVersionLocalizationsGetInstance;
+const appStoreVersionLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appStoreVersionLocalizations/{id}'
+    });
+};
+exports.appStoreVersionLocalizationsUpdateInstance = appStoreVersionLocalizationsUpdateInstance;
+const appStoreVersionLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appStoreVersionLocalizations/{id}'
+    });
+};
+exports.appStoreVersionLocalizationsDeleteInstance = appStoreVersionLocalizationsDeleteInstance;
+const appStoreVersionPhasedReleasesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appStoreVersionPhasedReleases'
+    });
+};
+exports.appStoreVersionPhasedReleasesCreateInstance = appStoreVersionPhasedReleasesCreateInstance;
+const appStoreVersionPhasedReleasesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appStoreVersionPhasedReleases/{id}'
+    });
+};
+exports.appStoreVersionPhasedReleasesUpdateInstance = appStoreVersionPhasedReleasesUpdateInstance;
+const appStoreVersionPhasedReleasesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appStoreVersionPhasedReleases/{id}'
+    });
+};
+exports.appStoreVersionPhasedReleasesDeleteInstance = appStoreVersionPhasedReleasesDeleteInstance;
+const appStoreVersionPromotionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appStoreVersionPromotions'
+    });
+};
+exports.appStoreVersionPromotionsCreateInstance = appStoreVersionPromotionsCreateInstance;
+const appStoreVersionReleaseRequestsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appStoreVersionReleaseRequests'
+    });
+};
+exports.appStoreVersionReleaseRequestsCreateInstance = appStoreVersionReleaseRequestsCreateInstance;
+/**
+ * @deprecated
+ */
+const appStoreVersionSubmissionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appStoreVersionSubmissions'
+    });
+};
+exports.appStoreVersionSubmissionsCreateInstance = appStoreVersionSubmissionsCreateInstance;
+/**
+ * @deprecated
+ */
+const appStoreVersionSubmissionsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appStoreVersionSubmissions/{id}'
+    });
+};
+exports.appStoreVersionSubmissionsDeleteInstance = appStoreVersionSubmissionsDeleteInstance;
+const appStoreVersionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appStoreVersions'
+    });
+};
+exports.appStoreVersionsCreateInstance = appStoreVersionsCreateInstance;
+const appStoreVersionsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}'
+    });
+};
+exports.appStoreVersionsGetInstance = appStoreVersionsGetInstance;
+const appStoreVersionsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appStoreVersions/{id}'
+    });
+};
+exports.appStoreVersionsUpdateInstance = appStoreVersionsUpdateInstance;
+const appStoreVersionsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/appStoreVersions/{id}'
+    });
+};
+exports.appStoreVersionsDeleteInstance = appStoreVersionsDeleteInstance;
+const appsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps'
+    });
+};
+exports.appsGetCollection = appsGetCollection;
+const appsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}'
+    });
+};
+exports.appsGetInstance = appsGetInstance;
+const appsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/apps/{id}'
+    });
+};
+exports.appsUpdateInstance = appsUpdateInstance;
+const betaAppClipInvocationLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaAppClipInvocationLocalizations'
+    });
+};
+exports.betaAppClipInvocationLocalizationsCreateInstance = betaAppClipInvocationLocalizationsCreateInstance;
+const betaAppClipInvocationLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/betaAppClipInvocationLocalizations/{id}'
+    });
+};
+exports.betaAppClipInvocationLocalizationsUpdateInstance = betaAppClipInvocationLocalizationsUpdateInstance;
+const betaAppClipInvocationLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/betaAppClipInvocationLocalizations/{id}'
+    });
+};
+exports.betaAppClipInvocationLocalizationsDeleteInstance = betaAppClipInvocationLocalizationsDeleteInstance;
+const betaAppClipInvocationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaAppClipInvocations'
+    });
+};
+exports.betaAppClipInvocationsCreateInstance = betaAppClipInvocationsCreateInstance;
+const betaAppClipInvocationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaAppClipInvocations/{id}'
+    });
+};
+exports.betaAppClipInvocationsGetInstance = betaAppClipInvocationsGetInstance;
+const betaAppClipInvocationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/betaAppClipInvocations/{id}'
+    });
+};
+exports.betaAppClipInvocationsUpdateInstance = betaAppClipInvocationsUpdateInstance;
+const betaAppClipInvocationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/betaAppClipInvocations/{id}'
+    });
+};
+exports.betaAppClipInvocationsDeleteInstance = betaAppClipInvocationsDeleteInstance;
+const betaAppLocalizationsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaAppLocalizations'
+    });
+};
+exports.betaAppLocalizationsGetCollection = betaAppLocalizationsGetCollection;
+const betaAppLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaAppLocalizations'
+    });
+};
+exports.betaAppLocalizationsCreateInstance = betaAppLocalizationsCreateInstance;
+const betaAppLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaAppLocalizations/{id}'
+    });
+};
+exports.betaAppLocalizationsGetInstance = betaAppLocalizationsGetInstance;
+const betaAppLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/betaAppLocalizations/{id}'
+    });
+};
+exports.betaAppLocalizationsUpdateInstance = betaAppLocalizationsUpdateInstance;
+const betaAppLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/betaAppLocalizations/{id}'
+    });
+};
+exports.betaAppLocalizationsDeleteInstance = betaAppLocalizationsDeleteInstance;
+const betaAppReviewDetailsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaAppReviewDetails'
+    });
+};
+exports.betaAppReviewDetailsGetCollection = betaAppReviewDetailsGetCollection;
+const betaAppReviewDetailsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaAppReviewDetails/{id}'
+    });
+};
+exports.betaAppReviewDetailsGetInstance = betaAppReviewDetailsGetInstance;
+const betaAppReviewDetailsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/betaAppReviewDetails/{id}'
+    });
+};
+exports.betaAppReviewDetailsUpdateInstance = betaAppReviewDetailsUpdateInstance;
+const betaAppReviewSubmissionsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaAppReviewSubmissions'
+    });
+};
+exports.betaAppReviewSubmissionsGetCollection = betaAppReviewSubmissionsGetCollection;
+const betaAppReviewSubmissionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaAppReviewSubmissions'
+    });
+};
+exports.betaAppReviewSubmissionsCreateInstance = betaAppReviewSubmissionsCreateInstance;
+const betaAppReviewSubmissionsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaAppReviewSubmissions/{id}'
+    });
+};
+exports.betaAppReviewSubmissionsGetInstance = betaAppReviewSubmissionsGetInstance;
+const betaBuildLocalizationsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaBuildLocalizations'
+    });
+};
+exports.betaBuildLocalizationsGetCollection = betaBuildLocalizationsGetCollection;
+const betaBuildLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaBuildLocalizations'
+    });
+};
+exports.betaBuildLocalizationsCreateInstance = betaBuildLocalizationsCreateInstance;
+const betaBuildLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaBuildLocalizations/{id}'
+    });
+};
+exports.betaBuildLocalizationsGetInstance = betaBuildLocalizationsGetInstance;
+const betaBuildLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/betaBuildLocalizations/{id}'
+    });
+};
+exports.betaBuildLocalizationsUpdateInstance = betaBuildLocalizationsUpdateInstance;
+const betaBuildLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/betaBuildLocalizations/{id}'
+    });
+};
+exports.betaBuildLocalizationsDeleteInstance = betaBuildLocalizationsDeleteInstance;
+const betaGroupsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaGroups'
+    });
+};
+exports.betaGroupsGetCollection = betaGroupsGetCollection;
+const betaGroupsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaGroups'
+    });
+};
+exports.betaGroupsCreateInstance = betaGroupsCreateInstance;
+const betaGroupsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaGroups/{id}'
+    });
+};
+exports.betaGroupsGetInstance = betaGroupsGetInstance;
+const betaGroupsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/betaGroups/{id}'
+    });
+};
+exports.betaGroupsUpdateInstance = betaGroupsUpdateInstance;
+const betaGroupsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/betaGroups/{id}'
+    });
+};
+exports.betaGroupsDeleteInstance = betaGroupsDeleteInstance;
+const betaLicenseAgreementsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaLicenseAgreements'
+    });
+};
+exports.betaLicenseAgreementsGetCollection = betaLicenseAgreementsGetCollection;
+const betaLicenseAgreementsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaLicenseAgreements/{id}'
+    });
+};
+exports.betaLicenseAgreementsGetInstance = betaLicenseAgreementsGetInstance;
+const betaLicenseAgreementsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/betaLicenseAgreements/{id}'
+    });
+};
+exports.betaLicenseAgreementsUpdateInstance = betaLicenseAgreementsUpdateInstance;
+const betaTesterInvitationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaTesterInvitations'
+    });
+};
+exports.betaTesterInvitationsCreateInstance = betaTesterInvitationsCreateInstance;
+const betaTestersGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaTesters'
+    });
+};
+exports.betaTestersGetCollection = betaTestersGetCollection;
+const betaTestersCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaTesters'
+    });
+};
+exports.betaTestersCreateInstance = betaTestersCreateInstance;
+const betaTestersGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaTesters/{id}'
+    });
+};
+exports.betaTestersGetInstance = betaTestersGetInstance;
+const betaTestersDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/betaTesters/{id}'
+    });
+};
+exports.betaTestersDeleteInstance = betaTestersDeleteInstance;
+const buildBetaDetailsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/buildBetaDetails'
+    });
+};
+exports.buildBetaDetailsGetCollection = buildBetaDetailsGetCollection;
+const buildBetaDetailsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/buildBetaDetails/{id}'
+    });
+};
+exports.buildBetaDetailsGetInstance = buildBetaDetailsGetInstance;
+const buildBetaDetailsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/buildBetaDetails/{id}'
+    });
+};
+exports.buildBetaDetailsUpdateInstance = buildBetaDetailsUpdateInstance;
+const buildBetaNotificationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/buildBetaNotifications'
+    });
+};
+exports.buildBetaNotificationsCreateInstance = buildBetaNotificationsCreateInstance;
+const buildsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds'
+    });
+};
+exports.buildsGetCollection = buildsGetCollection;
+const buildsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}'
+    });
+};
+exports.buildsGetInstance = buildsGetInstance;
+const buildsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/builds/{id}'
+    });
+};
+exports.buildsUpdateInstance = buildsUpdateInstance;
+const bundleIdCapabilitiesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/bundleIdCapabilities'
+    });
+};
+exports.bundleIdCapabilitiesCreateInstance = bundleIdCapabilitiesCreateInstance;
+const bundleIdCapabilitiesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/bundleIdCapabilities/{id}'
+    });
+};
+exports.bundleIdCapabilitiesUpdateInstance = bundleIdCapabilitiesUpdateInstance;
+const bundleIdCapabilitiesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/bundleIdCapabilities/{id}'
+    });
+};
+exports.bundleIdCapabilitiesDeleteInstance = bundleIdCapabilitiesDeleteInstance;
+const bundleIdsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/bundleIds'
+    });
+};
+exports.bundleIdsGetCollection = bundleIdsGetCollection;
+const bundleIdsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/bundleIds'
+    });
+};
+exports.bundleIdsCreateInstance = bundleIdsCreateInstance;
+const bundleIdsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/bundleIds/{id}'
+    });
+};
+exports.bundleIdsGetInstance = bundleIdsGetInstance;
+const bundleIdsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/bundleIds/{id}'
+    });
+};
+exports.bundleIdsUpdateInstance = bundleIdsUpdateInstance;
+const bundleIdsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/bundleIds/{id}'
+    });
+};
+exports.bundleIdsDeleteInstance = bundleIdsDeleteInstance;
+const certificatesGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/certificates'
+    });
+};
+exports.certificatesGetCollection = certificatesGetCollection;
+const certificatesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/certificates'
+    });
+};
+exports.certificatesCreateInstance = certificatesCreateInstance;
+const certificatesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/certificates/{id}'
+    });
+};
+exports.certificatesGetInstance = certificatesGetInstance;
+const certificatesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/certificates/{id}'
+    });
+};
+exports.certificatesDeleteInstance = certificatesDeleteInstance;
+const ciArtifactsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciArtifacts/{id}'
+    });
+};
+exports.ciArtifactsGetInstance = ciArtifactsGetInstance;
+const ciBuildActionsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciBuildActions/{id}'
+    });
+};
+exports.ciBuildActionsGetInstance = ciBuildActionsGetInstance;
+const ciBuildRunsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/ciBuildRuns'
+    });
+};
+exports.ciBuildRunsCreateInstance = ciBuildRunsCreateInstance;
+const ciBuildRunsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciBuildRuns/{id}'
+    });
+};
+exports.ciBuildRunsGetInstance = ciBuildRunsGetInstance;
+const ciIssuesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciIssues/{id}'
+    });
+};
+exports.ciIssuesGetInstance = ciIssuesGetInstance;
+const ciMacOsVersionsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciMacOsVersions'
+    });
+};
+exports.ciMacOsVersionsGetCollection = ciMacOsVersionsGetCollection;
+const ciMacOsVersionsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciMacOsVersions/{id}'
+    });
+};
+exports.ciMacOsVersionsGetInstance = ciMacOsVersionsGetInstance;
+const ciProductsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciProducts'
+    });
+};
+exports.ciProductsGetCollection = ciProductsGetCollection;
+const ciProductsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciProducts/{id}'
+    });
+};
+exports.ciProductsGetInstance = ciProductsGetInstance;
+const ciProductsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/ciProducts/{id}'
+    });
+};
+exports.ciProductsDeleteInstance = ciProductsDeleteInstance;
+const ciTestResultsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciTestResults/{id}'
+    });
+};
+exports.ciTestResultsGetInstance = ciTestResultsGetInstance;
+const ciWorkflowsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/ciWorkflows'
+    });
+};
+exports.ciWorkflowsCreateInstance = ciWorkflowsCreateInstance;
+const ciWorkflowsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciWorkflows/{id}'
+    });
+};
+exports.ciWorkflowsGetInstance = ciWorkflowsGetInstance;
+const ciWorkflowsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/ciWorkflows/{id}'
+    });
+};
+exports.ciWorkflowsUpdateInstance = ciWorkflowsUpdateInstance;
+const ciWorkflowsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/ciWorkflows/{id}'
+    });
+};
+exports.ciWorkflowsDeleteInstance = ciWorkflowsDeleteInstance;
+const ciXcodeVersionsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciXcodeVersions'
+    });
+};
+exports.ciXcodeVersionsGetCollection = ciXcodeVersionsGetCollection;
+const ciXcodeVersionsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciXcodeVersions/{id}'
+    });
+};
+exports.ciXcodeVersionsGetInstance = ciXcodeVersionsGetInstance;
+const customerReviewResponsesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/customerReviewResponses'
+    });
+};
+exports.customerReviewResponsesCreateInstance = customerReviewResponsesCreateInstance;
+const customerReviewResponsesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/customerReviewResponses/{id}'
+    });
+};
+exports.customerReviewResponsesGetInstance = customerReviewResponsesGetInstance;
+const customerReviewResponsesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/customerReviewResponses/{id}'
+    });
+};
+exports.customerReviewResponsesDeleteInstance = customerReviewResponsesDeleteInstance;
+const customerReviewsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/customerReviews/{id}'
+    });
+};
+exports.customerReviewsGetInstance = customerReviewsGetInstance;
+const devicesGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/devices'
+    });
+};
+exports.devicesGetCollection = devicesGetCollection;
+const devicesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/devices'
+    });
+};
+exports.devicesCreateInstance = devicesCreateInstance;
+const devicesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/devices/{id}'
+    });
+};
+exports.devicesGetInstance = devicesGetInstance;
+const devicesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/devices/{id}'
+    });
+};
+exports.devicesUpdateInstance = devicesUpdateInstance;
+const endAppAvailabilityPreOrdersCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/endAppAvailabilityPreOrders'
+    });
+};
+exports.endAppAvailabilityPreOrdersCreateInstance = endAppAvailabilityPreOrdersCreateInstance;
+const endUserLicenseAgreementsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/endUserLicenseAgreements'
+    });
+};
+exports.endUserLicenseAgreementsCreateInstance = endUserLicenseAgreementsCreateInstance;
+const endUserLicenseAgreementsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/endUserLicenseAgreements/{id}'
+    });
+};
+exports.endUserLicenseAgreementsGetInstance = endUserLicenseAgreementsGetInstance;
+const endUserLicenseAgreementsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/endUserLicenseAgreements/{id}'
+    });
+};
+exports.endUserLicenseAgreementsUpdateInstance = endUserLicenseAgreementsUpdateInstance;
+const endUserLicenseAgreementsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/endUserLicenseAgreements/{id}'
+    });
+};
+exports.endUserLicenseAgreementsDeleteInstance = endUserLicenseAgreementsDeleteInstance;
+const financeReportsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/financeReports'
+    });
+};
+exports.financeReportsGetCollection = financeReportsGetCollection;
+const gameCenterAchievementImagesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterAchievementImages'
+    });
+};
+exports.gameCenterAchievementImagesCreateInstance = gameCenterAchievementImagesCreateInstance;
+const gameCenterAchievementImagesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAchievementImages/{id}'
+    });
+};
+exports.gameCenterAchievementImagesGetInstance = gameCenterAchievementImagesGetInstance;
+const gameCenterAchievementImagesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterAchievementImages/{id}'
+    });
+};
+exports.gameCenterAchievementImagesUpdateInstance = gameCenterAchievementImagesUpdateInstance;
+const gameCenterAchievementImagesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterAchievementImages/{id}'
+    });
+};
+exports.gameCenterAchievementImagesDeleteInstance = gameCenterAchievementImagesDeleteInstance;
+const gameCenterAchievementLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterAchievementLocalizations'
+    });
+};
+exports.gameCenterAchievementLocalizationsCreateInstance = gameCenterAchievementLocalizationsCreateInstance;
+const gameCenterAchievementLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAchievementLocalizations/{id}'
+    });
+};
+exports.gameCenterAchievementLocalizationsGetInstance = gameCenterAchievementLocalizationsGetInstance;
+const gameCenterAchievementLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterAchievementLocalizations/{id}'
+    });
+};
+exports.gameCenterAchievementLocalizationsUpdateInstance = gameCenterAchievementLocalizationsUpdateInstance;
+const gameCenterAchievementLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterAchievementLocalizations/{id}'
+    });
+};
+exports.gameCenterAchievementLocalizationsDeleteInstance = gameCenterAchievementLocalizationsDeleteInstance;
+const gameCenterAchievementReleasesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterAchievementReleases'
+    });
+};
+exports.gameCenterAchievementReleasesCreateInstance = gameCenterAchievementReleasesCreateInstance;
+const gameCenterAchievementReleasesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAchievementReleases/{id}'
+    });
+};
+exports.gameCenterAchievementReleasesGetInstance = gameCenterAchievementReleasesGetInstance;
+const gameCenterAchievementReleasesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterAchievementReleases/{id}'
+    });
+};
+exports.gameCenterAchievementReleasesDeleteInstance = gameCenterAchievementReleasesDeleteInstance;
+const gameCenterAchievementsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterAchievements'
+    });
+};
+exports.gameCenterAchievementsCreateInstance = gameCenterAchievementsCreateInstance;
+const gameCenterAchievementsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAchievements/{id}'
+    });
+};
+exports.gameCenterAchievementsGetInstance = gameCenterAchievementsGetInstance;
+const gameCenterAchievementsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterAchievements/{id}'
+    });
+};
+exports.gameCenterAchievementsUpdateInstance = gameCenterAchievementsUpdateInstance;
+const gameCenterAchievementsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterAchievements/{id}'
+    });
+};
+exports.gameCenterAchievementsDeleteInstance = gameCenterAchievementsDeleteInstance;
+const gameCenterAppVersionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterAppVersions'
+    });
+};
+exports.gameCenterAppVersionsCreateInstance = gameCenterAppVersionsCreateInstance;
+const gameCenterAppVersionsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAppVersions/{id}'
+    });
+};
+exports.gameCenterAppVersionsGetInstance = gameCenterAppVersionsGetInstance;
+const gameCenterAppVersionsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterAppVersions/{id}'
+    });
+};
+exports.gameCenterAppVersionsUpdateInstance = gameCenterAppVersionsUpdateInstance;
+const gameCenterDetailsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterDetails'
+    });
+};
+exports.gameCenterDetailsCreateInstance = gameCenterDetailsCreateInstance;
+const gameCenterDetailsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}'
+    });
+};
+exports.gameCenterDetailsGetInstance = gameCenterDetailsGetInstance;
+const gameCenterDetailsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}'
+    });
+};
+exports.gameCenterDetailsUpdateInstance = gameCenterDetailsUpdateInstance;
+const gameCenterGroupsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterGroups'
+    });
+};
+exports.gameCenterGroupsGetCollection = gameCenterGroupsGetCollection;
+const gameCenterGroupsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterGroups'
+    });
+};
+exports.gameCenterGroupsCreateInstance = gameCenterGroupsCreateInstance;
+const gameCenterGroupsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}'
+    });
+};
+exports.gameCenterGroupsGetInstance = gameCenterGroupsGetInstance;
+const gameCenterGroupsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}'
+    });
+};
+exports.gameCenterGroupsUpdateInstance = gameCenterGroupsUpdateInstance;
+const gameCenterGroupsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}'
+    });
+};
+exports.gameCenterGroupsDeleteInstance = gameCenterGroupsDeleteInstance;
+const gameCenterLeaderboardEntrySubmissionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterLeaderboardEntrySubmissions'
+    });
+};
+exports.gameCenterLeaderboardEntrySubmissionsCreateInstance = gameCenterLeaderboardEntrySubmissionsCreateInstance;
+const gameCenterLeaderboardImagesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterLeaderboardImages'
+    });
+};
+exports.gameCenterLeaderboardImagesCreateInstance = gameCenterLeaderboardImagesCreateInstance;
+const gameCenterLeaderboardImagesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardImages/{id}'
+    });
+};
+exports.gameCenterLeaderboardImagesGetInstance = gameCenterLeaderboardImagesGetInstance;
+const gameCenterLeaderboardImagesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterLeaderboardImages/{id}'
+    });
+};
+exports.gameCenterLeaderboardImagesUpdateInstance = gameCenterLeaderboardImagesUpdateInstance;
+const gameCenterLeaderboardImagesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterLeaderboardImages/{id}'
+    });
+};
+exports.gameCenterLeaderboardImagesDeleteInstance = gameCenterLeaderboardImagesDeleteInstance;
+const gameCenterLeaderboardLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterLeaderboardLocalizations'
+    });
+};
+exports.gameCenterLeaderboardLocalizationsCreateInstance = gameCenterLeaderboardLocalizationsCreateInstance;
+const gameCenterLeaderboardLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardLocalizations/{id}'
+    });
+};
+exports.gameCenterLeaderboardLocalizationsGetInstance = gameCenterLeaderboardLocalizationsGetInstance;
+const gameCenterLeaderboardLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterLeaderboardLocalizations/{id}'
+    });
+};
+exports.gameCenterLeaderboardLocalizationsUpdateInstance = gameCenterLeaderboardLocalizationsUpdateInstance;
+const gameCenterLeaderboardLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterLeaderboardLocalizations/{id}'
+    });
+};
+exports.gameCenterLeaderboardLocalizationsDeleteInstance = gameCenterLeaderboardLocalizationsDeleteInstance;
+const gameCenterLeaderboardReleasesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterLeaderboardReleases'
+    });
+};
+exports.gameCenterLeaderboardReleasesCreateInstance = gameCenterLeaderboardReleasesCreateInstance;
+const gameCenterLeaderboardReleasesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardReleases/{id}'
+    });
+};
+exports.gameCenterLeaderboardReleasesGetInstance = gameCenterLeaderboardReleasesGetInstance;
+const gameCenterLeaderboardReleasesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterLeaderboardReleases/{id}'
+    });
+};
+exports.gameCenterLeaderboardReleasesDeleteInstance = gameCenterLeaderboardReleasesDeleteInstance;
+const gameCenterLeaderboardSetImagesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetImages'
+    });
+};
+exports.gameCenterLeaderboardSetImagesCreateInstance = gameCenterLeaderboardSetImagesCreateInstance;
+const gameCenterLeaderboardSetImagesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetImages/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetImagesGetInstance = gameCenterLeaderboardSetImagesGetInstance;
+const gameCenterLeaderboardSetImagesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetImages/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetImagesUpdateInstance = gameCenterLeaderboardSetImagesUpdateInstance;
+const gameCenterLeaderboardSetImagesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetImages/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetImagesDeleteInstance = gameCenterLeaderboardSetImagesDeleteInstance;
+const gameCenterLeaderboardSetLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetLocalizations'
+    });
+};
+exports.gameCenterLeaderboardSetLocalizationsCreateInstance = gameCenterLeaderboardSetLocalizationsCreateInstance;
+const gameCenterLeaderboardSetLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetLocalizations/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetLocalizationsGetInstance = gameCenterLeaderboardSetLocalizationsGetInstance;
+const gameCenterLeaderboardSetLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetLocalizations/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetLocalizationsUpdateInstance = gameCenterLeaderboardSetLocalizationsUpdateInstance;
+const gameCenterLeaderboardSetLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetLocalizations/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetLocalizationsDeleteInstance = gameCenterLeaderboardSetLocalizationsDeleteInstance;
+const gameCenterLeaderboardSetMemberLocalizationsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetMemberLocalizations'
+    });
+};
+exports.gameCenterLeaderboardSetMemberLocalizationsGetCollection = gameCenterLeaderboardSetMemberLocalizationsGetCollection;
+const gameCenterLeaderboardSetMemberLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetMemberLocalizations'
+    });
+};
+exports.gameCenterLeaderboardSetMemberLocalizationsCreateInstance = gameCenterLeaderboardSetMemberLocalizationsCreateInstance;
+const gameCenterLeaderboardSetMemberLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetMemberLocalizations/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetMemberLocalizationsUpdateInstance = gameCenterLeaderboardSetMemberLocalizationsUpdateInstance;
+const gameCenterLeaderboardSetMemberLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetMemberLocalizations/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetMemberLocalizationsDeleteInstance = gameCenterLeaderboardSetMemberLocalizationsDeleteInstance;
+const gameCenterLeaderboardSetReleasesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetReleases'
+    });
+};
+exports.gameCenterLeaderboardSetReleasesCreateInstance = gameCenterLeaderboardSetReleasesCreateInstance;
+const gameCenterLeaderboardSetReleasesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetReleases/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetReleasesGetInstance = gameCenterLeaderboardSetReleasesGetInstance;
+const gameCenterLeaderboardSetReleasesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetReleases/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetReleasesDeleteInstance = gameCenterLeaderboardSetReleasesDeleteInstance;
+const gameCenterLeaderboardSetsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets'
+    });
+};
+exports.gameCenterLeaderboardSetsCreateInstance = gameCenterLeaderboardSetsCreateInstance;
+const gameCenterLeaderboardSetsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetsGetInstance = gameCenterLeaderboardSetsGetInstance;
+const gameCenterLeaderboardSetsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetsUpdateInstance = gameCenterLeaderboardSetsUpdateInstance;
+const gameCenterLeaderboardSetsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}'
+    });
+};
+exports.gameCenterLeaderboardSetsDeleteInstance = gameCenterLeaderboardSetsDeleteInstance;
+const gameCenterLeaderboardsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterLeaderboardsCreateInstance = gameCenterLeaderboardsCreateInstance;
+const gameCenterLeaderboardsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboards/{id}'
+    });
+};
+exports.gameCenterLeaderboardsGetInstance = gameCenterLeaderboardsGetInstance;
+const gameCenterLeaderboardsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterLeaderboards/{id}'
+    });
+};
+exports.gameCenterLeaderboardsUpdateInstance = gameCenterLeaderboardsUpdateInstance;
+const gameCenterLeaderboardsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterLeaderboards/{id}'
+    });
+};
+exports.gameCenterLeaderboardsDeleteInstance = gameCenterLeaderboardsDeleteInstance;
+const gameCenterMatchmakingQueuesGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingQueues'
+    });
+};
+exports.gameCenterMatchmakingQueuesGetCollection = gameCenterMatchmakingQueuesGetCollection;
+const gameCenterMatchmakingQueuesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterMatchmakingQueues'
+    });
+};
+exports.gameCenterMatchmakingQueuesCreateInstance = gameCenterMatchmakingQueuesCreateInstance;
+const gameCenterMatchmakingQueuesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingQueues/{id}'
+    });
+};
+exports.gameCenterMatchmakingQueuesGetInstance = gameCenterMatchmakingQueuesGetInstance;
+const gameCenterMatchmakingQueuesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterMatchmakingQueues/{id}'
+    });
+};
+exports.gameCenterMatchmakingQueuesUpdateInstance = gameCenterMatchmakingQueuesUpdateInstance;
+const gameCenterMatchmakingQueuesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterMatchmakingQueues/{id}'
+    });
+};
+exports.gameCenterMatchmakingQueuesDeleteInstance = gameCenterMatchmakingQueuesDeleteInstance;
+const gameCenterMatchmakingRuleSetTestsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRuleSetTests'
+    });
+};
+exports.gameCenterMatchmakingRuleSetTestsCreateInstance = gameCenterMatchmakingRuleSetTestsCreateInstance;
+const gameCenterMatchmakingRuleSetsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRuleSets'
+    });
+};
+exports.gameCenterMatchmakingRuleSetsGetCollection = gameCenterMatchmakingRuleSetsGetCollection;
+const gameCenterMatchmakingRuleSetsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRuleSets'
+    });
+};
+exports.gameCenterMatchmakingRuleSetsCreateInstance = gameCenterMatchmakingRuleSetsCreateInstance;
+const gameCenterMatchmakingRuleSetsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRuleSets/{id}'
+    });
+};
+exports.gameCenterMatchmakingRuleSetsGetInstance = gameCenterMatchmakingRuleSetsGetInstance;
+const gameCenterMatchmakingRuleSetsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRuleSets/{id}'
+    });
+};
+exports.gameCenterMatchmakingRuleSetsUpdateInstance = gameCenterMatchmakingRuleSetsUpdateInstance;
+const gameCenterMatchmakingRuleSetsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRuleSets/{id}'
+    });
+};
+exports.gameCenterMatchmakingRuleSetsDeleteInstance = gameCenterMatchmakingRuleSetsDeleteInstance;
+const gameCenterMatchmakingRulesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRules'
+    });
+};
+exports.gameCenterMatchmakingRulesCreateInstance = gameCenterMatchmakingRulesCreateInstance;
+const gameCenterMatchmakingRulesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRules/{id}'
+    });
+};
+exports.gameCenterMatchmakingRulesUpdateInstance = gameCenterMatchmakingRulesUpdateInstance;
+const gameCenterMatchmakingRulesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRules/{id}'
+    });
+};
+exports.gameCenterMatchmakingRulesDeleteInstance = gameCenterMatchmakingRulesDeleteInstance;
+const gameCenterMatchmakingTeamsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterMatchmakingTeams'
+    });
+};
+exports.gameCenterMatchmakingTeamsCreateInstance = gameCenterMatchmakingTeamsCreateInstance;
+const gameCenterMatchmakingTeamsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterMatchmakingTeams/{id}'
+    });
+};
+exports.gameCenterMatchmakingTeamsUpdateInstance = gameCenterMatchmakingTeamsUpdateInstance;
+const gameCenterMatchmakingTeamsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterMatchmakingTeams/{id}'
+    });
+};
+exports.gameCenterMatchmakingTeamsDeleteInstance = gameCenterMatchmakingTeamsDeleteInstance;
+const gameCenterPlayerAchievementSubmissionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterPlayerAchievementSubmissions'
+    });
+};
+exports.gameCenterPlayerAchievementSubmissionsCreateInstance = gameCenterPlayerAchievementSubmissionsCreateInstance;
+const inAppPurchaseAppStoreReviewScreenshotsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/inAppPurchaseAppStoreReviewScreenshots'
+    });
+};
+exports.inAppPurchaseAppStoreReviewScreenshotsCreateInstance = inAppPurchaseAppStoreReviewScreenshotsCreateInstance;
+const inAppPurchaseAppStoreReviewScreenshotsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/inAppPurchaseAppStoreReviewScreenshots/{id}'
+    });
+};
+exports.inAppPurchaseAppStoreReviewScreenshotsGetInstance = inAppPurchaseAppStoreReviewScreenshotsGetInstance;
+const inAppPurchaseAppStoreReviewScreenshotsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/inAppPurchaseAppStoreReviewScreenshots/{id}'
+    });
+};
+exports.inAppPurchaseAppStoreReviewScreenshotsUpdateInstance = inAppPurchaseAppStoreReviewScreenshotsUpdateInstance;
+const inAppPurchaseAppStoreReviewScreenshotsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/inAppPurchaseAppStoreReviewScreenshots/{id}'
+    });
+};
+exports.inAppPurchaseAppStoreReviewScreenshotsDeleteInstance = inAppPurchaseAppStoreReviewScreenshotsDeleteInstance;
+const inAppPurchaseAvailabilitiesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/inAppPurchaseAvailabilities'
+    });
+};
+exports.inAppPurchaseAvailabilitiesCreateInstance = inAppPurchaseAvailabilitiesCreateInstance;
+const inAppPurchaseAvailabilitiesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/inAppPurchaseAvailabilities/{id}'
+    });
+};
+exports.inAppPurchaseAvailabilitiesGetInstance = inAppPurchaseAvailabilitiesGetInstance;
+const inAppPurchaseContentsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/inAppPurchaseContents/{id}'
+    });
+};
+exports.inAppPurchaseContentsGetInstance = inAppPurchaseContentsGetInstance;
+const inAppPurchaseImagesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/inAppPurchaseImages'
+    });
+};
+exports.inAppPurchaseImagesCreateInstance = inAppPurchaseImagesCreateInstance;
+const inAppPurchaseImagesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/inAppPurchaseImages/{id}'
+    });
+};
+exports.inAppPurchaseImagesGetInstance = inAppPurchaseImagesGetInstance;
+const inAppPurchaseImagesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/inAppPurchaseImages/{id}'
+    });
+};
+exports.inAppPurchaseImagesUpdateInstance = inAppPurchaseImagesUpdateInstance;
+const inAppPurchaseImagesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/inAppPurchaseImages/{id}'
+    });
+};
+exports.inAppPurchaseImagesDeleteInstance = inAppPurchaseImagesDeleteInstance;
+const inAppPurchaseLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/inAppPurchaseLocalizations'
+    });
+};
+exports.inAppPurchaseLocalizationsCreateInstance = inAppPurchaseLocalizationsCreateInstance;
+const inAppPurchaseLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/inAppPurchaseLocalizations/{id}'
+    });
+};
+exports.inAppPurchaseLocalizationsGetInstance = inAppPurchaseLocalizationsGetInstance;
+const inAppPurchaseLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/inAppPurchaseLocalizations/{id}'
+    });
+};
+exports.inAppPurchaseLocalizationsUpdateInstance = inAppPurchaseLocalizationsUpdateInstance;
+const inAppPurchaseLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/inAppPurchaseLocalizations/{id}'
+    });
+};
+exports.inAppPurchaseLocalizationsDeleteInstance = inAppPurchaseLocalizationsDeleteInstance;
+const inAppPurchasePriceSchedulesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/inAppPurchasePriceSchedules'
+    });
+};
+exports.inAppPurchasePriceSchedulesCreateInstance = inAppPurchasePriceSchedulesCreateInstance;
+const inAppPurchasePriceSchedulesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/inAppPurchasePriceSchedules/{id}'
+    });
+};
+exports.inAppPurchasePriceSchedulesGetInstance = inAppPurchasePriceSchedulesGetInstance;
+const inAppPurchaseSubmissionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/inAppPurchaseSubmissions'
+    });
+};
+exports.inAppPurchaseSubmissionsCreateInstance = inAppPurchaseSubmissionsCreateInstance;
+/**
+ * @deprecated
+ */
+const inAppPurchasesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/inAppPurchases/{id}'
+    });
+};
+exports.inAppPurchasesGetInstance = inAppPurchasesGetInstance;
+const inAppPurchasesV2CreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v2/inAppPurchases'
+    });
+};
+exports.inAppPurchasesV2CreateInstance = inAppPurchasesV2CreateInstance;
+const inAppPurchasesV2GetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/inAppPurchases/{id}'
+    });
+};
+exports.inAppPurchasesV2GetInstance = inAppPurchasesV2GetInstance;
+const inAppPurchasesV2UpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v2/inAppPurchases/{id}'
+    });
+};
+exports.inAppPurchasesV2UpdateInstance = inAppPurchasesV2UpdateInstance;
+const inAppPurchasesV2DeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v2/inAppPurchases/{id}'
+    });
+};
+exports.inAppPurchasesV2DeleteInstance = inAppPurchasesV2DeleteInstance;
+/**
+ * @deprecated
+ */
+const marketplaceDomainsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/marketplaceDomains'
+    });
+};
+exports.marketplaceDomainsGetCollection = marketplaceDomainsGetCollection;
+/**
+ * @deprecated
+ */
+const marketplaceDomainsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/marketplaceDomains'
+    });
+};
+exports.marketplaceDomainsCreateInstance = marketplaceDomainsCreateInstance;
+/**
+ * @deprecated
+ */
+const marketplaceDomainsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/marketplaceDomains/{id}'
+    });
+};
+exports.marketplaceDomainsGetInstance = marketplaceDomainsGetInstance;
+/**
+ * @deprecated
+ */
+const marketplaceDomainsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/marketplaceDomains/{id}'
+    });
+};
+exports.marketplaceDomainsDeleteInstance = marketplaceDomainsDeleteInstance;
+const marketplaceSearchDetailsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/marketplaceSearchDetails'
+    });
+};
+exports.marketplaceSearchDetailsCreateInstance = marketplaceSearchDetailsCreateInstance;
+const marketplaceSearchDetailsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/marketplaceSearchDetails/{id}'
+    });
+};
+exports.marketplaceSearchDetailsUpdateInstance = marketplaceSearchDetailsUpdateInstance;
+const marketplaceSearchDetailsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/marketplaceSearchDetails/{id}'
+    });
+};
+exports.marketplaceSearchDetailsDeleteInstance = marketplaceSearchDetailsDeleteInstance;
+const marketplaceWebhooksGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/marketplaceWebhooks'
+    });
+};
+exports.marketplaceWebhooksGetCollection = marketplaceWebhooksGetCollection;
+const marketplaceWebhooksCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/marketplaceWebhooks'
+    });
+};
+exports.marketplaceWebhooksCreateInstance = marketplaceWebhooksCreateInstance;
+const marketplaceWebhooksUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/marketplaceWebhooks/{id}'
+    });
+};
+exports.marketplaceWebhooksUpdateInstance = marketplaceWebhooksUpdateInstance;
+const marketplaceWebhooksDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/marketplaceWebhooks/{id}'
+    });
+};
+exports.marketplaceWebhooksDeleteInstance = marketplaceWebhooksDeleteInstance;
+const preReleaseVersionsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/preReleaseVersions'
+    });
+};
+exports.preReleaseVersionsGetCollection = preReleaseVersionsGetCollection;
+const preReleaseVersionsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/preReleaseVersions/{id}'
+    });
+};
+exports.preReleaseVersionsGetInstance = preReleaseVersionsGetInstance;
+const profilesGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/profiles'
+    });
+};
+exports.profilesGetCollection = profilesGetCollection;
+const profilesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/profiles'
+    });
+};
+exports.profilesCreateInstance = profilesCreateInstance;
+const profilesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/profiles/{id}'
+    });
+};
+exports.profilesGetInstance = profilesGetInstance;
+const profilesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/profiles/{id}'
+    });
+};
+exports.profilesDeleteInstance = profilesDeleteInstance;
+/**
+ * @deprecated
+ */
+const promotedPurchaseImagesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/promotedPurchaseImages'
+    });
+};
+exports.promotedPurchaseImagesCreateInstance = promotedPurchaseImagesCreateInstance;
+/**
+ * @deprecated
+ */
+const promotedPurchaseImagesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/promotedPurchaseImages/{id}'
+    });
+};
+exports.promotedPurchaseImagesGetInstance = promotedPurchaseImagesGetInstance;
+/**
+ * @deprecated
+ */
+const promotedPurchaseImagesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/promotedPurchaseImages/{id}'
+    });
+};
+exports.promotedPurchaseImagesUpdateInstance = promotedPurchaseImagesUpdateInstance;
+/**
+ * @deprecated
+ */
+const promotedPurchaseImagesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/promotedPurchaseImages/{id}'
+    });
+};
+exports.promotedPurchaseImagesDeleteInstance = promotedPurchaseImagesDeleteInstance;
+const promotedPurchasesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/promotedPurchases'
+    });
+};
+exports.promotedPurchasesCreateInstance = promotedPurchasesCreateInstance;
+const promotedPurchasesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/promotedPurchases/{id}'
+    });
+};
+exports.promotedPurchasesGetInstance = promotedPurchasesGetInstance;
+const promotedPurchasesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/promotedPurchases/{id}'
+    });
+};
+exports.promotedPurchasesUpdateInstance = promotedPurchasesUpdateInstance;
+const promotedPurchasesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/promotedPurchases/{id}'
+    });
+};
+exports.promotedPurchasesDeleteInstance = promotedPurchasesDeleteInstance;
+const reviewSubmissionItemsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/reviewSubmissionItems'
+    });
+};
+exports.reviewSubmissionItemsCreateInstance = reviewSubmissionItemsCreateInstance;
+const reviewSubmissionItemsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/reviewSubmissionItems/{id}'
+    });
+};
+exports.reviewSubmissionItemsUpdateInstance = reviewSubmissionItemsUpdateInstance;
+const reviewSubmissionItemsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/reviewSubmissionItems/{id}'
+    });
+};
+exports.reviewSubmissionItemsDeleteInstance = reviewSubmissionItemsDeleteInstance;
+const reviewSubmissionsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/reviewSubmissions'
+    });
+};
+exports.reviewSubmissionsGetCollection = reviewSubmissionsGetCollection;
+const reviewSubmissionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/reviewSubmissions'
+    });
+};
+exports.reviewSubmissionsCreateInstance = reviewSubmissionsCreateInstance;
+const reviewSubmissionsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/reviewSubmissions/{id}'
+    });
+};
+exports.reviewSubmissionsGetInstance = reviewSubmissionsGetInstance;
+const reviewSubmissionsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/reviewSubmissions/{id}'
+    });
+};
+exports.reviewSubmissionsUpdateInstance = reviewSubmissionsUpdateInstance;
+const routingAppCoveragesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/routingAppCoverages'
+    });
+};
+exports.routingAppCoveragesCreateInstance = routingAppCoveragesCreateInstance;
+const routingAppCoveragesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/routingAppCoverages/{id}'
+    });
+};
+exports.routingAppCoveragesGetInstance = routingAppCoveragesGetInstance;
+const routingAppCoveragesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/routingAppCoverages/{id}'
+    });
+};
+exports.routingAppCoveragesUpdateInstance = routingAppCoveragesUpdateInstance;
+const routingAppCoveragesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/routingAppCoverages/{id}'
+    });
+};
+exports.routingAppCoveragesDeleteInstance = routingAppCoveragesDeleteInstance;
+const salesReportsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/salesReports'
+    });
+};
+exports.salesReportsGetCollection = salesReportsGetCollection;
+const sandboxTestersV2GetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/sandboxTesters'
+    });
+};
+exports.sandboxTestersV2GetCollection = sandboxTestersV2GetCollection;
+const sandboxTestersV2UpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v2/sandboxTesters/{id}'
+    });
+};
+exports.sandboxTestersV2UpdateInstance = sandboxTestersV2UpdateInstance;
+const sandboxTestersClearPurchaseHistoryRequestV2CreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v2/sandboxTestersClearPurchaseHistoryRequest'
+    });
+};
+exports.sandboxTestersClearPurchaseHistoryRequestV2CreateInstance = sandboxTestersClearPurchaseHistoryRequestV2CreateInstance;
+const scmGitReferencesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/scmGitReferences/{id}'
+    });
+};
+exports.scmGitReferencesGetInstance = scmGitReferencesGetInstance;
+const scmProvidersGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/scmProviders'
+    });
+};
+exports.scmProvidersGetCollection = scmProvidersGetCollection;
+const scmProvidersGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/scmProviders/{id}'
+    });
+};
+exports.scmProvidersGetInstance = scmProvidersGetInstance;
+const scmPullRequestsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/scmPullRequests/{id}'
+    });
+};
+exports.scmPullRequestsGetInstance = scmPullRequestsGetInstance;
+const scmRepositoriesGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/scmRepositories'
+    });
+};
+exports.scmRepositoriesGetCollection = scmRepositoriesGetCollection;
+const scmRepositoriesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/scmRepositories/{id}'
+    });
+};
+exports.scmRepositoriesGetInstance = scmRepositoriesGetInstance;
+const subscriptionAppStoreReviewScreenshotsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionAppStoreReviewScreenshots'
+    });
+};
+exports.subscriptionAppStoreReviewScreenshotsCreateInstance = subscriptionAppStoreReviewScreenshotsCreateInstance;
+const subscriptionAppStoreReviewScreenshotsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionAppStoreReviewScreenshots/{id}'
+    });
+};
+exports.subscriptionAppStoreReviewScreenshotsGetInstance = subscriptionAppStoreReviewScreenshotsGetInstance;
+const subscriptionAppStoreReviewScreenshotsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptionAppStoreReviewScreenshots/{id}'
+    });
+};
+exports.subscriptionAppStoreReviewScreenshotsUpdateInstance = subscriptionAppStoreReviewScreenshotsUpdateInstance;
+const subscriptionAppStoreReviewScreenshotsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/subscriptionAppStoreReviewScreenshots/{id}'
+    });
+};
+exports.subscriptionAppStoreReviewScreenshotsDeleteInstance = subscriptionAppStoreReviewScreenshotsDeleteInstance;
+const subscriptionAvailabilitiesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionAvailabilities'
+    });
+};
+exports.subscriptionAvailabilitiesCreateInstance = subscriptionAvailabilitiesCreateInstance;
+const subscriptionAvailabilitiesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionAvailabilities/{id}'
+    });
+};
+exports.subscriptionAvailabilitiesGetInstance = subscriptionAvailabilitiesGetInstance;
+const subscriptionGracePeriodsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionGracePeriods/{id}'
+    });
+};
+exports.subscriptionGracePeriodsGetInstance = subscriptionGracePeriodsGetInstance;
+const subscriptionGracePeriodsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptionGracePeriods/{id}'
+    });
+};
+exports.subscriptionGracePeriodsUpdateInstance = subscriptionGracePeriodsUpdateInstance;
+const subscriptionGroupLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionGroupLocalizations'
+    });
+};
+exports.subscriptionGroupLocalizationsCreateInstance = subscriptionGroupLocalizationsCreateInstance;
+const subscriptionGroupLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionGroupLocalizations/{id}'
+    });
+};
+exports.subscriptionGroupLocalizationsGetInstance = subscriptionGroupLocalizationsGetInstance;
+const subscriptionGroupLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptionGroupLocalizations/{id}'
+    });
+};
+exports.subscriptionGroupLocalizationsUpdateInstance = subscriptionGroupLocalizationsUpdateInstance;
+const subscriptionGroupLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/subscriptionGroupLocalizations/{id}'
+    });
+};
+exports.subscriptionGroupLocalizationsDeleteInstance = subscriptionGroupLocalizationsDeleteInstance;
+const subscriptionGroupSubmissionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionGroupSubmissions'
+    });
+};
+exports.subscriptionGroupSubmissionsCreateInstance = subscriptionGroupSubmissionsCreateInstance;
+const subscriptionGroupsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionGroups'
+    });
+};
+exports.subscriptionGroupsCreateInstance = subscriptionGroupsCreateInstance;
+const subscriptionGroupsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionGroups/{id}'
+    });
+};
+exports.subscriptionGroupsGetInstance = subscriptionGroupsGetInstance;
+const subscriptionGroupsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptionGroups/{id}'
+    });
+};
+exports.subscriptionGroupsUpdateInstance = subscriptionGroupsUpdateInstance;
+const subscriptionGroupsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/subscriptionGroups/{id}'
+    });
+};
+exports.subscriptionGroupsDeleteInstance = subscriptionGroupsDeleteInstance;
+const subscriptionImagesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionImages'
+    });
+};
+exports.subscriptionImagesCreateInstance = subscriptionImagesCreateInstance;
+const subscriptionImagesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionImages/{id}'
+    });
+};
+exports.subscriptionImagesGetInstance = subscriptionImagesGetInstance;
+const subscriptionImagesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptionImages/{id}'
+    });
+};
+exports.subscriptionImagesUpdateInstance = subscriptionImagesUpdateInstance;
+const subscriptionImagesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/subscriptionImages/{id}'
+    });
+};
+exports.subscriptionImagesDeleteInstance = subscriptionImagesDeleteInstance;
+const subscriptionIntroductoryOffersCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionIntroductoryOffers'
+    });
+};
+exports.subscriptionIntroductoryOffersCreateInstance = subscriptionIntroductoryOffersCreateInstance;
+const subscriptionIntroductoryOffersUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptionIntroductoryOffers/{id}'
+    });
+};
+exports.subscriptionIntroductoryOffersUpdateInstance = subscriptionIntroductoryOffersUpdateInstance;
+const subscriptionIntroductoryOffersDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/subscriptionIntroductoryOffers/{id}'
+    });
+};
+exports.subscriptionIntroductoryOffersDeleteInstance = subscriptionIntroductoryOffersDeleteInstance;
+const subscriptionLocalizationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionLocalizations'
+    });
+};
+exports.subscriptionLocalizationsCreateInstance = subscriptionLocalizationsCreateInstance;
+const subscriptionLocalizationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionLocalizations/{id}'
+    });
+};
+exports.subscriptionLocalizationsGetInstance = subscriptionLocalizationsGetInstance;
+const subscriptionLocalizationsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptionLocalizations/{id}'
+    });
+};
+exports.subscriptionLocalizationsUpdateInstance = subscriptionLocalizationsUpdateInstance;
+const subscriptionLocalizationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/subscriptionLocalizations/{id}'
+    });
+};
+exports.subscriptionLocalizationsDeleteInstance = subscriptionLocalizationsDeleteInstance;
+const subscriptionOfferCodeCustomCodesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionOfferCodeCustomCodes'
+    });
+};
+exports.subscriptionOfferCodeCustomCodesCreateInstance = subscriptionOfferCodeCustomCodesCreateInstance;
+const subscriptionOfferCodeCustomCodesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionOfferCodeCustomCodes/{id}'
+    });
+};
+exports.subscriptionOfferCodeCustomCodesGetInstance = subscriptionOfferCodeCustomCodesGetInstance;
+const subscriptionOfferCodeCustomCodesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptionOfferCodeCustomCodes/{id}'
+    });
+};
+exports.subscriptionOfferCodeCustomCodesUpdateInstance = subscriptionOfferCodeCustomCodesUpdateInstance;
+const subscriptionOfferCodeOneTimeUseCodesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionOfferCodeOneTimeUseCodes'
+    });
+};
+exports.subscriptionOfferCodeOneTimeUseCodesCreateInstance = subscriptionOfferCodeOneTimeUseCodesCreateInstance;
+const subscriptionOfferCodeOneTimeUseCodesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionOfferCodeOneTimeUseCodes/{id}'
+    });
+};
+exports.subscriptionOfferCodeOneTimeUseCodesGetInstance = subscriptionOfferCodeOneTimeUseCodesGetInstance;
+const subscriptionOfferCodeOneTimeUseCodesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptionOfferCodeOneTimeUseCodes/{id}'
+    });
+};
+exports.subscriptionOfferCodeOneTimeUseCodesUpdateInstance = subscriptionOfferCodeOneTimeUseCodesUpdateInstance;
+const subscriptionOfferCodesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionOfferCodes'
+    });
+};
+exports.subscriptionOfferCodesCreateInstance = subscriptionOfferCodesCreateInstance;
+const subscriptionOfferCodesGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionOfferCodes/{id}'
+    });
+};
+exports.subscriptionOfferCodesGetInstance = subscriptionOfferCodesGetInstance;
+const subscriptionOfferCodesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptionOfferCodes/{id}'
+    });
+};
+exports.subscriptionOfferCodesUpdateInstance = subscriptionOfferCodesUpdateInstance;
+const subscriptionPricePointsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionPricePoints/{id}'
+    });
+};
+exports.subscriptionPricePointsGetInstance = subscriptionPricePointsGetInstance;
+const subscriptionPricesCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionPrices'
+    });
+};
+exports.subscriptionPricesCreateInstance = subscriptionPricesCreateInstance;
+const subscriptionPricesDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/subscriptionPrices/{id}'
+    });
+};
+exports.subscriptionPricesDeleteInstance = subscriptionPricesDeleteInstance;
+const subscriptionPromotionalOffersCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionPromotionalOffers'
+    });
+};
+exports.subscriptionPromotionalOffersCreateInstance = subscriptionPromotionalOffersCreateInstance;
+const subscriptionPromotionalOffersGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionPromotionalOffers/{id}'
+    });
+};
+exports.subscriptionPromotionalOffersGetInstance = subscriptionPromotionalOffersGetInstance;
+const subscriptionPromotionalOffersUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptionPromotionalOffers/{id}'
+    });
+};
+exports.subscriptionPromotionalOffersUpdateInstance = subscriptionPromotionalOffersUpdateInstance;
+const subscriptionPromotionalOffersDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/subscriptionPromotionalOffers/{id}'
+    });
+};
+exports.subscriptionPromotionalOffersDeleteInstance = subscriptionPromotionalOffersDeleteInstance;
+const subscriptionSubmissionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptionSubmissions'
+    });
+};
+exports.subscriptionSubmissionsCreateInstance = subscriptionSubmissionsCreateInstance;
+const subscriptionsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/subscriptions'
+    });
+};
+exports.subscriptionsCreateInstance = subscriptionsCreateInstance;
+const subscriptionsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}'
+    });
+};
+exports.subscriptionsGetInstance = subscriptionsGetInstance;
+const subscriptionsUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/subscriptions/{id}'
+    });
+};
+exports.subscriptionsUpdateInstance = subscriptionsUpdateInstance;
+const subscriptionsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/subscriptions/{id}'
+    });
+};
+exports.subscriptionsDeleteInstance = subscriptionsDeleteInstance;
+const territoriesGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/territories'
+    });
+};
+exports.territoriesGetCollection = territoriesGetCollection;
+const territoryAvailabilitiesUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/territoryAvailabilities/{id}'
+    });
+};
+exports.territoryAvailabilitiesUpdateInstance = territoryAvailabilitiesUpdateInstance;
+const userInvitationsGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/userInvitations'
+    });
+};
+exports.userInvitationsGetCollection = userInvitationsGetCollection;
+const userInvitationsCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/userInvitations'
+    });
+};
+exports.userInvitationsCreateInstance = userInvitationsCreateInstance;
+const userInvitationsGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/userInvitations/{id}'
+    });
+};
+exports.userInvitationsGetInstance = userInvitationsGetInstance;
+const userInvitationsDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/userInvitations/{id}'
+    });
+};
+exports.userInvitationsDeleteInstance = userInvitationsDeleteInstance;
+const usersGetCollection = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/users'
+    });
+};
+exports.usersGetCollection = usersGetCollection;
+const usersGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/users/{id}'
+    });
+};
+exports.usersGetInstance = usersGetInstance;
+const usersUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/users/{id}'
+    });
+};
+exports.usersUpdateInstance = usersUpdateInstance;
+const usersDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/users/{id}'
+    });
+};
+exports.usersDeleteInstance = usersDeleteInstance;
+const winBackOffersCreateInstance = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/winBackOffers'
+    });
+};
+exports.winBackOffersCreateInstance = winBackOffersCreateInstance;
+const winBackOffersGetInstance = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/winBackOffers/{id}'
+    });
+};
+exports.winBackOffersGetInstance = winBackOffersGetInstance;
+const winBackOffersUpdateInstance = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/winBackOffers/{id}'
+    });
+};
+exports.winBackOffersUpdateInstance = winBackOffersUpdateInstance;
+const winBackOffersDeleteInstance = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/winBackOffers/{id}'
+    });
+};
+exports.winBackOffersDeleteInstance = winBackOffersDeleteInstance;
+const alternativeDistributionPackageVersionsDeltasGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/alternativeDistributionPackageVersions/{id}/deltas'
+    });
+};
+exports.alternativeDistributionPackageVersionsDeltasGetToManyRelated = alternativeDistributionPackageVersionsDeltasGetToManyRelated;
+const alternativeDistributionPackageVersionsVariantsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/alternativeDistributionPackageVersions/{id}/variants'
+    });
+};
+exports.alternativeDistributionPackageVersionsVariantsGetToManyRelated = alternativeDistributionPackageVersionsVariantsGetToManyRelated;
+const alternativeDistributionPackagesVersionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/alternativeDistributionPackages/{id}/versions'
+    });
+};
+exports.alternativeDistributionPackagesVersionsGetToManyRelated = alternativeDistributionPackagesVersionsGetToManyRelated;
+const analyticsReportInstancesSegmentsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/analyticsReportInstances/{id}/segments'
+    });
+};
+exports.analyticsReportInstancesSegmentsGetToManyRelated = analyticsReportInstancesSegmentsGetToManyRelated;
+const analyticsReportRequestsReportsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/analyticsReportRequests/{id}/reports'
+    });
+};
+exports.analyticsReportRequestsReportsGetToManyRelated = analyticsReportRequestsReportsGetToManyRelated;
+const analyticsReportsInstancesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/analyticsReports/{id}/instances'
+    });
+};
+exports.analyticsReportsInstancesGetToManyRelated = analyticsReportsInstancesGetToManyRelated;
+const appAvailabilitiesV2TerritoryAvailabilitiesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/appAvailabilities/{id}/territoryAvailabilities'
+    });
+};
+exports.appAvailabilitiesV2TerritoryAvailabilitiesGetToManyRelated = appAvailabilitiesV2TerritoryAvailabilitiesGetToManyRelated;
+/**
+ * @deprecated
+ */
+const appAvailabilitiesAvailableTerritoriesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appAvailabilities/{id}/availableTerritories'
+    });
+};
+exports.appAvailabilitiesAvailableTerritoriesGetToManyRelated = appAvailabilitiesAvailableTerritoriesGetToManyRelated;
+const appCategoriesParentGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appCategories/{id}/parent'
+    });
+};
+exports.appCategoriesParentGetToOneRelated = appCategoriesParentGetToOneRelated;
+const appCategoriesSubcategoriesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appCategories/{id}/subcategories'
+    });
+};
+exports.appCategoriesSubcategoriesGetToManyRelated = appCategoriesSubcategoriesGetToManyRelated;
+const appClipDefaultExperienceLocalizationsAppClipHeaderImageGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClipDefaultExperienceLocalizations/{id}/appClipHeaderImage'
+    });
+};
+exports.appClipDefaultExperienceLocalizationsAppClipHeaderImageGetToOneRelated = appClipDefaultExperienceLocalizationsAppClipHeaderImageGetToOneRelated;
+const appClipDefaultExperiencesAppClipAppStoreReviewDetailGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClipDefaultExperiences/{id}/appClipAppStoreReviewDetail'
+    });
+};
+exports.appClipDefaultExperiencesAppClipAppStoreReviewDetailGetToOneRelated = appClipDefaultExperiencesAppClipAppStoreReviewDetailGetToOneRelated;
+const appClipDefaultExperiencesAppClipDefaultExperienceLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClipDefaultExperiences/{id}/appClipDefaultExperienceLocalizations'
+    });
+};
+exports.appClipDefaultExperiencesAppClipDefaultExperienceLocalizationsGetToManyRelated = appClipDefaultExperiencesAppClipDefaultExperienceLocalizationsGetToManyRelated;
+const appClipDefaultExperiencesReleaseWithAppStoreVersionGetToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClipDefaultExperiences/{id}/relationships/releaseWithAppStoreVersion'
+    });
+};
+exports.appClipDefaultExperiencesReleaseWithAppStoreVersionGetToOneRelationship = appClipDefaultExperiencesReleaseWithAppStoreVersionGetToOneRelationship;
+const appClipDefaultExperiencesReleaseWithAppStoreVersionUpdateToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appClipDefaultExperiences/{id}/relationships/releaseWithAppStoreVersion'
+    });
+};
+exports.appClipDefaultExperiencesReleaseWithAppStoreVersionUpdateToOneRelationship = appClipDefaultExperiencesReleaseWithAppStoreVersionUpdateToOneRelationship;
+const appClipDefaultExperiencesReleaseWithAppStoreVersionGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClipDefaultExperiences/{id}/releaseWithAppStoreVersion'
+    });
+};
+exports.appClipDefaultExperiencesReleaseWithAppStoreVersionGetToOneRelated = appClipDefaultExperiencesReleaseWithAppStoreVersionGetToOneRelated;
+const appClipsAppClipAdvancedExperiencesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClips/{id}/appClipAdvancedExperiences'
+    });
+};
+exports.appClipsAppClipAdvancedExperiencesGetToManyRelated = appClipsAppClipAdvancedExperiencesGetToManyRelated;
+const appClipsAppClipDefaultExperiencesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appClips/{id}/appClipDefaultExperiences'
+    });
+};
+exports.appClipsAppClipDefaultExperiencesGetToManyRelated = appClipsAppClipDefaultExperiencesGetToManyRelated;
+const appCustomProductPageLocalizationsAppPreviewSetsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appCustomProductPageLocalizations/{id}/appPreviewSets'
+    });
+};
+exports.appCustomProductPageLocalizationsAppPreviewSetsGetToManyRelated = appCustomProductPageLocalizationsAppPreviewSetsGetToManyRelated;
+const appCustomProductPageLocalizationsAppScreenshotSetsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appCustomProductPageLocalizations/{id}/appScreenshotSets'
+    });
+};
+exports.appCustomProductPageLocalizationsAppScreenshotSetsGetToManyRelated = appCustomProductPageLocalizationsAppScreenshotSetsGetToManyRelated;
+const appCustomProductPageVersionsAppCustomProductPageLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appCustomProductPageVersions/{id}/appCustomProductPageLocalizations'
+    });
+};
+exports.appCustomProductPageVersionsAppCustomProductPageLocalizationsGetToManyRelated = appCustomProductPageVersionsAppCustomProductPageLocalizationsGetToManyRelated;
+const appCustomProductPagesAppCustomProductPageVersionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appCustomProductPages/{id}/appCustomProductPageVersions'
+    });
+};
+exports.appCustomProductPagesAppCustomProductPageVersionsGetToManyRelated = appCustomProductPagesAppCustomProductPageVersionsGetToManyRelated;
+/**
+ * @deprecated
+ */
+const appEncryptionDeclarationsAppGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEncryptionDeclarations/{id}/app'
+    });
+};
+exports.appEncryptionDeclarationsAppGetToOneRelated = appEncryptionDeclarationsAppGetToOneRelated;
+const appEncryptionDeclarationsAppEncryptionDeclarationDocumentGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEncryptionDeclarations/{id}/appEncryptionDeclarationDocument'
+    });
+};
+exports.appEncryptionDeclarationsAppEncryptionDeclarationDocumentGetToOneRelated = appEncryptionDeclarationsAppEncryptionDeclarationDocumentGetToOneRelated;
+/**
+ * @deprecated
+ */
+const appEncryptionDeclarationsBuildsCreateToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/appEncryptionDeclarations/{id}/relationships/builds'
+    });
+};
+exports.appEncryptionDeclarationsBuildsCreateToManyRelationship = appEncryptionDeclarationsBuildsCreateToManyRelationship;
+const appEventLocalizationsAppEventScreenshotsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEventLocalizations/{id}/appEventScreenshots'
+    });
+};
+exports.appEventLocalizationsAppEventScreenshotsGetToManyRelated = appEventLocalizationsAppEventScreenshotsGetToManyRelated;
+const appEventLocalizationsAppEventVideoClipsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEventLocalizations/{id}/appEventVideoClips'
+    });
+};
+exports.appEventLocalizationsAppEventVideoClipsGetToManyRelated = appEventLocalizationsAppEventVideoClipsGetToManyRelated;
+const appEventsLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appEvents/{id}/localizations'
+    });
+};
+exports.appEventsLocalizationsGetToManyRelated = appEventsLocalizationsGetToManyRelated;
+const appInfosAgeRatingDeclarationGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appInfos/{id}/ageRatingDeclaration'
+    });
+};
+exports.appInfosAgeRatingDeclarationGetToOneRelated = appInfosAgeRatingDeclarationGetToOneRelated;
+const appInfosAppInfoLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appInfos/{id}/appInfoLocalizations'
+    });
+};
+exports.appInfosAppInfoLocalizationsGetToManyRelated = appInfosAppInfoLocalizationsGetToManyRelated;
+const appInfosPrimaryCategoryGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appInfos/{id}/primaryCategory'
+    });
+};
+exports.appInfosPrimaryCategoryGetToOneRelated = appInfosPrimaryCategoryGetToOneRelated;
+const appInfosPrimarySubcategoryOneGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appInfos/{id}/primarySubcategoryOne'
+    });
+};
+exports.appInfosPrimarySubcategoryOneGetToOneRelated = appInfosPrimarySubcategoryOneGetToOneRelated;
+const appInfosPrimarySubcategoryTwoGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appInfos/{id}/primarySubcategoryTwo'
+    });
+};
+exports.appInfosPrimarySubcategoryTwoGetToOneRelated = appInfosPrimarySubcategoryTwoGetToOneRelated;
+const appInfosSecondaryCategoryGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appInfos/{id}/secondaryCategory'
+    });
+};
+exports.appInfosSecondaryCategoryGetToOneRelated = appInfosSecondaryCategoryGetToOneRelated;
+const appInfosSecondarySubcategoryOneGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appInfos/{id}/secondarySubcategoryOne'
+    });
+};
+exports.appInfosSecondarySubcategoryOneGetToOneRelated = appInfosSecondarySubcategoryOneGetToOneRelated;
+const appInfosSecondarySubcategoryTwoGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appInfos/{id}/secondarySubcategoryTwo'
+    });
+};
+exports.appInfosSecondarySubcategoryTwoGetToOneRelated = appInfosSecondarySubcategoryTwoGetToOneRelated;
+const appPreviewSetsAppPreviewsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appPreviewSets/{id}/relationships/appPreviews'
+    });
+};
+exports.appPreviewSetsAppPreviewsGetToManyRelationship = appPreviewSetsAppPreviewsGetToManyRelationship;
+const appPreviewSetsAppPreviewsReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appPreviewSets/{id}/relationships/appPreviews'
+    });
+};
+exports.appPreviewSetsAppPreviewsReplaceToManyRelationship = appPreviewSetsAppPreviewsReplaceToManyRelationship;
+const appPreviewSetsAppPreviewsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appPreviewSets/{id}/appPreviews'
+    });
+};
+exports.appPreviewSetsAppPreviewsGetToManyRelated = appPreviewSetsAppPreviewsGetToManyRelated;
+const appPricePointsV3EqualizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v3/appPricePoints/{id}/equalizations'
+    });
+};
+exports.appPricePointsV3EqualizationsGetToManyRelated = appPricePointsV3EqualizationsGetToManyRelated;
+const appPriceSchedulesAutomaticPricesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appPriceSchedules/{id}/automaticPrices'
+    });
+};
+exports.appPriceSchedulesAutomaticPricesGetToManyRelated = appPriceSchedulesAutomaticPricesGetToManyRelated;
+const appPriceSchedulesBaseTerritoryGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appPriceSchedules/{id}/baseTerritory'
+    });
+};
+exports.appPriceSchedulesBaseTerritoryGetToOneRelated = appPriceSchedulesBaseTerritoryGetToOneRelated;
+const appPriceSchedulesManualPricesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appPriceSchedules/{id}/manualPrices'
+    });
+};
+exports.appPriceSchedulesManualPricesGetToManyRelated = appPriceSchedulesManualPricesGetToManyRelated;
+const appScreenshotSetsAppScreenshotsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appScreenshotSets/{id}/relationships/appScreenshots'
+    });
+};
+exports.appScreenshotSetsAppScreenshotsGetToManyRelationship = appScreenshotSetsAppScreenshotsGetToManyRelationship;
+const appScreenshotSetsAppScreenshotsReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appScreenshotSets/{id}/relationships/appScreenshots'
+    });
+};
+exports.appScreenshotSetsAppScreenshotsReplaceToManyRelationship = appScreenshotSetsAppScreenshotsReplaceToManyRelationship;
+const appScreenshotSetsAppScreenshotsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appScreenshotSets/{id}/appScreenshots'
+    });
+};
+exports.appScreenshotSetsAppScreenshotsGetToManyRelated = appScreenshotSetsAppScreenshotsGetToManyRelated;
+const appStoreReviewDetailsAppStoreReviewAttachmentsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreReviewDetails/{id}/appStoreReviewAttachments'
+    });
+};
+exports.appStoreReviewDetailsAppStoreReviewAttachmentsGetToManyRelated = appStoreReviewDetailsAppStoreReviewAttachmentsGetToManyRelated;
+const appStoreVersionExperimentTreatmentLocalizationsAppPreviewSetsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersionExperimentTreatmentLocalizations/{id}/appPreviewSets'
+    });
+};
+exports.appStoreVersionExperimentTreatmentLocalizationsAppPreviewSetsGetToManyRelated = appStoreVersionExperimentTreatmentLocalizationsAppPreviewSetsGetToManyRelated;
+const appStoreVersionExperimentTreatmentLocalizationsAppScreenshotSetsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersionExperimentTreatmentLocalizations/{id}/appScreenshotSets'
+    });
+};
+exports.appStoreVersionExperimentTreatmentLocalizationsAppScreenshotSetsGetToManyRelated = appStoreVersionExperimentTreatmentLocalizationsAppScreenshotSetsGetToManyRelated;
+const appStoreVersionExperimentTreatmentsAppStoreVersionExperimentTreatmentLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersionExperimentTreatments/{id}/appStoreVersionExperimentTreatmentLocalizations'
+    });
+};
+exports.appStoreVersionExperimentTreatmentsAppStoreVersionExperimentTreatmentLocalizationsGetToManyRelated = appStoreVersionExperimentTreatmentsAppStoreVersionExperimentTreatmentLocalizationsGetToManyRelated;
+const appStoreVersionExperimentsV2AppStoreVersionExperimentTreatmentsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/appStoreVersionExperiments/{id}/appStoreVersionExperimentTreatments'
+    });
+};
+exports.appStoreVersionExperimentsV2AppStoreVersionExperimentTreatmentsGetToManyRelated = appStoreVersionExperimentsV2AppStoreVersionExperimentTreatmentsGetToManyRelated;
+/**
+ * @deprecated
+ */
+const appStoreVersionExperimentsAppStoreVersionExperimentTreatmentsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersionExperiments/{id}/appStoreVersionExperimentTreatments'
+    });
+};
+exports.appStoreVersionExperimentsAppStoreVersionExperimentTreatmentsGetToManyRelated = appStoreVersionExperimentsAppStoreVersionExperimentTreatmentsGetToManyRelated;
+const appStoreVersionLocalizationsAppPreviewSetsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersionLocalizations/{id}/appPreviewSets'
+    });
+};
+exports.appStoreVersionLocalizationsAppPreviewSetsGetToManyRelated = appStoreVersionLocalizationsAppPreviewSetsGetToManyRelated;
+const appStoreVersionLocalizationsAppScreenshotSetsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersionLocalizations/{id}/appScreenshotSets'
+    });
+};
+exports.appStoreVersionLocalizationsAppScreenshotSetsGetToManyRelated = appStoreVersionLocalizationsAppScreenshotSetsGetToManyRelated;
+/**
+ * @deprecated
+ */
+const appStoreVersionsAgeRatingDeclarationGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/ageRatingDeclaration'
+    });
+};
+exports.appStoreVersionsAgeRatingDeclarationGetToOneRelated = appStoreVersionsAgeRatingDeclarationGetToOneRelated;
+const appStoreVersionsAlternativeDistributionPackageGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/alternativeDistributionPackage'
+    });
+};
+exports.appStoreVersionsAlternativeDistributionPackageGetToOneRelated = appStoreVersionsAlternativeDistributionPackageGetToOneRelated;
+const appStoreVersionsAppClipDefaultExperienceGetToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/relationships/appClipDefaultExperience'
+    });
+};
+exports.appStoreVersionsAppClipDefaultExperienceGetToOneRelationship = appStoreVersionsAppClipDefaultExperienceGetToOneRelationship;
+const appStoreVersionsAppClipDefaultExperienceUpdateToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/relationships/appClipDefaultExperience'
+    });
+};
+exports.appStoreVersionsAppClipDefaultExperienceUpdateToOneRelationship = appStoreVersionsAppClipDefaultExperienceUpdateToOneRelationship;
+const appStoreVersionsAppClipDefaultExperienceGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/appClipDefaultExperience'
+    });
+};
+exports.appStoreVersionsAppClipDefaultExperienceGetToOneRelated = appStoreVersionsAppClipDefaultExperienceGetToOneRelated;
+const appStoreVersionsAppStoreReviewDetailGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/appStoreReviewDetail'
+    });
+};
+exports.appStoreVersionsAppStoreReviewDetailGetToOneRelated = appStoreVersionsAppStoreReviewDetailGetToOneRelated;
+/**
+ * @deprecated
+ */
+const appStoreVersionsAppStoreVersionExperimentsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/appStoreVersionExperiments'
+    });
+};
+exports.appStoreVersionsAppStoreVersionExperimentsGetToManyRelated = appStoreVersionsAppStoreVersionExperimentsGetToManyRelated;
+const appStoreVersionsAppStoreVersionExperimentsV2GetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/appStoreVersionExperimentsV2'
+    });
+};
+exports.appStoreVersionsAppStoreVersionExperimentsV2GetToManyRelated = appStoreVersionsAppStoreVersionExperimentsV2GetToManyRelated;
+const appStoreVersionsAppStoreVersionLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/appStoreVersionLocalizations'
+    });
+};
+exports.appStoreVersionsAppStoreVersionLocalizationsGetToManyRelated = appStoreVersionsAppStoreVersionLocalizationsGetToManyRelated;
+const appStoreVersionsAppStoreVersionPhasedReleaseGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/appStoreVersionPhasedRelease'
+    });
+};
+exports.appStoreVersionsAppStoreVersionPhasedReleaseGetToOneRelated = appStoreVersionsAppStoreVersionPhasedReleaseGetToOneRelated;
+/**
+ * @deprecated
+ */
+const appStoreVersionsAppStoreVersionSubmissionGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/appStoreVersionSubmission'
+    });
+};
+exports.appStoreVersionsAppStoreVersionSubmissionGetToOneRelated = appStoreVersionsAppStoreVersionSubmissionGetToOneRelated;
+const appStoreVersionsBuildGetToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/relationships/build'
+    });
+};
+exports.appStoreVersionsBuildGetToOneRelationship = appStoreVersionsBuildGetToOneRelationship;
+const appStoreVersionsBuildUpdateToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/relationships/build'
+    });
+};
+exports.appStoreVersionsBuildUpdateToOneRelationship = appStoreVersionsBuildUpdateToOneRelationship;
+const appStoreVersionsBuildGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/build'
+    });
+};
+exports.appStoreVersionsBuildGetToOneRelated = appStoreVersionsBuildGetToOneRelated;
+const appStoreVersionsCustomerReviewsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/customerReviews'
+    });
+};
+exports.appStoreVersionsCustomerReviewsGetToManyRelated = appStoreVersionsCustomerReviewsGetToManyRelated;
+const appStoreVersionsGameCenterAppVersionGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/gameCenterAppVersion'
+    });
+};
+exports.appStoreVersionsGameCenterAppVersionGetToOneRelated = appStoreVersionsGameCenterAppVersionGetToOneRelated;
+const appStoreVersionsRoutingAppCoverageGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/appStoreVersions/{id}/routingAppCoverage'
+    });
+};
+exports.appStoreVersionsRoutingAppCoverageGetToOneRelated = appStoreVersionsRoutingAppCoverageGetToOneRelated;
+const appsAlternativeDistributionKeyGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/alternativeDistributionKey'
+    });
+};
+exports.appsAlternativeDistributionKeyGetToOneRelated = appsAlternativeDistributionKeyGetToOneRelated;
+const appsAnalyticsReportRequestsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/analyticsReportRequests'
+    });
+};
+exports.appsAnalyticsReportRequestsGetToManyRelated = appsAnalyticsReportRequestsGetToManyRelated;
+/**
+ * @deprecated
+ */
+const appsAppAvailabilityGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/appAvailability'
+    });
+};
+exports.appsAppAvailabilityGetToOneRelated = appsAppAvailabilityGetToOneRelated;
+const appsAppAvailabilityV2GetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/appAvailabilityV2'
+    });
+};
+exports.appsAppAvailabilityV2GetToOneRelated = appsAppAvailabilityV2GetToOneRelated;
+const appsAppClipsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/appClips'
+    });
+};
+exports.appsAppClipsGetToManyRelated = appsAppClipsGetToManyRelated;
+const appsAppCustomProductPagesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/appCustomProductPages'
+    });
+};
+exports.appsAppCustomProductPagesGetToManyRelated = appsAppCustomProductPagesGetToManyRelated;
+const appsAppEncryptionDeclarationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/appEncryptionDeclarations'
+    });
+};
+exports.appsAppEncryptionDeclarationsGetToManyRelated = appsAppEncryptionDeclarationsGetToManyRelated;
+const appsAppEventsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/appEvents'
+    });
+};
+exports.appsAppEventsGetToManyRelated = appsAppEventsGetToManyRelated;
+const appsAppInfosGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/appInfos'
+    });
+};
+exports.appsAppInfosGetToManyRelated = appsAppInfosGetToManyRelated;
+const appsAppPricePointsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/appPricePoints'
+    });
+};
+exports.appsAppPricePointsGetToManyRelated = appsAppPricePointsGetToManyRelated;
+const appsAppPriceScheduleGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/appPriceSchedule'
+    });
+};
+exports.appsAppPriceScheduleGetToOneRelated = appsAppPriceScheduleGetToOneRelated;
+const appsAppStoreVersionExperimentsV2GetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/appStoreVersionExperimentsV2'
+    });
+};
+exports.appsAppStoreVersionExperimentsV2GetToManyRelated = appsAppStoreVersionExperimentsV2GetToManyRelated;
+const appsAppStoreVersionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/appStoreVersions'
+    });
+};
+exports.appsAppStoreVersionsGetToManyRelated = appsAppStoreVersionsGetToManyRelated;
+const appsBetaAppLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/betaAppLocalizations'
+    });
+};
+exports.appsBetaAppLocalizationsGetToManyRelated = appsBetaAppLocalizationsGetToManyRelated;
+const appsBetaAppReviewDetailGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/betaAppReviewDetail'
+    });
+};
+exports.appsBetaAppReviewDetailGetToOneRelated = appsBetaAppReviewDetailGetToOneRelated;
+const appsBetaGroupsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/betaGroups'
+    });
+};
+exports.appsBetaGroupsGetToManyRelated = appsBetaGroupsGetToManyRelated;
+const appsBetaLicenseAgreementGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/betaLicenseAgreement'
+    });
+};
+exports.appsBetaLicenseAgreementGetToOneRelated = appsBetaLicenseAgreementGetToOneRelated;
+const appsBetaTestersDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/apps/{id}/relationships/betaTesters'
+    });
+};
+exports.appsBetaTestersDeleteToManyRelationship = appsBetaTestersDeleteToManyRelationship;
+const appsBuildsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/builds'
+    });
+};
+exports.appsBuildsGetToManyRelated = appsBuildsGetToManyRelated;
+const appsCiProductGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/ciProduct'
+    });
+};
+exports.appsCiProductGetToOneRelated = appsCiProductGetToOneRelated;
+const appsCustomerReviewsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/customerReviews'
+    });
+};
+exports.appsCustomerReviewsGetToManyRelated = appsCustomerReviewsGetToManyRelated;
+const appsEndUserLicenseAgreementGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/endUserLicenseAgreement'
+    });
+};
+exports.appsEndUserLicenseAgreementGetToOneRelated = appsEndUserLicenseAgreementGetToOneRelated;
+const appsGameCenterDetailGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/gameCenterDetail'
+    });
+};
+exports.appsGameCenterDetailGetToOneRelated = appsGameCenterDetailGetToOneRelated;
+/**
+ * @deprecated
+ */
+const appsGameCenterEnabledVersionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/gameCenterEnabledVersions'
+    });
+};
+exports.appsGameCenterEnabledVersionsGetToManyRelated = appsGameCenterEnabledVersionsGetToManyRelated;
+/**
+ * @deprecated
+ */
+const appsInAppPurchasesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/inAppPurchases'
+    });
+};
+exports.appsInAppPurchasesGetToManyRelated = appsInAppPurchasesGetToManyRelated;
+const appsInAppPurchasesV2GetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/inAppPurchasesV2'
+    });
+};
+exports.appsInAppPurchasesV2GetToManyRelated = appsInAppPurchasesV2GetToManyRelated;
+const appsMarketplaceSearchDetailGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/marketplaceSearchDetail'
+    });
+};
+exports.appsMarketplaceSearchDetailGetToOneRelated = appsMarketplaceSearchDetailGetToOneRelated;
+const appsPerfPowerMetricsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/perfPowerMetrics'
+    });
+};
+exports.appsPerfPowerMetricsGetToManyRelated = appsPerfPowerMetricsGetToManyRelated;
+/**
+ * @deprecated
+ */
+const appsPreOrderGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/preOrder'
+    });
+};
+exports.appsPreOrderGetToOneRelated = appsPreOrderGetToOneRelated;
+const appsPreReleaseVersionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/preReleaseVersions'
+    });
+};
+exports.appsPreReleaseVersionsGetToManyRelated = appsPreReleaseVersionsGetToManyRelated;
+const appsPromotedPurchasesGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/relationships/promotedPurchases'
+    });
+};
+exports.appsPromotedPurchasesGetToManyRelationship = appsPromotedPurchasesGetToManyRelationship;
+const appsPromotedPurchasesReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/apps/{id}/relationships/promotedPurchases'
+    });
+};
+exports.appsPromotedPurchasesReplaceToManyRelationship = appsPromotedPurchasesReplaceToManyRelationship;
+const appsPromotedPurchasesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/promotedPurchases'
+    });
+};
+exports.appsPromotedPurchasesGetToManyRelated = appsPromotedPurchasesGetToManyRelated;
+const appsReviewSubmissionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/reviewSubmissions'
+    });
+};
+exports.appsReviewSubmissionsGetToManyRelated = appsReviewSubmissionsGetToManyRelated;
+const appsSubscriptionGracePeriodGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/subscriptionGracePeriod'
+    });
+};
+exports.appsSubscriptionGracePeriodGetToOneRelated = appsSubscriptionGracePeriodGetToOneRelated;
+const appsSubscriptionGroupsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/subscriptionGroups'
+    });
+};
+exports.appsSubscriptionGroupsGetToManyRelated = appsSubscriptionGroupsGetToManyRelated;
+const betaAppLocalizationsAppGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaAppLocalizations/{id}/app'
+    });
+};
+exports.betaAppLocalizationsAppGetToOneRelated = betaAppLocalizationsAppGetToOneRelated;
+const betaAppReviewDetailsAppGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaAppReviewDetails/{id}/app'
+    });
+};
+exports.betaAppReviewDetailsAppGetToOneRelated = betaAppReviewDetailsAppGetToOneRelated;
+const betaAppReviewSubmissionsBuildGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaAppReviewSubmissions/{id}/build'
+    });
+};
+exports.betaAppReviewSubmissionsBuildGetToOneRelated = betaAppReviewSubmissionsBuildGetToOneRelated;
+const betaBuildLocalizationsBuildGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaBuildLocalizations/{id}/build'
+    });
+};
+exports.betaBuildLocalizationsBuildGetToOneRelated = betaBuildLocalizationsBuildGetToOneRelated;
+const betaGroupsAppGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaGroups/{id}/app'
+    });
+};
+exports.betaGroupsAppGetToOneRelated = betaGroupsAppGetToOneRelated;
+const betaGroupsBetaTestersGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaGroups/{id}/relationships/betaTesters'
+    });
+};
+exports.betaGroupsBetaTestersGetToManyRelationship = betaGroupsBetaTestersGetToManyRelationship;
+const betaGroupsBetaTestersCreateToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaGroups/{id}/relationships/betaTesters'
+    });
+};
+exports.betaGroupsBetaTestersCreateToManyRelationship = betaGroupsBetaTestersCreateToManyRelationship;
+const betaGroupsBetaTestersDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/betaGroups/{id}/relationships/betaTesters'
+    });
+};
+exports.betaGroupsBetaTestersDeleteToManyRelationship = betaGroupsBetaTestersDeleteToManyRelationship;
+const betaGroupsBetaTestersGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaGroups/{id}/betaTesters'
+    });
+};
+exports.betaGroupsBetaTestersGetToManyRelated = betaGroupsBetaTestersGetToManyRelated;
+const betaGroupsBuildsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaGroups/{id}/relationships/builds'
+    });
+};
+exports.betaGroupsBuildsGetToManyRelationship = betaGroupsBuildsGetToManyRelationship;
+const betaGroupsBuildsCreateToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaGroups/{id}/relationships/builds'
+    });
+};
+exports.betaGroupsBuildsCreateToManyRelationship = betaGroupsBuildsCreateToManyRelationship;
+const betaGroupsBuildsDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/betaGroups/{id}/relationships/builds'
+    });
+};
+exports.betaGroupsBuildsDeleteToManyRelationship = betaGroupsBuildsDeleteToManyRelationship;
+const betaGroupsBuildsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaGroups/{id}/builds'
+    });
+};
+exports.betaGroupsBuildsGetToManyRelated = betaGroupsBuildsGetToManyRelated;
+const betaLicenseAgreementsAppGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaLicenseAgreements/{id}/app'
+    });
+};
+exports.betaLicenseAgreementsAppGetToOneRelated = betaLicenseAgreementsAppGetToOneRelated;
+const betaTestersAppsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaTesters/{id}/relationships/apps'
+    });
+};
+exports.betaTestersAppsGetToManyRelationship = betaTestersAppsGetToManyRelationship;
+const betaTestersAppsDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/betaTesters/{id}/relationships/apps'
+    });
+};
+exports.betaTestersAppsDeleteToManyRelationship = betaTestersAppsDeleteToManyRelationship;
+const betaTestersAppsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaTesters/{id}/apps'
+    });
+};
+exports.betaTestersAppsGetToManyRelated = betaTestersAppsGetToManyRelated;
+const betaTestersBetaGroupsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaTesters/{id}/relationships/betaGroups'
+    });
+};
+exports.betaTestersBetaGroupsGetToManyRelationship = betaTestersBetaGroupsGetToManyRelationship;
+const betaTestersBetaGroupsCreateToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaTesters/{id}/relationships/betaGroups'
+    });
+};
+exports.betaTestersBetaGroupsCreateToManyRelationship = betaTestersBetaGroupsCreateToManyRelationship;
+const betaTestersBetaGroupsDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/betaTesters/{id}/relationships/betaGroups'
+    });
+};
+exports.betaTestersBetaGroupsDeleteToManyRelationship = betaTestersBetaGroupsDeleteToManyRelationship;
+const betaTestersBetaGroupsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaTesters/{id}/betaGroups'
+    });
+};
+exports.betaTestersBetaGroupsGetToManyRelated = betaTestersBetaGroupsGetToManyRelated;
+const betaTestersBuildsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaTesters/{id}/relationships/builds'
+    });
+};
+exports.betaTestersBuildsGetToManyRelationship = betaTestersBuildsGetToManyRelationship;
+const betaTestersBuildsCreateToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/betaTesters/{id}/relationships/builds'
+    });
+};
+exports.betaTestersBuildsCreateToManyRelationship = betaTestersBuildsCreateToManyRelationship;
+const betaTestersBuildsDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/betaTesters/{id}/relationships/builds'
+    });
+};
+exports.betaTestersBuildsDeleteToManyRelationship = betaTestersBuildsDeleteToManyRelationship;
+const betaTestersBuildsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaTesters/{id}/builds'
+    });
+};
+exports.betaTestersBuildsGetToManyRelated = betaTestersBuildsGetToManyRelated;
+const buildBetaDetailsBuildGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/buildBetaDetails/{id}/build'
+    });
+};
+exports.buildBetaDetailsBuildGetToOneRelated = buildBetaDetailsBuildGetToOneRelated;
+const buildBundlesAppClipDomainCacheStatusGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/buildBundles/{id}/appClipDomainCacheStatus'
+    });
+};
+exports.buildBundlesAppClipDomainCacheStatusGetToOneRelated = buildBundlesAppClipDomainCacheStatusGetToOneRelated;
+const buildBundlesAppClipDomainDebugStatusGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/buildBundles/{id}/appClipDomainDebugStatus'
+    });
+};
+exports.buildBundlesAppClipDomainDebugStatusGetToOneRelated = buildBundlesAppClipDomainDebugStatusGetToOneRelated;
+const buildBundlesBetaAppClipInvocationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/buildBundles/{id}/betaAppClipInvocations'
+    });
+};
+exports.buildBundlesBetaAppClipInvocationsGetToManyRelated = buildBundlesBetaAppClipInvocationsGetToManyRelated;
+const buildBundlesBuildBundleFileSizesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/buildBundles/{id}/buildBundleFileSizes'
+    });
+};
+exports.buildBundlesBuildBundleFileSizesGetToManyRelated = buildBundlesBuildBundleFileSizesGetToManyRelated;
+const buildsAppGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/app'
+    });
+};
+exports.buildsAppGetToOneRelated = buildsAppGetToOneRelated;
+const buildsAppEncryptionDeclarationGetToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/relationships/appEncryptionDeclaration'
+    });
+};
+exports.buildsAppEncryptionDeclarationGetToOneRelationship = buildsAppEncryptionDeclarationGetToOneRelationship;
+const buildsAppEncryptionDeclarationUpdateToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/builds/{id}/relationships/appEncryptionDeclaration'
+    });
+};
+exports.buildsAppEncryptionDeclarationUpdateToOneRelationship = buildsAppEncryptionDeclarationUpdateToOneRelationship;
+const buildsAppEncryptionDeclarationGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/appEncryptionDeclaration'
+    });
+};
+exports.buildsAppEncryptionDeclarationGetToOneRelated = buildsAppEncryptionDeclarationGetToOneRelated;
+const buildsAppStoreVersionGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/appStoreVersion'
+    });
+};
+exports.buildsAppStoreVersionGetToOneRelated = buildsAppStoreVersionGetToOneRelated;
+const buildsBetaAppReviewSubmissionGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/betaAppReviewSubmission'
+    });
+};
+exports.buildsBetaAppReviewSubmissionGetToOneRelated = buildsBetaAppReviewSubmissionGetToOneRelated;
+const buildsBetaBuildLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/betaBuildLocalizations'
+    });
+};
+exports.buildsBetaBuildLocalizationsGetToManyRelated = buildsBetaBuildLocalizationsGetToManyRelated;
+const buildsBetaGroupsCreateToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/builds/{id}/relationships/betaGroups'
+    });
+};
+exports.buildsBetaGroupsCreateToManyRelationship = buildsBetaGroupsCreateToManyRelationship;
+const buildsBetaGroupsDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/builds/{id}/relationships/betaGroups'
+    });
+};
+exports.buildsBetaGroupsDeleteToManyRelationship = buildsBetaGroupsDeleteToManyRelationship;
+const buildsBuildBetaDetailGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/buildBetaDetail'
+    });
+};
+exports.buildsBuildBetaDetailGetToOneRelated = buildsBuildBetaDetailGetToOneRelated;
+const buildsDiagnosticSignaturesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/diagnosticSignatures'
+    });
+};
+exports.buildsDiagnosticSignaturesGetToManyRelated = buildsDiagnosticSignaturesGetToManyRelated;
+const buildsIconsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/icons'
+    });
+};
+exports.buildsIconsGetToManyRelated = buildsIconsGetToManyRelated;
+const buildsIndividualTestersGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/relationships/individualTesters'
+    });
+};
+exports.buildsIndividualTestersGetToManyRelationship = buildsIndividualTestersGetToManyRelationship;
+const buildsIndividualTestersCreateToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/builds/{id}/relationships/individualTesters'
+    });
+};
+exports.buildsIndividualTestersCreateToManyRelationship = buildsIndividualTestersCreateToManyRelationship;
+const buildsIndividualTestersDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/builds/{id}/relationships/individualTesters'
+    });
+};
+exports.buildsIndividualTestersDeleteToManyRelationship = buildsIndividualTestersDeleteToManyRelationship;
+const buildsIndividualTestersGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/individualTesters'
+    });
+};
+exports.buildsIndividualTestersGetToManyRelated = buildsIndividualTestersGetToManyRelated;
+const buildsPerfPowerMetricsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/perfPowerMetrics'
+    });
+};
+exports.buildsPerfPowerMetricsGetToManyRelated = buildsPerfPowerMetricsGetToManyRelated;
+const buildsPreReleaseVersionGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/preReleaseVersion'
+    });
+};
+exports.buildsPreReleaseVersionGetToOneRelated = buildsPreReleaseVersionGetToOneRelated;
+const bundleIdsAppGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/bundleIds/{id}/app'
+    });
+};
+exports.bundleIdsAppGetToOneRelated = bundleIdsAppGetToOneRelated;
+const bundleIdsBundleIdCapabilitiesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/bundleIds/{id}/bundleIdCapabilities'
+    });
+};
+exports.bundleIdsBundleIdCapabilitiesGetToManyRelated = bundleIdsBundleIdCapabilitiesGetToManyRelated;
+const bundleIdsProfilesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/bundleIds/{id}/profiles'
+    });
+};
+exports.bundleIdsProfilesGetToManyRelated = bundleIdsProfilesGetToManyRelated;
+const ciBuildActionsArtifactsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciBuildActions/{id}/artifacts'
+    });
+};
+exports.ciBuildActionsArtifactsGetToManyRelated = ciBuildActionsArtifactsGetToManyRelated;
+const ciBuildActionsBuildRunGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciBuildActions/{id}/buildRun'
+    });
+};
+exports.ciBuildActionsBuildRunGetToOneRelated = ciBuildActionsBuildRunGetToOneRelated;
+const ciBuildActionsIssuesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciBuildActions/{id}/issues'
+    });
+};
+exports.ciBuildActionsIssuesGetToManyRelated = ciBuildActionsIssuesGetToManyRelated;
+const ciBuildActionsTestResultsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciBuildActions/{id}/testResults'
+    });
+};
+exports.ciBuildActionsTestResultsGetToManyRelated = ciBuildActionsTestResultsGetToManyRelated;
+const ciBuildRunsActionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciBuildRuns/{id}/actions'
+    });
+};
+exports.ciBuildRunsActionsGetToManyRelated = ciBuildRunsActionsGetToManyRelated;
+const ciBuildRunsBuildsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciBuildRuns/{id}/builds'
+    });
+};
+exports.ciBuildRunsBuildsGetToManyRelated = ciBuildRunsBuildsGetToManyRelated;
+const ciMacOsVersionsXcodeVersionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciMacOsVersions/{id}/xcodeVersions'
+    });
+};
+exports.ciMacOsVersionsXcodeVersionsGetToManyRelated = ciMacOsVersionsXcodeVersionsGetToManyRelated;
+const ciProductsAdditionalRepositoriesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciProducts/{id}/additionalRepositories'
+    });
+};
+exports.ciProductsAdditionalRepositoriesGetToManyRelated = ciProductsAdditionalRepositoriesGetToManyRelated;
+const ciProductsAppGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciProducts/{id}/app'
+    });
+};
+exports.ciProductsAppGetToOneRelated = ciProductsAppGetToOneRelated;
+const ciProductsBuildRunsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciProducts/{id}/buildRuns'
+    });
+};
+exports.ciProductsBuildRunsGetToManyRelated = ciProductsBuildRunsGetToManyRelated;
+const ciProductsPrimaryRepositoriesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciProducts/{id}/primaryRepositories'
+    });
+};
+exports.ciProductsPrimaryRepositoriesGetToManyRelated = ciProductsPrimaryRepositoriesGetToManyRelated;
+const ciProductsWorkflowsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciProducts/{id}/workflows'
+    });
+};
+exports.ciProductsWorkflowsGetToManyRelated = ciProductsWorkflowsGetToManyRelated;
+const ciWorkflowsBuildRunsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciWorkflows/{id}/buildRuns'
+    });
+};
+exports.ciWorkflowsBuildRunsGetToManyRelated = ciWorkflowsBuildRunsGetToManyRelated;
+const ciWorkflowsRepositoryGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciWorkflows/{id}/repository'
+    });
+};
+exports.ciWorkflowsRepositoryGetToOneRelated = ciWorkflowsRepositoryGetToOneRelated;
+const ciXcodeVersionsMacOsVersionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/ciXcodeVersions/{id}/macOsVersions'
+    });
+};
+exports.ciXcodeVersionsMacOsVersionsGetToManyRelated = ciXcodeVersionsMacOsVersionsGetToManyRelated;
+const customerReviewsResponseGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/customerReviews/{id}/response'
+    });
+};
+exports.customerReviewsResponseGetToOneRelated = customerReviewsResponseGetToOneRelated;
+const diagnosticSignaturesLogsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/diagnosticSignatures/{id}/logs'
+    });
+};
+exports.diagnosticSignaturesLogsGetToManyRelated = diagnosticSignaturesLogsGetToManyRelated;
+const endUserLicenseAgreementsTerritoriesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/endUserLicenseAgreements/{id}/territories'
+    });
+};
+exports.endUserLicenseAgreementsTerritoriesGetToManyRelated = endUserLicenseAgreementsTerritoriesGetToManyRelated;
+const gameCenterAchievementLocalizationsGameCenterAchievementGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAchievementLocalizations/{id}/gameCenterAchievement'
+    });
+};
+exports.gameCenterAchievementLocalizationsGameCenterAchievementGetToOneRelated = gameCenterAchievementLocalizationsGameCenterAchievementGetToOneRelated;
+const gameCenterAchievementLocalizationsGameCenterAchievementImageGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAchievementLocalizations/{id}/gameCenterAchievementImage'
+    });
+};
+exports.gameCenterAchievementLocalizationsGameCenterAchievementImageGetToOneRelated = gameCenterAchievementLocalizationsGameCenterAchievementImageGetToOneRelated;
+const gameCenterAchievementsGroupAchievementGetToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAchievements/{id}/relationships/groupAchievement'
+    });
+};
+exports.gameCenterAchievementsGroupAchievementGetToOneRelationship = gameCenterAchievementsGroupAchievementGetToOneRelationship;
+const gameCenterAchievementsGroupAchievementUpdateToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterAchievements/{id}/relationships/groupAchievement'
+    });
+};
+exports.gameCenterAchievementsGroupAchievementUpdateToOneRelationship = gameCenterAchievementsGroupAchievementUpdateToOneRelationship;
+const gameCenterAchievementsGroupAchievementGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAchievements/{id}/groupAchievement'
+    });
+};
+exports.gameCenterAchievementsGroupAchievementGetToOneRelated = gameCenterAchievementsGroupAchievementGetToOneRelated;
+const gameCenterAchievementsLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAchievements/{id}/localizations'
+    });
+};
+exports.gameCenterAchievementsLocalizationsGetToManyRelated = gameCenterAchievementsLocalizationsGetToManyRelated;
+const gameCenterAchievementsReleasesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAchievements/{id}/releases'
+    });
+};
+exports.gameCenterAchievementsReleasesGetToManyRelated = gameCenterAchievementsReleasesGetToManyRelated;
+const gameCenterAppVersionsAppStoreVersionGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAppVersions/{id}/appStoreVersion'
+    });
+};
+exports.gameCenterAppVersionsAppStoreVersionGetToOneRelated = gameCenterAppVersionsAppStoreVersionGetToOneRelated;
+const gameCenterAppVersionsCompatibilityVersionsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAppVersions/{id}/relationships/compatibilityVersions'
+    });
+};
+exports.gameCenterAppVersionsCompatibilityVersionsGetToManyRelationship = gameCenterAppVersionsCompatibilityVersionsGetToManyRelationship;
+const gameCenterAppVersionsCompatibilityVersionsCreateToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterAppVersions/{id}/relationships/compatibilityVersions'
+    });
+};
+exports.gameCenterAppVersionsCompatibilityVersionsCreateToManyRelationship = gameCenterAppVersionsCompatibilityVersionsCreateToManyRelationship;
+const gameCenterAppVersionsCompatibilityVersionsDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterAppVersions/{id}/relationships/compatibilityVersions'
+    });
+};
+exports.gameCenterAppVersionsCompatibilityVersionsDeleteToManyRelationship = gameCenterAppVersionsCompatibilityVersionsDeleteToManyRelationship;
+const gameCenterAppVersionsCompatibilityVersionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterAppVersions/{id}/compatibilityVersions'
+    });
+};
+exports.gameCenterAppVersionsCompatibilityVersionsGetToManyRelated = gameCenterAppVersionsCompatibilityVersionsGetToManyRelated;
+const gameCenterDetailsAchievementReleasesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/achievementReleases'
+    });
+};
+exports.gameCenterDetailsAchievementReleasesGetToManyRelated = gameCenterDetailsAchievementReleasesGetToManyRelated;
+const gameCenterDetailsGameCenterAchievementsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/relationships/gameCenterAchievements'
+    });
+};
+exports.gameCenterDetailsGameCenterAchievementsGetToManyRelationship = gameCenterDetailsGameCenterAchievementsGetToManyRelationship;
+const gameCenterDetailsGameCenterAchievementsReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/relationships/gameCenterAchievements'
+    });
+};
+exports.gameCenterDetailsGameCenterAchievementsReplaceToManyRelationship = gameCenterDetailsGameCenterAchievementsReplaceToManyRelationship;
+const gameCenterDetailsGameCenterAchievementsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/gameCenterAchievements'
+    });
+};
+exports.gameCenterDetailsGameCenterAchievementsGetToManyRelated = gameCenterDetailsGameCenterAchievementsGetToManyRelated;
+const gameCenterDetailsGameCenterAppVersionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/gameCenterAppVersions'
+    });
+};
+exports.gameCenterDetailsGameCenterAppVersionsGetToManyRelated = gameCenterDetailsGameCenterAppVersionsGetToManyRelated;
+const gameCenterDetailsGameCenterGroupGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/gameCenterGroup'
+    });
+};
+exports.gameCenterDetailsGameCenterGroupGetToOneRelated = gameCenterDetailsGameCenterGroupGetToOneRelated;
+const gameCenterDetailsGameCenterLeaderboardSetsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/relationships/gameCenterLeaderboardSets'
+    });
+};
+exports.gameCenterDetailsGameCenterLeaderboardSetsGetToManyRelationship = gameCenterDetailsGameCenterLeaderboardSetsGetToManyRelationship;
+const gameCenterDetailsGameCenterLeaderboardSetsReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/relationships/gameCenterLeaderboardSets'
+    });
+};
+exports.gameCenterDetailsGameCenterLeaderboardSetsReplaceToManyRelationship = gameCenterDetailsGameCenterLeaderboardSetsReplaceToManyRelationship;
+const gameCenterDetailsGameCenterLeaderboardSetsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/gameCenterLeaderboardSets'
+    });
+};
+exports.gameCenterDetailsGameCenterLeaderboardSetsGetToManyRelated = gameCenterDetailsGameCenterLeaderboardSetsGetToManyRelated;
+const gameCenterDetailsGameCenterLeaderboardsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/relationships/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterDetailsGameCenterLeaderboardsGetToManyRelationship = gameCenterDetailsGameCenterLeaderboardsGetToManyRelationship;
+const gameCenterDetailsGameCenterLeaderboardsReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/relationships/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterDetailsGameCenterLeaderboardsReplaceToManyRelationship = gameCenterDetailsGameCenterLeaderboardsReplaceToManyRelationship;
+const gameCenterDetailsGameCenterLeaderboardsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterDetailsGameCenterLeaderboardsGetToManyRelated = gameCenterDetailsGameCenterLeaderboardsGetToManyRelated;
+const gameCenterDetailsLeaderboardReleasesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/leaderboardReleases'
+    });
+};
+exports.gameCenterDetailsLeaderboardReleasesGetToManyRelated = gameCenterDetailsLeaderboardReleasesGetToManyRelated;
+const gameCenterDetailsLeaderboardSetReleasesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/leaderboardSetReleases'
+    });
+};
+exports.gameCenterDetailsLeaderboardSetReleasesGetToManyRelated = gameCenterDetailsLeaderboardSetReleasesGetToManyRelated;
+/**
+ * @deprecated
+ */
+const gameCenterEnabledVersionsCompatibleVersionsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterEnabledVersions/{id}/relationships/compatibleVersions'
+    });
+};
+exports.gameCenterEnabledVersionsCompatibleVersionsGetToManyRelationship = gameCenterEnabledVersionsCompatibleVersionsGetToManyRelationship;
+/**
+ * @deprecated
+ */
+const gameCenterEnabledVersionsCompatibleVersionsCreateToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterEnabledVersions/{id}/relationships/compatibleVersions'
+    });
+};
+exports.gameCenterEnabledVersionsCompatibleVersionsCreateToManyRelationship = gameCenterEnabledVersionsCompatibleVersionsCreateToManyRelationship;
+/**
+ * @deprecated
+ */
+const gameCenterEnabledVersionsCompatibleVersionsReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterEnabledVersions/{id}/relationships/compatibleVersions'
+    });
+};
+exports.gameCenterEnabledVersionsCompatibleVersionsReplaceToManyRelationship = gameCenterEnabledVersionsCompatibleVersionsReplaceToManyRelationship;
+/**
+ * @deprecated
+ */
+const gameCenterEnabledVersionsCompatibleVersionsDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterEnabledVersions/{id}/relationships/compatibleVersions'
+    });
+};
+exports.gameCenterEnabledVersionsCompatibleVersionsDeleteToManyRelationship = gameCenterEnabledVersionsCompatibleVersionsDeleteToManyRelationship;
+/**
+ * @deprecated
+ */
+const gameCenterEnabledVersionsCompatibleVersionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterEnabledVersions/{id}/compatibleVersions'
+    });
+};
+exports.gameCenterEnabledVersionsCompatibleVersionsGetToManyRelated = gameCenterEnabledVersionsCompatibleVersionsGetToManyRelated;
+const gameCenterGroupsGameCenterAchievementsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}/relationships/gameCenterAchievements'
+    });
+};
+exports.gameCenterGroupsGameCenterAchievementsGetToManyRelationship = gameCenterGroupsGameCenterAchievementsGetToManyRelationship;
+const gameCenterGroupsGameCenterAchievementsReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}/relationships/gameCenterAchievements'
+    });
+};
+exports.gameCenterGroupsGameCenterAchievementsReplaceToManyRelationship = gameCenterGroupsGameCenterAchievementsReplaceToManyRelationship;
+const gameCenterGroupsGameCenterAchievementsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}/gameCenterAchievements'
+    });
+};
+exports.gameCenterGroupsGameCenterAchievementsGetToManyRelated = gameCenterGroupsGameCenterAchievementsGetToManyRelated;
+const gameCenterGroupsGameCenterDetailsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}/gameCenterDetails'
+    });
+};
+exports.gameCenterGroupsGameCenterDetailsGetToManyRelated = gameCenterGroupsGameCenterDetailsGetToManyRelated;
+const gameCenterGroupsGameCenterLeaderboardSetsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}/relationships/gameCenterLeaderboardSets'
+    });
+};
+exports.gameCenterGroupsGameCenterLeaderboardSetsGetToManyRelationship = gameCenterGroupsGameCenterLeaderboardSetsGetToManyRelationship;
+const gameCenterGroupsGameCenterLeaderboardSetsReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}/relationships/gameCenterLeaderboardSets'
+    });
+};
+exports.gameCenterGroupsGameCenterLeaderboardSetsReplaceToManyRelationship = gameCenterGroupsGameCenterLeaderboardSetsReplaceToManyRelationship;
+const gameCenterGroupsGameCenterLeaderboardSetsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}/gameCenterLeaderboardSets'
+    });
+};
+exports.gameCenterGroupsGameCenterLeaderboardSetsGetToManyRelated = gameCenterGroupsGameCenterLeaderboardSetsGetToManyRelated;
+const gameCenterGroupsGameCenterLeaderboardsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}/relationships/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterGroupsGameCenterLeaderboardsGetToManyRelationship = gameCenterGroupsGameCenterLeaderboardsGetToManyRelationship;
+const gameCenterGroupsGameCenterLeaderboardsReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}/relationships/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterGroupsGameCenterLeaderboardsReplaceToManyRelationship = gameCenterGroupsGameCenterLeaderboardsReplaceToManyRelationship;
+const gameCenterGroupsGameCenterLeaderboardsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterGroups/{id}/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterGroupsGameCenterLeaderboardsGetToManyRelated = gameCenterGroupsGameCenterLeaderboardsGetToManyRelated;
+const gameCenterLeaderboardLocalizationsGameCenterLeaderboardImageGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardLocalizations/{id}/gameCenterLeaderboardImage'
+    });
+};
+exports.gameCenterLeaderboardLocalizationsGameCenterLeaderboardImageGetToOneRelated = gameCenterLeaderboardLocalizationsGameCenterLeaderboardImageGetToOneRelated;
+const gameCenterLeaderboardSetLocalizationsGameCenterLeaderboardSetImageGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetLocalizations/{id}/gameCenterLeaderboardSetImage'
+    });
+};
+exports.gameCenterLeaderboardSetLocalizationsGameCenterLeaderboardSetImageGetToOneRelated = gameCenterLeaderboardSetLocalizationsGameCenterLeaderboardSetImageGetToOneRelated;
+const gameCenterLeaderboardSetMemberLocalizationsGameCenterLeaderboardGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetMemberLocalizations/{id}/gameCenterLeaderboard'
+    });
+};
+exports.gameCenterLeaderboardSetMemberLocalizationsGameCenterLeaderboardGetToOneRelated = gameCenterLeaderboardSetMemberLocalizationsGameCenterLeaderboardGetToOneRelated;
+const gameCenterLeaderboardSetMemberLocalizationsGameCenterLeaderboardSetGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSetMemberLocalizations/{id}/gameCenterLeaderboardSet'
+    });
+};
+exports.gameCenterLeaderboardSetMemberLocalizationsGameCenterLeaderboardSetGetToOneRelated = gameCenterLeaderboardSetMemberLocalizationsGameCenterLeaderboardSetGetToOneRelated;
+const gameCenterLeaderboardSetsGameCenterLeaderboardsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}/relationships/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterLeaderboardSetsGameCenterLeaderboardsGetToManyRelationship = gameCenterLeaderboardSetsGameCenterLeaderboardsGetToManyRelationship;
+const gameCenterLeaderboardSetsGameCenterLeaderboardsCreateToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}/relationships/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterLeaderboardSetsGameCenterLeaderboardsCreateToManyRelationship = gameCenterLeaderboardSetsGameCenterLeaderboardsCreateToManyRelationship;
+const gameCenterLeaderboardSetsGameCenterLeaderboardsReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}/relationships/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterLeaderboardSetsGameCenterLeaderboardsReplaceToManyRelationship = gameCenterLeaderboardSetsGameCenterLeaderboardsReplaceToManyRelationship;
+const gameCenterLeaderboardSetsGameCenterLeaderboardsDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}/relationships/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterLeaderboardSetsGameCenterLeaderboardsDeleteToManyRelationship = gameCenterLeaderboardSetsGameCenterLeaderboardsDeleteToManyRelationship;
+const gameCenterLeaderboardSetsGameCenterLeaderboardsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}/gameCenterLeaderboards'
+    });
+};
+exports.gameCenterLeaderboardSetsGameCenterLeaderboardsGetToManyRelated = gameCenterLeaderboardSetsGameCenterLeaderboardsGetToManyRelated;
+const gameCenterLeaderboardSetsGroupLeaderboardSetGetToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}/relationships/groupLeaderboardSet'
+    });
+};
+exports.gameCenterLeaderboardSetsGroupLeaderboardSetGetToOneRelationship = gameCenterLeaderboardSetsGroupLeaderboardSetGetToOneRelationship;
+const gameCenterLeaderboardSetsGroupLeaderboardSetUpdateToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}/relationships/groupLeaderboardSet'
+    });
+};
+exports.gameCenterLeaderboardSetsGroupLeaderboardSetUpdateToOneRelationship = gameCenterLeaderboardSetsGroupLeaderboardSetUpdateToOneRelationship;
+const gameCenterLeaderboardSetsGroupLeaderboardSetGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}/groupLeaderboardSet'
+    });
+};
+exports.gameCenterLeaderboardSetsGroupLeaderboardSetGetToOneRelated = gameCenterLeaderboardSetsGroupLeaderboardSetGetToOneRelated;
+const gameCenterLeaderboardSetsLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}/localizations'
+    });
+};
+exports.gameCenterLeaderboardSetsLocalizationsGetToManyRelated = gameCenterLeaderboardSetsLocalizationsGetToManyRelated;
+const gameCenterLeaderboardSetsReleasesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboardSets/{id}/releases'
+    });
+};
+exports.gameCenterLeaderboardSetsReleasesGetToManyRelated = gameCenterLeaderboardSetsReleasesGetToManyRelated;
+const gameCenterLeaderboardsGroupLeaderboardGetToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboards/{id}/relationships/groupLeaderboard'
+    });
+};
+exports.gameCenterLeaderboardsGroupLeaderboardGetToOneRelationship = gameCenterLeaderboardsGroupLeaderboardGetToOneRelationship;
+const gameCenterLeaderboardsGroupLeaderboardUpdateToOneRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/gameCenterLeaderboards/{id}/relationships/groupLeaderboard'
+    });
+};
+exports.gameCenterLeaderboardsGroupLeaderboardUpdateToOneRelationship = gameCenterLeaderboardsGroupLeaderboardUpdateToOneRelationship;
+const gameCenterLeaderboardsGroupLeaderboardGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboards/{id}/groupLeaderboard'
+    });
+};
+exports.gameCenterLeaderboardsGroupLeaderboardGetToOneRelated = gameCenterLeaderboardsGroupLeaderboardGetToOneRelated;
+const gameCenterLeaderboardsLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboards/{id}/localizations'
+    });
+};
+exports.gameCenterLeaderboardsLocalizationsGetToManyRelated = gameCenterLeaderboardsLocalizationsGetToManyRelated;
+const gameCenterLeaderboardsReleasesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterLeaderboards/{id}/releases'
+    });
+};
+exports.gameCenterLeaderboardsReleasesGetToManyRelated = gameCenterLeaderboardsReleasesGetToManyRelated;
+const gameCenterMatchmakingRuleSetsMatchmakingQueuesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRuleSets/{id}/matchmakingQueues'
+    });
+};
+exports.gameCenterMatchmakingRuleSetsMatchmakingQueuesGetToManyRelated = gameCenterMatchmakingRuleSetsMatchmakingQueuesGetToManyRelated;
+const gameCenterMatchmakingRuleSetsRulesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRuleSets/{id}/rules'
+    });
+};
+exports.gameCenterMatchmakingRuleSetsRulesGetToManyRelated = gameCenterMatchmakingRuleSetsRulesGetToManyRelated;
+const gameCenterMatchmakingRuleSetsTeamsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRuleSets/{id}/teams'
+    });
+};
+exports.gameCenterMatchmakingRuleSetsTeamsGetToManyRelated = gameCenterMatchmakingRuleSetsTeamsGetToManyRelated;
+const inAppPurchaseAvailabilitiesAvailableTerritoriesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/inAppPurchaseAvailabilities/{id}/availableTerritories'
+    });
+};
+exports.inAppPurchaseAvailabilitiesAvailableTerritoriesGetToManyRelated = inAppPurchaseAvailabilitiesAvailableTerritoriesGetToManyRelated;
+const inAppPurchasePriceSchedulesAutomaticPricesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/inAppPurchasePriceSchedules/{id}/automaticPrices'
+    });
+};
+exports.inAppPurchasePriceSchedulesAutomaticPricesGetToManyRelated = inAppPurchasePriceSchedulesAutomaticPricesGetToManyRelated;
+const inAppPurchasePriceSchedulesBaseTerritoryGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/inAppPurchasePriceSchedules/{id}/baseTerritory'
+    });
+};
+exports.inAppPurchasePriceSchedulesBaseTerritoryGetToOneRelated = inAppPurchasePriceSchedulesBaseTerritoryGetToOneRelated;
+const inAppPurchasePriceSchedulesManualPricesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/inAppPurchasePriceSchedules/{id}/manualPrices'
+    });
+};
+exports.inAppPurchasePriceSchedulesManualPricesGetToManyRelated = inAppPurchasePriceSchedulesManualPricesGetToManyRelated;
+const inAppPurchasesV2AppStoreReviewScreenshotGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/inAppPurchases/{id}/appStoreReviewScreenshot'
+    });
+};
+exports.inAppPurchasesV2AppStoreReviewScreenshotGetToOneRelated = inAppPurchasesV2AppStoreReviewScreenshotGetToOneRelated;
+const inAppPurchasesV2ContentGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/inAppPurchases/{id}/content'
+    });
+};
+exports.inAppPurchasesV2ContentGetToOneRelated = inAppPurchasesV2ContentGetToOneRelated;
+const inAppPurchasesV2IapPriceScheduleGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/inAppPurchases/{id}/iapPriceSchedule'
+    });
+};
+exports.inAppPurchasesV2IapPriceScheduleGetToOneRelated = inAppPurchasesV2IapPriceScheduleGetToOneRelated;
+const inAppPurchasesV2ImagesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/inAppPurchases/{id}/images'
+    });
+};
+exports.inAppPurchasesV2ImagesGetToManyRelated = inAppPurchasesV2ImagesGetToManyRelated;
+const inAppPurchasesV2InAppPurchaseAvailabilityGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/inAppPurchases/{id}/inAppPurchaseAvailability'
+    });
+};
+exports.inAppPurchasesV2InAppPurchaseAvailabilityGetToOneRelated = inAppPurchasesV2InAppPurchaseAvailabilityGetToOneRelated;
+const inAppPurchasesV2InAppPurchaseLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/inAppPurchases/{id}/inAppPurchaseLocalizations'
+    });
+};
+exports.inAppPurchasesV2InAppPurchaseLocalizationsGetToManyRelated = inAppPurchasesV2InAppPurchaseLocalizationsGetToManyRelated;
+const inAppPurchasesV2PricePointsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/inAppPurchases/{id}/pricePoints'
+    });
+};
+exports.inAppPurchasesV2PricePointsGetToManyRelated = inAppPurchasesV2PricePointsGetToManyRelated;
+const inAppPurchasesV2PromotedPurchaseGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v2/inAppPurchases/{id}/promotedPurchase'
+    });
+};
+exports.inAppPurchasesV2PromotedPurchaseGetToOneRelated = inAppPurchasesV2PromotedPurchaseGetToOneRelated;
+const preReleaseVersionsAppGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/preReleaseVersions/{id}/app'
+    });
+};
+exports.preReleaseVersionsAppGetToOneRelated = preReleaseVersionsAppGetToOneRelated;
+const preReleaseVersionsBuildsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/preReleaseVersions/{id}/builds'
+    });
+};
+exports.preReleaseVersionsBuildsGetToManyRelated = preReleaseVersionsBuildsGetToManyRelated;
+const profilesBundleIdGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/profiles/{id}/bundleId'
+    });
+};
+exports.profilesBundleIdGetToOneRelated = profilesBundleIdGetToOneRelated;
+const profilesCertificatesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/profiles/{id}/certificates'
+    });
+};
+exports.profilesCertificatesGetToManyRelated = profilesCertificatesGetToManyRelated;
+const profilesDevicesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/profiles/{id}/devices'
+    });
+};
+exports.profilesDevicesGetToManyRelated = profilesDevicesGetToManyRelated;
+/**
+ * @deprecated
+ */
+const promotedPurchasesPromotionImagesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/promotedPurchases/{id}/promotionImages'
+    });
+};
+exports.promotedPurchasesPromotionImagesGetToManyRelated = promotedPurchasesPromotionImagesGetToManyRelated;
+const reviewSubmissionsItemsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/reviewSubmissions/{id}/items'
+    });
+};
+exports.reviewSubmissionsItemsGetToManyRelated = reviewSubmissionsItemsGetToManyRelated;
+const scmProvidersRepositoriesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/scmProviders/{id}/repositories'
+    });
+};
+exports.scmProvidersRepositoriesGetToManyRelated = scmProvidersRepositoriesGetToManyRelated;
+const scmRepositoriesGitReferencesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/scmRepositories/{id}/gitReferences'
+    });
+};
+exports.scmRepositoriesGitReferencesGetToManyRelated = scmRepositoriesGitReferencesGetToManyRelated;
+const scmRepositoriesPullRequestsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/scmRepositories/{id}/pullRequests'
+    });
+};
+exports.scmRepositoriesPullRequestsGetToManyRelated = scmRepositoriesPullRequestsGetToManyRelated;
+const subscriptionAvailabilitiesAvailableTerritoriesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionAvailabilities/{id}/availableTerritories'
+    });
+};
+exports.subscriptionAvailabilitiesAvailableTerritoriesGetToManyRelated = subscriptionAvailabilitiesAvailableTerritoriesGetToManyRelated;
+const subscriptionGroupsSubscriptionGroupLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionGroups/{id}/subscriptionGroupLocalizations'
+    });
+};
+exports.subscriptionGroupsSubscriptionGroupLocalizationsGetToManyRelated = subscriptionGroupsSubscriptionGroupLocalizationsGetToManyRelated;
+const subscriptionGroupsSubscriptionsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionGroups/{id}/subscriptions'
+    });
+};
+exports.subscriptionGroupsSubscriptionsGetToManyRelated = subscriptionGroupsSubscriptionsGetToManyRelated;
+const subscriptionOfferCodeOneTimeUseCodesValuesGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionOfferCodeOneTimeUseCodes/{id}/values'
+    });
+};
+exports.subscriptionOfferCodeOneTimeUseCodesValuesGetToOneRelated = subscriptionOfferCodeOneTimeUseCodesValuesGetToOneRelated;
+const subscriptionOfferCodesCustomCodesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionOfferCodes/{id}/customCodes'
+    });
+};
+exports.subscriptionOfferCodesCustomCodesGetToManyRelated = subscriptionOfferCodesCustomCodesGetToManyRelated;
+const subscriptionOfferCodesOneTimeUseCodesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionOfferCodes/{id}/oneTimeUseCodes'
+    });
+};
+exports.subscriptionOfferCodesOneTimeUseCodesGetToManyRelated = subscriptionOfferCodesOneTimeUseCodesGetToManyRelated;
+const subscriptionOfferCodesPricesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionOfferCodes/{id}/prices'
+    });
+};
+exports.subscriptionOfferCodesPricesGetToManyRelated = subscriptionOfferCodesPricesGetToManyRelated;
+const subscriptionPricePointsEqualizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionPricePoints/{id}/equalizations'
+    });
+};
+exports.subscriptionPricePointsEqualizationsGetToManyRelated = subscriptionPricePointsEqualizationsGetToManyRelated;
+const subscriptionPromotionalOffersPricesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptionPromotionalOffers/{id}/prices'
+    });
+};
+exports.subscriptionPromotionalOffersPricesGetToManyRelated = subscriptionPromotionalOffersPricesGetToManyRelated;
+const subscriptionsAppStoreReviewScreenshotGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/appStoreReviewScreenshot'
+    });
+};
+exports.subscriptionsAppStoreReviewScreenshotGetToOneRelated = subscriptionsAppStoreReviewScreenshotGetToOneRelated;
+const subscriptionsImagesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/images'
+    });
+};
+exports.subscriptionsImagesGetToManyRelated = subscriptionsImagesGetToManyRelated;
+const subscriptionsIntroductoryOffersGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/relationships/introductoryOffers'
+    });
+};
+exports.subscriptionsIntroductoryOffersGetToManyRelationship = subscriptionsIntroductoryOffersGetToManyRelationship;
+const subscriptionsIntroductoryOffersDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/subscriptions/{id}/relationships/introductoryOffers'
+    });
+};
+exports.subscriptionsIntroductoryOffersDeleteToManyRelationship = subscriptionsIntroductoryOffersDeleteToManyRelationship;
+const subscriptionsIntroductoryOffersGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/introductoryOffers'
+    });
+};
+exports.subscriptionsIntroductoryOffersGetToManyRelated = subscriptionsIntroductoryOffersGetToManyRelated;
+const subscriptionsOfferCodesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/offerCodes'
+    });
+};
+exports.subscriptionsOfferCodesGetToManyRelated = subscriptionsOfferCodesGetToManyRelated;
+const subscriptionsPricePointsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/pricePoints'
+    });
+};
+exports.subscriptionsPricePointsGetToManyRelated = subscriptionsPricePointsGetToManyRelated;
+const subscriptionsPricesGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/relationships/prices'
+    });
+};
+exports.subscriptionsPricesGetToManyRelationship = subscriptionsPricesGetToManyRelationship;
+const subscriptionsPricesDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/subscriptions/{id}/relationships/prices'
+    });
+};
+exports.subscriptionsPricesDeleteToManyRelationship = subscriptionsPricesDeleteToManyRelationship;
+const subscriptionsPricesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/prices'
+    });
+};
+exports.subscriptionsPricesGetToManyRelated = subscriptionsPricesGetToManyRelated;
+const subscriptionsPromotedPurchaseGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/promotedPurchase'
+    });
+};
+exports.subscriptionsPromotedPurchaseGetToOneRelated = subscriptionsPromotedPurchaseGetToOneRelated;
+const subscriptionsPromotionalOffersGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/promotionalOffers'
+    });
+};
+exports.subscriptionsPromotionalOffersGetToManyRelated = subscriptionsPromotionalOffersGetToManyRelated;
+const subscriptionsSubscriptionAvailabilityGetToOneRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/subscriptionAvailability'
+    });
+};
+exports.subscriptionsSubscriptionAvailabilityGetToOneRelated = subscriptionsSubscriptionAvailabilityGetToOneRelated;
+const subscriptionsSubscriptionLocalizationsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/subscriptionLocalizations'
+    });
+};
+exports.subscriptionsSubscriptionLocalizationsGetToManyRelated = subscriptionsSubscriptionLocalizationsGetToManyRelated;
+const subscriptionsWinBackOffersGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/subscriptions/{id}/winBackOffers'
+    });
+};
+exports.subscriptionsWinBackOffersGetToManyRelated = subscriptionsWinBackOffersGetToManyRelated;
+const userInvitationsVisibleAppsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/userInvitations/{id}/visibleApps'
+    });
+};
+exports.userInvitationsVisibleAppsGetToManyRelated = userInvitationsVisibleAppsGetToManyRelated;
+const usersVisibleAppsGetToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/users/{id}/relationships/visibleApps'
+    });
+};
+exports.usersVisibleAppsGetToManyRelationship = usersVisibleAppsGetToManyRelationship;
+const usersVisibleAppsCreateToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).post({
+        ...options,
+        url: '/v1/users/{id}/relationships/visibleApps'
+    });
+};
+exports.usersVisibleAppsCreateToManyRelationship = usersVisibleAppsCreateToManyRelationship;
+const usersVisibleAppsReplaceToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).patch({
+        ...options,
+        url: '/v1/users/{id}/relationships/visibleApps'
+    });
+};
+exports.usersVisibleAppsReplaceToManyRelationship = usersVisibleAppsReplaceToManyRelationship;
+const usersVisibleAppsDeleteToManyRelationship = (options) => {
+    return (options?.client ?? exports.client).delete({
+        ...options,
+        url: '/v1/users/{id}/relationships/visibleApps'
+    });
+};
+exports.usersVisibleAppsDeleteToManyRelationship = usersVisibleAppsDeleteToManyRelationship;
+const usersVisibleAppsGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/users/{id}/visibleApps'
+    });
+};
+exports.usersVisibleAppsGetToManyRelated = usersVisibleAppsGetToManyRelated;
+const winBackOffersPricesGetToManyRelated = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/winBackOffers/{id}/prices'
+    });
+};
+exports.winBackOffersPricesGetToManyRelated = winBackOffersPricesGetToManyRelated;
+const appsBetaTesterUsagesGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/apps/{id}/metrics/betaTesterUsages'
+    });
+};
+exports.appsBetaTesterUsagesGetMetrics = appsBetaTesterUsagesGetMetrics;
+const betaGroupsBetaTesterUsagesGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaGroups/{id}/metrics/betaTesterUsages'
+    });
+};
+exports.betaGroupsBetaTesterUsagesGetMetrics = betaGroupsBetaTesterUsagesGetMetrics;
+const betaTestersBetaTesterUsagesGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/betaTesters/{id}/metrics/betaTesterUsages'
+    });
+};
+exports.betaTestersBetaTesterUsagesGetMetrics = betaTestersBetaTesterUsagesGetMetrics;
+const buildsBetaBuildUsagesGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/builds/{id}/metrics/betaBuildUsages'
+    });
+};
+exports.buildsBetaBuildUsagesGetMetrics = buildsBetaBuildUsagesGetMetrics;
+const gameCenterDetailsClassicMatchmakingRequestsGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/metrics/classicMatchmakingRequests'
+    });
+};
+exports.gameCenterDetailsClassicMatchmakingRequestsGetMetrics = gameCenterDetailsClassicMatchmakingRequestsGetMetrics;
+const gameCenterDetailsRuleBasedMatchmakingRequestsGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterDetails/{id}/metrics/ruleBasedMatchmakingRequests'
+    });
+};
+exports.gameCenterDetailsRuleBasedMatchmakingRequestsGetMetrics = gameCenterDetailsRuleBasedMatchmakingRequestsGetMetrics;
+const gameCenterMatchmakingQueuesExperimentMatchmakingQueueSizesGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingQueues/{id}/metrics/experimentMatchmakingQueueSizes'
+    });
+};
+exports.gameCenterMatchmakingQueuesExperimentMatchmakingQueueSizesGetMetrics = gameCenterMatchmakingQueuesExperimentMatchmakingQueueSizesGetMetrics;
+const gameCenterMatchmakingQueuesExperimentMatchmakingRequestsGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingQueues/{id}/metrics/experimentMatchmakingRequests'
+    });
+};
+exports.gameCenterMatchmakingQueuesExperimentMatchmakingRequestsGetMetrics = gameCenterMatchmakingQueuesExperimentMatchmakingRequestsGetMetrics;
+const gameCenterMatchmakingQueuesMatchmakingQueueSizesGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingQueues/{id}/metrics/matchmakingQueueSizes'
+    });
+};
+exports.gameCenterMatchmakingQueuesMatchmakingQueueSizesGetMetrics = gameCenterMatchmakingQueuesMatchmakingQueueSizesGetMetrics;
+const gameCenterMatchmakingQueuesMatchmakingRequestsGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingQueues/{id}/metrics/matchmakingRequests'
+    });
+};
+exports.gameCenterMatchmakingQueuesMatchmakingRequestsGetMetrics = gameCenterMatchmakingQueuesMatchmakingRequestsGetMetrics;
+const gameCenterMatchmakingQueuesMatchmakingSessionsGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingQueues/{id}/metrics/matchmakingSessions'
+    });
+};
+exports.gameCenterMatchmakingQueuesMatchmakingSessionsGetMetrics = gameCenterMatchmakingQueuesMatchmakingSessionsGetMetrics;
+const gameCenterMatchmakingRulesMatchmakingBooleanRuleResultsGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRules/{id}/metrics/matchmakingBooleanRuleResults'
+    });
+};
+exports.gameCenterMatchmakingRulesMatchmakingBooleanRuleResultsGetMetrics = gameCenterMatchmakingRulesMatchmakingBooleanRuleResultsGetMetrics;
+const gameCenterMatchmakingRulesMatchmakingNumberRuleResultsGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRules/{id}/metrics/matchmakingNumberRuleResults'
+    });
+};
+exports.gameCenterMatchmakingRulesMatchmakingNumberRuleResultsGetMetrics = gameCenterMatchmakingRulesMatchmakingNumberRuleResultsGetMetrics;
+const gameCenterMatchmakingRulesMatchmakingRuleErrorsGetMetrics = (options) => {
+    return (options?.client ?? exports.client).get({
+        ...options,
+        url: '/v1/gameCenterMatchmakingRules/{id}/metrics/matchmakingRuleErrors'
+    });
+};
+exports.gameCenterMatchmakingRulesMatchmakingRuleErrorsGetMetrics = gameCenterMatchmakingRulesMatchmakingRuleErrorsGetMetrics;
+
+
+/***/ }),
+
+/***/ 4879:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AppStoreConnectClient = void 0;
+const services = __importStar(__nccwpck_require__(6413));
+const jose = __importStar(__nccwpck_require__(4061));
+const fs_1 = __importDefault(__nccwpck_require__(7147));
+class AppStoreConnectClient {
+    appStoreConnectOptions;
+    bearerToken = null;
+    bearerTokenGeneratedAt = 0;
+    api = services;
+    constructor(appStoreConnectOptions) {
+        if (!appStoreConnectOptions) {
+            throw new Error('AppStoreConnectOptions is required');
+        }
+        this.appStoreConnectOptions = appStoreConnectOptions;
+        services.client.setConfig({ baseUrl: 'https://api.appstoreconnect.apple.com' });
+        services.client.interceptors.request.use(async (request, _options) => {
+            request.headers.set('Authorization', `Bearer ${await this.getToken()}`);
+            return request;
+        });
+    }
+    async getToken() {
+        if (this.appStoreConnectOptions.bearerToken) {
+            this.bearerToken = this.appStoreConnectOptions.bearerToken;
+        }
+        else {
+            if (this.appStoreConnectOptions.privateKeyId &&
+                this.appStoreConnectOptions.issuerId &&
+                (this.appStoreConnectOptions.privateKey || this.appStoreConnectOptions.privateKeyFile)) {
+                const defaultExpirationTime = 600; // 10 minutes
+                const expirationTime = this.appStoreConnectOptions.expirationTime ?? defaultExpirationTime;
+                if (!this.bearerToken || this.bearerTokenGeneratedAt + expirationTime * 1000 < Date.now()) {
+                    if (this.appStoreConnectOptions.privateKeyFile) {
+                        const fileHandle = await fs_1.default.promises.open(this.appStoreConnectOptions.privateKeyFile, 'r');
+                        try {
+                            this.appStoreConnectOptions.privateKey = await fileHandle.readFile('utf8');
+                        }
+                        finally {
+                            await fileHandle.close();
+                        }
+                    }
+                    this.bearerToken = await this.generateAuthToken(this.appStoreConnectOptions.issuerId, this.appStoreConnectOptions.privateKeyId, this.appStoreConnectOptions.privateKey, expirationTime);
+                }
+            }
+            else {
+                throw new Error('Bearer token or private key information is required to generate a token');
+            }
+        }
+        return this.bearerToken;
+    }
+    /**
+     * Generates a JWT token for authenticating with the App Store Connect API.
+     * @see https://developer.apple.com/documentation/appstoreconnectapi/generating_tokens_for_api_requests
+    */
+    async generateAuthToken(issuerId, privateKeyId, privateKey, expirationTime) {
+        const alg = "ES256";
+        const key = await jose.importPKCS8(privateKey, alg);
+        const token = await new jose.SignJWT({})
+            .setProtectedHeader({ alg, kid: privateKeyId, typ: "JWT" })
+            .setIssuer(issuerId)
+            .setAudience("appstoreconnect-v1")
+            .setExpirationTime(new Date(Date.now() + expirationTime * 1000))
+            .sign(key);
+        return token;
+    }
+}
+exports.AppStoreConnectClient = AppStoreConnectClient;
+
+
+/***/ }),
+
+/***/ 9073:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+__exportStar(__nccwpck_require__(4879), exports);
+
+
+/***/ }),
+
 /***/ 9756:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -10634,6 +16708,4654 @@ module.exports = function (xs, fn) {
 var isArray = Array.isArray || function (xs) {
     return Object.prototype.toString.call(xs) === '[object Array]';
 };
+
+
+/***/ }),
+
+/***/ 4061:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.cryptoRuntime = exports.base64url = exports.generateSecret = exports.generateKeyPair = exports.errors = exports.decodeJwt = exports.decodeProtectedHeader = exports.importJWK = exports.importX509 = exports.importPKCS8 = exports.importSPKI = exports.exportJWK = exports.exportSPKI = exports.exportPKCS8 = exports.UnsecuredJWT = exports.experimental_jwksCache = exports.jwksCache = exports.createRemoteJWKSet = exports.createLocalJWKSet = exports.EmbeddedJWK = exports.calculateJwkThumbprintUri = exports.calculateJwkThumbprint = exports.EncryptJWT = exports.SignJWT = exports.GeneralSign = exports.FlattenedSign = exports.CompactSign = exports.FlattenedEncrypt = exports.CompactEncrypt = exports.jwtDecrypt = exports.jwtVerify = exports.generalVerify = exports.flattenedVerify = exports.compactVerify = exports.GeneralEncrypt = exports.generalDecrypt = exports.flattenedDecrypt = exports.compactDecrypt = void 0;
+var decrypt_js_1 = __nccwpck_require__(7651);
+Object.defineProperty(exports, "compactDecrypt", ({ enumerable: true, get: function () { return decrypt_js_1.compactDecrypt; } }));
+var decrypt_js_2 = __nccwpck_require__(7566);
+Object.defineProperty(exports, "flattenedDecrypt", ({ enumerable: true, get: function () { return decrypt_js_2.flattenedDecrypt; } }));
+var decrypt_js_3 = __nccwpck_require__(5684);
+Object.defineProperty(exports, "generalDecrypt", ({ enumerable: true, get: function () { return decrypt_js_3.generalDecrypt; } }));
+var encrypt_js_1 = __nccwpck_require__(3992);
+Object.defineProperty(exports, "GeneralEncrypt", ({ enumerable: true, get: function () { return encrypt_js_1.GeneralEncrypt; } }));
+var verify_js_1 = __nccwpck_require__(5212);
+Object.defineProperty(exports, "compactVerify", ({ enumerable: true, get: function () { return verify_js_1.compactVerify; } }));
+var verify_js_2 = __nccwpck_require__(2095);
+Object.defineProperty(exports, "flattenedVerify", ({ enumerable: true, get: function () { return verify_js_2.flattenedVerify; } }));
+var verify_js_3 = __nccwpck_require__(4975);
+Object.defineProperty(exports, "generalVerify", ({ enumerable: true, get: function () { return verify_js_3.generalVerify; } }));
+var verify_js_4 = __nccwpck_require__(9887);
+Object.defineProperty(exports, "jwtVerify", ({ enumerable: true, get: function () { return verify_js_4.jwtVerify; } }));
+var decrypt_js_4 = __nccwpck_require__(3378);
+Object.defineProperty(exports, "jwtDecrypt", ({ enumerable: true, get: function () { return decrypt_js_4.jwtDecrypt; } }));
+var encrypt_js_2 = __nccwpck_require__(6203);
+Object.defineProperty(exports, "CompactEncrypt", ({ enumerable: true, get: function () { return encrypt_js_2.CompactEncrypt; } }));
+var encrypt_js_3 = __nccwpck_require__(1555);
+Object.defineProperty(exports, "FlattenedEncrypt", ({ enumerable: true, get: function () { return encrypt_js_3.FlattenedEncrypt; } }));
+var sign_js_1 = __nccwpck_require__(8257);
+Object.defineProperty(exports, "CompactSign", ({ enumerable: true, get: function () { return sign_js_1.CompactSign; } }));
+var sign_js_2 = __nccwpck_require__(4825);
+Object.defineProperty(exports, "FlattenedSign", ({ enumerable: true, get: function () { return sign_js_2.FlattenedSign; } }));
+var sign_js_3 = __nccwpck_require__(4268);
+Object.defineProperty(exports, "GeneralSign", ({ enumerable: true, get: function () { return sign_js_3.GeneralSign; } }));
+var sign_js_4 = __nccwpck_require__(8882);
+Object.defineProperty(exports, "SignJWT", ({ enumerable: true, get: function () { return sign_js_4.SignJWT; } }));
+var encrypt_js_4 = __nccwpck_require__(960);
+Object.defineProperty(exports, "EncryptJWT", ({ enumerable: true, get: function () { return encrypt_js_4.EncryptJWT; } }));
+var thumbprint_js_1 = __nccwpck_require__(3494);
+Object.defineProperty(exports, "calculateJwkThumbprint", ({ enumerable: true, get: function () { return thumbprint_js_1.calculateJwkThumbprint; } }));
+Object.defineProperty(exports, "calculateJwkThumbprintUri", ({ enumerable: true, get: function () { return thumbprint_js_1.calculateJwkThumbprintUri; } }));
+var embedded_js_1 = __nccwpck_require__(1751);
+Object.defineProperty(exports, "EmbeddedJWK", ({ enumerable: true, get: function () { return embedded_js_1.EmbeddedJWK; } }));
+var local_js_1 = __nccwpck_require__(9970);
+Object.defineProperty(exports, "createLocalJWKSet", ({ enumerable: true, get: function () { return local_js_1.createLocalJWKSet; } }));
+var remote_js_1 = __nccwpck_require__(9035);
+Object.defineProperty(exports, "createRemoteJWKSet", ({ enumerable: true, get: function () { return remote_js_1.createRemoteJWKSet; } }));
+Object.defineProperty(exports, "jwksCache", ({ enumerable: true, get: function () { return remote_js_1.jwksCache; } }));
+Object.defineProperty(exports, "experimental_jwksCache", ({ enumerable: true, get: function () { return remote_js_1.experimental_jwksCache; } }));
+var unsecured_js_1 = __nccwpck_require__(8568);
+Object.defineProperty(exports, "UnsecuredJWT", ({ enumerable: true, get: function () { return unsecured_js_1.UnsecuredJWT; } }));
+var export_js_1 = __nccwpck_require__(465);
+Object.defineProperty(exports, "exportPKCS8", ({ enumerable: true, get: function () { return export_js_1.exportPKCS8; } }));
+Object.defineProperty(exports, "exportSPKI", ({ enumerable: true, get: function () { return export_js_1.exportSPKI; } }));
+Object.defineProperty(exports, "exportJWK", ({ enumerable: true, get: function () { return export_js_1.exportJWK; } }));
+var import_js_1 = __nccwpck_require__(4230);
+Object.defineProperty(exports, "importSPKI", ({ enumerable: true, get: function () { return import_js_1.importSPKI; } }));
+Object.defineProperty(exports, "importPKCS8", ({ enumerable: true, get: function () { return import_js_1.importPKCS8; } }));
+Object.defineProperty(exports, "importX509", ({ enumerable: true, get: function () { return import_js_1.importX509; } }));
+Object.defineProperty(exports, "importJWK", ({ enumerable: true, get: function () { return import_js_1.importJWK; } }));
+var decode_protected_header_js_1 = __nccwpck_require__(3991);
+Object.defineProperty(exports, "decodeProtectedHeader", ({ enumerable: true, get: function () { return decode_protected_header_js_1.decodeProtectedHeader; } }));
+var decode_jwt_js_1 = __nccwpck_require__(5611);
+Object.defineProperty(exports, "decodeJwt", ({ enumerable: true, get: function () { return decode_jwt_js_1.decodeJwt; } }));
+exports.errors = __nccwpck_require__(4419);
+var generate_key_pair_js_1 = __nccwpck_require__(1036);
+Object.defineProperty(exports, "generateKeyPair", ({ enumerable: true, get: function () { return generate_key_pair_js_1.generateKeyPair; } }));
+var generate_secret_js_1 = __nccwpck_require__(6617);
+Object.defineProperty(exports, "generateSecret", ({ enumerable: true, get: function () { return generate_secret_js_1.generateSecret; } }));
+exports.base64url = __nccwpck_require__(3238);
+var runtime_js_1 = __nccwpck_require__(1173);
+Object.defineProperty(exports, "cryptoRuntime", ({ enumerable: true, get: function () { return runtime_js_1.default; } }));
+
+
+/***/ }),
+
+/***/ 7651:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.compactDecrypt = void 0;
+const decrypt_js_1 = __nccwpck_require__(7566);
+const errors_js_1 = __nccwpck_require__(4419);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+async function compactDecrypt(jwe, key, options) {
+    if (jwe instanceof Uint8Array) {
+        jwe = buffer_utils_js_1.decoder.decode(jwe);
+    }
+    if (typeof jwe !== 'string') {
+        throw new errors_js_1.JWEInvalid('Compact JWE must be a string or Uint8Array');
+    }
+    const { 0: protectedHeader, 1: encryptedKey, 2: iv, 3: ciphertext, 4: tag, length, } = jwe.split('.');
+    if (length !== 5) {
+        throw new errors_js_1.JWEInvalid('Invalid Compact JWE');
+    }
+    const decrypted = await (0, decrypt_js_1.flattenedDecrypt)({
+        ciphertext,
+        iv: iv || undefined,
+        protected: protectedHeader,
+        tag: tag || undefined,
+        encrypted_key: encryptedKey || undefined,
+    }, key, options);
+    const result = { plaintext: decrypted.plaintext, protectedHeader: decrypted.protectedHeader };
+    if (typeof key === 'function') {
+        return { ...result, key: decrypted.key };
+    }
+    return result;
+}
+exports.compactDecrypt = compactDecrypt;
+
+
+/***/ }),
+
+/***/ 6203:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CompactEncrypt = void 0;
+const encrypt_js_1 = __nccwpck_require__(1555);
+class CompactEncrypt {
+    _flattened;
+    constructor(plaintext) {
+        this._flattened = new encrypt_js_1.FlattenedEncrypt(plaintext);
+    }
+    setContentEncryptionKey(cek) {
+        this._flattened.setContentEncryptionKey(cek);
+        return this;
+    }
+    setInitializationVector(iv) {
+        this._flattened.setInitializationVector(iv);
+        return this;
+    }
+    setProtectedHeader(protectedHeader) {
+        this._flattened.setProtectedHeader(protectedHeader);
+        return this;
+    }
+    setKeyManagementParameters(parameters) {
+        this._flattened.setKeyManagementParameters(parameters);
+        return this;
+    }
+    async encrypt(key, options) {
+        const jwe = await this._flattened.encrypt(key, options);
+        return [jwe.protected, jwe.encrypted_key, jwe.iv, jwe.ciphertext, jwe.tag].join('.');
+    }
+}
+exports.CompactEncrypt = CompactEncrypt;
+
+
+/***/ }),
+
+/***/ 7566:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.flattenedDecrypt = void 0;
+const base64url_js_1 = __nccwpck_require__(518);
+const decrypt_js_1 = __nccwpck_require__(6137);
+const errors_js_1 = __nccwpck_require__(4419);
+const is_disjoint_js_1 = __nccwpck_require__(6063);
+const is_object_js_1 = __nccwpck_require__(9127);
+const decrypt_key_management_js_1 = __nccwpck_require__(6127);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const cek_js_1 = __nccwpck_require__(3987);
+const validate_crit_js_1 = __nccwpck_require__(863);
+const validate_algorithms_js_1 = __nccwpck_require__(5148);
+async function flattenedDecrypt(jwe, key, options) {
+    if (!(0, is_object_js_1.default)(jwe)) {
+        throw new errors_js_1.JWEInvalid('Flattened JWE must be an object');
+    }
+    if (jwe.protected === undefined && jwe.header === undefined && jwe.unprotected === undefined) {
+        throw new errors_js_1.JWEInvalid('JOSE Header missing');
+    }
+    if (jwe.iv !== undefined && typeof jwe.iv !== 'string') {
+        throw new errors_js_1.JWEInvalid('JWE Initialization Vector incorrect type');
+    }
+    if (typeof jwe.ciphertext !== 'string') {
+        throw new errors_js_1.JWEInvalid('JWE Ciphertext missing or incorrect type');
+    }
+    if (jwe.tag !== undefined && typeof jwe.tag !== 'string') {
+        throw new errors_js_1.JWEInvalid('JWE Authentication Tag incorrect type');
+    }
+    if (jwe.protected !== undefined && typeof jwe.protected !== 'string') {
+        throw new errors_js_1.JWEInvalid('JWE Protected Header incorrect type');
+    }
+    if (jwe.encrypted_key !== undefined && typeof jwe.encrypted_key !== 'string') {
+        throw new errors_js_1.JWEInvalid('JWE Encrypted Key incorrect type');
+    }
+    if (jwe.aad !== undefined && typeof jwe.aad !== 'string') {
+        throw new errors_js_1.JWEInvalid('JWE AAD incorrect type');
+    }
+    if (jwe.header !== undefined && !(0, is_object_js_1.default)(jwe.header)) {
+        throw new errors_js_1.JWEInvalid('JWE Shared Unprotected Header incorrect type');
+    }
+    if (jwe.unprotected !== undefined && !(0, is_object_js_1.default)(jwe.unprotected)) {
+        throw new errors_js_1.JWEInvalid('JWE Per-Recipient Unprotected Header incorrect type');
+    }
+    let parsedProt;
+    if (jwe.protected) {
+        try {
+            const protectedHeader = (0, base64url_js_1.decode)(jwe.protected);
+            parsedProt = JSON.parse(buffer_utils_js_1.decoder.decode(protectedHeader));
+        }
+        catch {
+            throw new errors_js_1.JWEInvalid('JWE Protected Header is invalid');
+        }
+    }
+    if (!(0, is_disjoint_js_1.default)(parsedProt, jwe.header, jwe.unprotected)) {
+        throw new errors_js_1.JWEInvalid('JWE Protected, JWE Unprotected Header, and JWE Per-Recipient Unprotected Header Parameter names must be disjoint');
+    }
+    const joseHeader = {
+        ...parsedProt,
+        ...jwe.header,
+        ...jwe.unprotected,
+    };
+    (0, validate_crit_js_1.default)(errors_js_1.JWEInvalid, new Map(), options?.crit, parsedProt, joseHeader);
+    if (joseHeader.zip !== undefined) {
+        throw new errors_js_1.JOSENotSupported('JWE "zip" (Compression Algorithm) Header Parameter is not supported.');
+    }
+    const { alg, enc } = joseHeader;
+    if (typeof alg !== 'string' || !alg) {
+        throw new errors_js_1.JWEInvalid('missing JWE Algorithm (alg) in JWE Header');
+    }
+    if (typeof enc !== 'string' || !enc) {
+        throw new errors_js_1.JWEInvalid('missing JWE Encryption Algorithm (enc) in JWE Header');
+    }
+    const keyManagementAlgorithms = options && (0, validate_algorithms_js_1.default)('keyManagementAlgorithms', options.keyManagementAlgorithms);
+    const contentEncryptionAlgorithms = options &&
+        (0, validate_algorithms_js_1.default)('contentEncryptionAlgorithms', options.contentEncryptionAlgorithms);
+    if ((keyManagementAlgorithms && !keyManagementAlgorithms.has(alg)) ||
+        (!keyManagementAlgorithms && alg.startsWith('PBES2'))) {
+        throw new errors_js_1.JOSEAlgNotAllowed('"alg" (Algorithm) Header Parameter value not allowed');
+    }
+    if (contentEncryptionAlgorithms && !contentEncryptionAlgorithms.has(enc)) {
+        throw new errors_js_1.JOSEAlgNotAllowed('"enc" (Encryption Algorithm) Header Parameter value not allowed');
+    }
+    let encryptedKey;
+    if (jwe.encrypted_key !== undefined) {
+        try {
+            encryptedKey = (0, base64url_js_1.decode)(jwe.encrypted_key);
+        }
+        catch {
+            throw new errors_js_1.JWEInvalid('Failed to base64url decode the encrypted_key');
+        }
+    }
+    let resolvedKey = false;
+    if (typeof key === 'function') {
+        key = await key(parsedProt, jwe);
+        resolvedKey = true;
+    }
+    let cek;
+    try {
+        cek = await (0, decrypt_key_management_js_1.default)(alg, key, encryptedKey, joseHeader, options);
+    }
+    catch (err) {
+        if (err instanceof TypeError || err instanceof errors_js_1.JWEInvalid || err instanceof errors_js_1.JOSENotSupported) {
+            throw err;
+        }
+        cek = (0, cek_js_1.default)(enc);
+    }
+    let iv;
+    let tag;
+    if (jwe.iv !== undefined) {
+        try {
+            iv = (0, base64url_js_1.decode)(jwe.iv);
+        }
+        catch {
+            throw new errors_js_1.JWEInvalid('Failed to base64url decode the iv');
+        }
+    }
+    if (jwe.tag !== undefined) {
+        try {
+            tag = (0, base64url_js_1.decode)(jwe.tag);
+        }
+        catch {
+            throw new errors_js_1.JWEInvalid('Failed to base64url decode the tag');
+        }
+    }
+    const protectedHeader = buffer_utils_js_1.encoder.encode(jwe.protected ?? '');
+    let additionalData;
+    if (jwe.aad !== undefined) {
+        additionalData = (0, buffer_utils_js_1.concat)(protectedHeader, buffer_utils_js_1.encoder.encode('.'), buffer_utils_js_1.encoder.encode(jwe.aad));
+    }
+    else {
+        additionalData = protectedHeader;
+    }
+    let ciphertext;
+    try {
+        ciphertext = (0, base64url_js_1.decode)(jwe.ciphertext);
+    }
+    catch {
+        throw new errors_js_1.JWEInvalid('Failed to base64url decode the ciphertext');
+    }
+    const plaintext = await (0, decrypt_js_1.default)(enc, cek, ciphertext, iv, tag, additionalData);
+    const result = { plaintext };
+    if (jwe.protected !== undefined) {
+        result.protectedHeader = parsedProt;
+    }
+    if (jwe.aad !== undefined) {
+        try {
+            result.additionalAuthenticatedData = (0, base64url_js_1.decode)(jwe.aad);
+        }
+        catch {
+            throw new errors_js_1.JWEInvalid('Failed to base64url decode the aad');
+        }
+    }
+    if (jwe.unprotected !== undefined) {
+        result.sharedUnprotectedHeader = jwe.unprotected;
+    }
+    if (jwe.header !== undefined) {
+        result.unprotectedHeader = jwe.header;
+    }
+    if (resolvedKey) {
+        return { ...result, key };
+    }
+    return result;
+}
+exports.flattenedDecrypt = flattenedDecrypt;
+
+
+/***/ }),
+
+/***/ 1555:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.FlattenedEncrypt = void 0;
+const base64url_js_1 = __nccwpck_require__(518);
+const private_symbols_js_1 = __nccwpck_require__(8863);
+const encrypt_js_1 = __nccwpck_require__(6476);
+const encrypt_key_management_js_1 = __nccwpck_require__(3286);
+const errors_js_1 = __nccwpck_require__(4419);
+const is_disjoint_js_1 = __nccwpck_require__(6063);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const validate_crit_js_1 = __nccwpck_require__(863);
+class FlattenedEncrypt {
+    _plaintext;
+    _protectedHeader;
+    _sharedUnprotectedHeader;
+    _unprotectedHeader;
+    _aad;
+    _cek;
+    _iv;
+    _keyManagementParameters;
+    constructor(plaintext) {
+        if (!(plaintext instanceof Uint8Array)) {
+            throw new TypeError('plaintext must be an instance of Uint8Array');
+        }
+        this._plaintext = plaintext;
+    }
+    setKeyManagementParameters(parameters) {
+        if (this._keyManagementParameters) {
+            throw new TypeError('setKeyManagementParameters can only be called once');
+        }
+        this._keyManagementParameters = parameters;
+        return this;
+    }
+    setProtectedHeader(protectedHeader) {
+        if (this._protectedHeader) {
+            throw new TypeError('setProtectedHeader can only be called once');
+        }
+        this._protectedHeader = protectedHeader;
+        return this;
+    }
+    setSharedUnprotectedHeader(sharedUnprotectedHeader) {
+        if (this._sharedUnprotectedHeader) {
+            throw new TypeError('setSharedUnprotectedHeader can only be called once');
+        }
+        this._sharedUnprotectedHeader = sharedUnprotectedHeader;
+        return this;
+    }
+    setUnprotectedHeader(unprotectedHeader) {
+        if (this._unprotectedHeader) {
+            throw new TypeError('setUnprotectedHeader can only be called once');
+        }
+        this._unprotectedHeader = unprotectedHeader;
+        return this;
+    }
+    setAdditionalAuthenticatedData(aad) {
+        this._aad = aad;
+        return this;
+    }
+    setContentEncryptionKey(cek) {
+        if (this._cek) {
+            throw new TypeError('setContentEncryptionKey can only be called once');
+        }
+        this._cek = cek;
+        return this;
+    }
+    setInitializationVector(iv) {
+        if (this._iv) {
+            throw new TypeError('setInitializationVector can only be called once');
+        }
+        this._iv = iv;
+        return this;
+    }
+    async encrypt(key, options) {
+        if (!this._protectedHeader && !this._unprotectedHeader && !this._sharedUnprotectedHeader) {
+            throw new errors_js_1.JWEInvalid('either setProtectedHeader, setUnprotectedHeader, or sharedUnprotectedHeader must be called before #encrypt()');
+        }
+        if (!(0, is_disjoint_js_1.default)(this._protectedHeader, this._unprotectedHeader, this._sharedUnprotectedHeader)) {
+            throw new errors_js_1.JWEInvalid('JWE Protected, JWE Shared Unprotected and JWE Per-Recipient Header Parameter names must be disjoint');
+        }
+        const joseHeader = {
+            ...this._protectedHeader,
+            ...this._unprotectedHeader,
+            ...this._sharedUnprotectedHeader,
+        };
+        (0, validate_crit_js_1.default)(errors_js_1.JWEInvalid, new Map(), options?.crit, this._protectedHeader, joseHeader);
+        if (joseHeader.zip !== undefined) {
+            throw new errors_js_1.JOSENotSupported('JWE "zip" (Compression Algorithm) Header Parameter is not supported.');
+        }
+        const { alg, enc } = joseHeader;
+        if (typeof alg !== 'string' || !alg) {
+            throw new errors_js_1.JWEInvalid('JWE "alg" (Algorithm) Header Parameter missing or invalid');
+        }
+        if (typeof enc !== 'string' || !enc) {
+            throw new errors_js_1.JWEInvalid('JWE "enc" (Encryption Algorithm) Header Parameter missing or invalid');
+        }
+        let encryptedKey;
+        if (this._cek && (alg === 'dir' || alg === 'ECDH-ES')) {
+            throw new TypeError(`setContentEncryptionKey cannot be called with JWE "alg" (Algorithm) Header ${alg}`);
+        }
+        let cek;
+        {
+            let parameters;
+            ({ cek, encryptedKey, parameters } = await (0, encrypt_key_management_js_1.default)(alg, enc, key, this._cek, this._keyManagementParameters));
+            if (parameters) {
+                if (options && private_symbols_js_1.unprotected in options) {
+                    if (!this._unprotectedHeader) {
+                        this.setUnprotectedHeader(parameters);
+                    }
+                    else {
+                        this._unprotectedHeader = { ...this._unprotectedHeader, ...parameters };
+                    }
+                }
+                else if (!this._protectedHeader) {
+                    this.setProtectedHeader(parameters);
+                }
+                else {
+                    this._protectedHeader = { ...this._protectedHeader, ...parameters };
+                }
+            }
+        }
+        let additionalData;
+        let protectedHeader;
+        let aadMember;
+        if (this._protectedHeader) {
+            protectedHeader = buffer_utils_js_1.encoder.encode((0, base64url_js_1.encode)(JSON.stringify(this._protectedHeader)));
+        }
+        else {
+            protectedHeader = buffer_utils_js_1.encoder.encode('');
+        }
+        if (this._aad) {
+            aadMember = (0, base64url_js_1.encode)(this._aad);
+            additionalData = (0, buffer_utils_js_1.concat)(protectedHeader, buffer_utils_js_1.encoder.encode('.'), buffer_utils_js_1.encoder.encode(aadMember));
+        }
+        else {
+            additionalData = protectedHeader;
+        }
+        const { ciphertext, tag, iv } = await (0, encrypt_js_1.default)(enc, this._plaintext, cek, this._iv, additionalData);
+        const jwe = {
+            ciphertext: (0, base64url_js_1.encode)(ciphertext),
+        };
+        if (iv) {
+            jwe.iv = (0, base64url_js_1.encode)(iv);
+        }
+        if (tag) {
+            jwe.tag = (0, base64url_js_1.encode)(tag);
+        }
+        if (encryptedKey) {
+            jwe.encrypted_key = (0, base64url_js_1.encode)(encryptedKey);
+        }
+        if (aadMember) {
+            jwe.aad = aadMember;
+        }
+        if (this._protectedHeader) {
+            jwe.protected = buffer_utils_js_1.decoder.decode(protectedHeader);
+        }
+        if (this._sharedUnprotectedHeader) {
+            jwe.unprotected = this._sharedUnprotectedHeader;
+        }
+        if (this._unprotectedHeader) {
+            jwe.header = this._unprotectedHeader;
+        }
+        return jwe;
+    }
+}
+exports.FlattenedEncrypt = FlattenedEncrypt;
+
+
+/***/ }),
+
+/***/ 5684:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.generalDecrypt = void 0;
+const decrypt_js_1 = __nccwpck_require__(7566);
+const errors_js_1 = __nccwpck_require__(4419);
+const is_object_js_1 = __nccwpck_require__(9127);
+async function generalDecrypt(jwe, key, options) {
+    if (!(0, is_object_js_1.default)(jwe)) {
+        throw new errors_js_1.JWEInvalid('General JWE must be an object');
+    }
+    if (!Array.isArray(jwe.recipients) || !jwe.recipients.every(is_object_js_1.default)) {
+        throw new errors_js_1.JWEInvalid('JWE Recipients missing or incorrect type');
+    }
+    if (!jwe.recipients.length) {
+        throw new errors_js_1.JWEInvalid('JWE Recipients has no members');
+    }
+    for (const recipient of jwe.recipients) {
+        try {
+            return await (0, decrypt_js_1.flattenedDecrypt)({
+                aad: jwe.aad,
+                ciphertext: jwe.ciphertext,
+                encrypted_key: recipient.encrypted_key,
+                header: recipient.header,
+                iv: jwe.iv,
+                protected: jwe.protected,
+                tag: jwe.tag,
+                unprotected: jwe.unprotected,
+            }, key, options);
+        }
+        catch {
+        }
+    }
+    throw new errors_js_1.JWEDecryptionFailed();
+}
+exports.generalDecrypt = generalDecrypt;
+
+
+/***/ }),
+
+/***/ 3992:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GeneralEncrypt = void 0;
+const encrypt_js_1 = __nccwpck_require__(1555);
+const private_symbols_js_1 = __nccwpck_require__(8863);
+const errors_js_1 = __nccwpck_require__(4419);
+const cek_js_1 = __nccwpck_require__(3987);
+const is_disjoint_js_1 = __nccwpck_require__(6063);
+const encrypt_key_management_js_1 = __nccwpck_require__(3286);
+const base64url_js_1 = __nccwpck_require__(518);
+const validate_crit_js_1 = __nccwpck_require__(863);
+class IndividualRecipient {
+    parent;
+    unprotectedHeader;
+    key;
+    options;
+    constructor(enc, key, options) {
+        this.parent = enc;
+        this.key = key;
+        this.options = options;
+    }
+    setUnprotectedHeader(unprotectedHeader) {
+        if (this.unprotectedHeader) {
+            throw new TypeError('setUnprotectedHeader can only be called once');
+        }
+        this.unprotectedHeader = unprotectedHeader;
+        return this;
+    }
+    addRecipient(...args) {
+        return this.parent.addRecipient(...args);
+    }
+    encrypt(...args) {
+        return this.parent.encrypt(...args);
+    }
+    done() {
+        return this.parent;
+    }
+}
+class GeneralEncrypt {
+    _plaintext;
+    _recipients = [];
+    _protectedHeader;
+    _unprotectedHeader;
+    _aad;
+    constructor(plaintext) {
+        this._plaintext = plaintext;
+    }
+    addRecipient(key, options) {
+        const recipient = new IndividualRecipient(this, key, { crit: options?.crit });
+        this._recipients.push(recipient);
+        return recipient;
+    }
+    setProtectedHeader(protectedHeader) {
+        if (this._protectedHeader) {
+            throw new TypeError('setProtectedHeader can only be called once');
+        }
+        this._protectedHeader = protectedHeader;
+        return this;
+    }
+    setSharedUnprotectedHeader(sharedUnprotectedHeader) {
+        if (this._unprotectedHeader) {
+            throw new TypeError('setSharedUnprotectedHeader can only be called once');
+        }
+        this._unprotectedHeader = sharedUnprotectedHeader;
+        return this;
+    }
+    setAdditionalAuthenticatedData(aad) {
+        this._aad = aad;
+        return this;
+    }
+    async encrypt() {
+        if (!this._recipients.length) {
+            throw new errors_js_1.JWEInvalid('at least one recipient must be added');
+        }
+        if (this._recipients.length === 1) {
+            const [recipient] = this._recipients;
+            const flattened = await new encrypt_js_1.FlattenedEncrypt(this._plaintext)
+                .setAdditionalAuthenticatedData(this._aad)
+                .setProtectedHeader(this._protectedHeader)
+                .setSharedUnprotectedHeader(this._unprotectedHeader)
+                .setUnprotectedHeader(recipient.unprotectedHeader)
+                .encrypt(recipient.key, { ...recipient.options });
+            const jwe = {
+                ciphertext: flattened.ciphertext,
+                iv: flattened.iv,
+                recipients: [{}],
+                tag: flattened.tag,
+            };
+            if (flattened.aad)
+                jwe.aad = flattened.aad;
+            if (flattened.protected)
+                jwe.protected = flattened.protected;
+            if (flattened.unprotected)
+                jwe.unprotected = flattened.unprotected;
+            if (flattened.encrypted_key)
+                jwe.recipients[0].encrypted_key = flattened.encrypted_key;
+            if (flattened.header)
+                jwe.recipients[0].header = flattened.header;
+            return jwe;
+        }
+        let enc;
+        for (let i = 0; i < this._recipients.length; i++) {
+            const recipient = this._recipients[i];
+            if (!(0, is_disjoint_js_1.default)(this._protectedHeader, this._unprotectedHeader, recipient.unprotectedHeader)) {
+                throw new errors_js_1.JWEInvalid('JWE Protected, JWE Shared Unprotected and JWE Per-Recipient Header Parameter names must be disjoint');
+            }
+            const joseHeader = {
+                ...this._protectedHeader,
+                ...this._unprotectedHeader,
+                ...recipient.unprotectedHeader,
+            };
+            const { alg } = joseHeader;
+            if (typeof alg !== 'string' || !alg) {
+                throw new errors_js_1.JWEInvalid('JWE "alg" (Algorithm) Header Parameter missing or invalid');
+            }
+            if (alg === 'dir' || alg === 'ECDH-ES') {
+                throw new errors_js_1.JWEInvalid('"dir" and "ECDH-ES" alg may only be used with a single recipient');
+            }
+            if (typeof joseHeader.enc !== 'string' || !joseHeader.enc) {
+                throw new errors_js_1.JWEInvalid('JWE "enc" (Encryption Algorithm) Header Parameter missing or invalid');
+            }
+            if (!enc) {
+                enc = joseHeader.enc;
+            }
+            else if (enc !== joseHeader.enc) {
+                throw new errors_js_1.JWEInvalid('JWE "enc" (Encryption Algorithm) Header Parameter must be the same for all recipients');
+            }
+            (0, validate_crit_js_1.default)(errors_js_1.JWEInvalid, new Map(), recipient.options.crit, this._protectedHeader, joseHeader);
+            if (joseHeader.zip !== undefined) {
+                throw new errors_js_1.JOSENotSupported('JWE "zip" (Compression Algorithm) Header Parameter is not supported.');
+            }
+        }
+        const cek = (0, cek_js_1.default)(enc);
+        const jwe = {
+            ciphertext: '',
+            iv: '',
+            recipients: [],
+            tag: '',
+        };
+        for (let i = 0; i < this._recipients.length; i++) {
+            const recipient = this._recipients[i];
+            const target = {};
+            jwe.recipients.push(target);
+            const joseHeader = {
+                ...this._protectedHeader,
+                ...this._unprotectedHeader,
+                ...recipient.unprotectedHeader,
+            };
+            const p2c = joseHeader.alg.startsWith('PBES2') ? 2048 + i : undefined;
+            if (i === 0) {
+                const flattened = await new encrypt_js_1.FlattenedEncrypt(this._plaintext)
+                    .setAdditionalAuthenticatedData(this._aad)
+                    .setContentEncryptionKey(cek)
+                    .setProtectedHeader(this._protectedHeader)
+                    .setSharedUnprotectedHeader(this._unprotectedHeader)
+                    .setUnprotectedHeader(recipient.unprotectedHeader)
+                    .setKeyManagementParameters({ p2c })
+                    .encrypt(recipient.key, {
+                    ...recipient.options,
+                    [private_symbols_js_1.unprotected]: true,
+                });
+                jwe.ciphertext = flattened.ciphertext;
+                jwe.iv = flattened.iv;
+                jwe.tag = flattened.tag;
+                if (flattened.aad)
+                    jwe.aad = flattened.aad;
+                if (flattened.protected)
+                    jwe.protected = flattened.protected;
+                if (flattened.unprotected)
+                    jwe.unprotected = flattened.unprotected;
+                target.encrypted_key = flattened.encrypted_key;
+                if (flattened.header)
+                    target.header = flattened.header;
+                continue;
+            }
+            const { encryptedKey, parameters } = await (0, encrypt_key_management_js_1.default)(recipient.unprotectedHeader?.alg ||
+                this._protectedHeader?.alg ||
+                this._unprotectedHeader?.alg, enc, recipient.key, cek, { p2c });
+            target.encrypted_key = (0, base64url_js_1.encode)(encryptedKey);
+            if (recipient.unprotectedHeader || parameters)
+                target.header = { ...recipient.unprotectedHeader, ...parameters };
+        }
+        return jwe;
+    }
+}
+exports.GeneralEncrypt = GeneralEncrypt;
+
+
+/***/ }),
+
+/***/ 1751:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.EmbeddedJWK = void 0;
+const import_js_1 = __nccwpck_require__(4230);
+const is_object_js_1 = __nccwpck_require__(9127);
+const errors_js_1 = __nccwpck_require__(4419);
+async function EmbeddedJWK(protectedHeader, token) {
+    const joseHeader = {
+        ...protectedHeader,
+        ...token?.header,
+    };
+    if (!(0, is_object_js_1.default)(joseHeader.jwk)) {
+        throw new errors_js_1.JWSInvalid('"jwk" (JSON Web Key) Header Parameter must be a JSON object');
+    }
+    const key = await (0, import_js_1.importJWK)({ ...joseHeader.jwk, ext: true }, joseHeader.alg);
+    if (key instanceof Uint8Array || key.type !== 'public') {
+        throw new errors_js_1.JWSInvalid('"jwk" (JSON Web Key) Header Parameter must be a public key');
+    }
+    return key;
+}
+exports.EmbeddedJWK = EmbeddedJWK;
+
+
+/***/ }),
+
+/***/ 3494:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.calculateJwkThumbprintUri = exports.calculateJwkThumbprint = void 0;
+const digest_js_1 = __nccwpck_require__(2355);
+const base64url_js_1 = __nccwpck_require__(518);
+const errors_js_1 = __nccwpck_require__(4419);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const is_object_js_1 = __nccwpck_require__(9127);
+const check = (value, description) => {
+    if (typeof value !== 'string' || !value) {
+        throw new errors_js_1.JWKInvalid(`${description} missing or invalid`);
+    }
+};
+async function calculateJwkThumbprint(jwk, digestAlgorithm) {
+    if (!(0, is_object_js_1.default)(jwk)) {
+        throw new TypeError('JWK must be an object');
+    }
+    digestAlgorithm ??= 'sha256';
+    if (digestAlgorithm !== 'sha256' &&
+        digestAlgorithm !== 'sha384' &&
+        digestAlgorithm !== 'sha512') {
+        throw new TypeError('digestAlgorithm must one of "sha256", "sha384", or "sha512"');
+    }
+    let components;
+    switch (jwk.kty) {
+        case 'EC':
+            check(jwk.crv, '"crv" (Curve) Parameter');
+            check(jwk.x, '"x" (X Coordinate) Parameter');
+            check(jwk.y, '"y" (Y Coordinate) Parameter');
+            components = { crv: jwk.crv, kty: jwk.kty, x: jwk.x, y: jwk.y };
+            break;
+        case 'OKP':
+            check(jwk.crv, '"crv" (Subtype of Key Pair) Parameter');
+            check(jwk.x, '"x" (Public Key) Parameter');
+            components = { crv: jwk.crv, kty: jwk.kty, x: jwk.x };
+            break;
+        case 'RSA':
+            check(jwk.e, '"e" (Exponent) Parameter');
+            check(jwk.n, '"n" (Modulus) Parameter');
+            components = { e: jwk.e, kty: jwk.kty, n: jwk.n };
+            break;
+        case 'oct':
+            check(jwk.k, '"k" (Key Value) Parameter');
+            components = { k: jwk.k, kty: jwk.kty };
+            break;
+        default:
+            throw new errors_js_1.JOSENotSupported('"kty" (Key Type) Parameter missing or unsupported');
+    }
+    const data = buffer_utils_js_1.encoder.encode(JSON.stringify(components));
+    return (0, base64url_js_1.encode)(await (0, digest_js_1.default)(digestAlgorithm, data));
+}
+exports.calculateJwkThumbprint = calculateJwkThumbprint;
+async function calculateJwkThumbprintUri(jwk, digestAlgorithm) {
+    digestAlgorithm ??= 'sha256';
+    const thumbprint = await calculateJwkThumbprint(jwk, digestAlgorithm);
+    return `urn:ietf:params:oauth:jwk-thumbprint:sha-${digestAlgorithm.slice(-3)}:${thumbprint}`;
+}
+exports.calculateJwkThumbprintUri = calculateJwkThumbprintUri;
+
+
+/***/ }),
+
+/***/ 9970:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.createLocalJWKSet = void 0;
+const import_js_1 = __nccwpck_require__(4230);
+const errors_js_1 = __nccwpck_require__(4419);
+const is_object_js_1 = __nccwpck_require__(9127);
+function getKtyFromAlg(alg) {
+    switch (typeof alg === 'string' && alg.slice(0, 2)) {
+        case 'RS':
+        case 'PS':
+            return 'RSA';
+        case 'ES':
+            return 'EC';
+        case 'Ed':
+            return 'OKP';
+        default:
+            throw new errors_js_1.JOSENotSupported('Unsupported "alg" value for a JSON Web Key Set');
+    }
+}
+function isJWKSLike(jwks) {
+    return (jwks &&
+        typeof jwks === 'object' &&
+        Array.isArray(jwks.keys) &&
+        jwks.keys.every(isJWKLike));
+}
+function isJWKLike(key) {
+    return (0, is_object_js_1.default)(key);
+}
+function clone(obj) {
+    if (typeof structuredClone === 'function') {
+        return structuredClone(obj);
+    }
+    return JSON.parse(JSON.stringify(obj));
+}
+class LocalJWKSet {
+    _jwks;
+    _cached = new WeakMap();
+    constructor(jwks) {
+        if (!isJWKSLike(jwks)) {
+            throw new errors_js_1.JWKSInvalid('JSON Web Key Set malformed');
+        }
+        this._jwks = clone(jwks);
+    }
+    async getKey(protectedHeader, token) {
+        const { alg, kid } = { ...protectedHeader, ...token?.header };
+        const kty = getKtyFromAlg(alg);
+        const candidates = this._jwks.keys.filter((jwk) => {
+            let candidate = kty === jwk.kty;
+            if (candidate && typeof kid === 'string') {
+                candidate = kid === jwk.kid;
+            }
+            if (candidate && typeof jwk.alg === 'string') {
+                candidate = alg === jwk.alg;
+            }
+            if (candidate && typeof jwk.use === 'string') {
+                candidate = jwk.use === 'sig';
+            }
+            if (candidate && Array.isArray(jwk.key_ops)) {
+                candidate = jwk.key_ops.includes('verify');
+            }
+            if (candidate && alg === 'EdDSA') {
+                candidate = jwk.crv === 'Ed25519' || jwk.crv === 'Ed448';
+            }
+            if (candidate) {
+                switch (alg) {
+                    case 'ES256':
+                        candidate = jwk.crv === 'P-256';
+                        break;
+                    case 'ES256K':
+                        candidate = jwk.crv === 'secp256k1';
+                        break;
+                    case 'ES384':
+                        candidate = jwk.crv === 'P-384';
+                        break;
+                    case 'ES512':
+                        candidate = jwk.crv === 'P-521';
+                        break;
+                }
+            }
+            return candidate;
+        });
+        const { 0: jwk, length } = candidates;
+        if (length === 0) {
+            throw new errors_js_1.JWKSNoMatchingKey();
+        }
+        if (length !== 1) {
+            const error = new errors_js_1.JWKSMultipleMatchingKeys();
+            const { _cached } = this;
+            error[Symbol.asyncIterator] = async function* () {
+                for (const jwk of candidates) {
+                    try {
+                        yield await importWithAlgCache(_cached, jwk, alg);
+                    }
+                    catch { }
+                }
+            };
+            throw error;
+        }
+        return importWithAlgCache(this._cached, jwk, alg);
+    }
+}
+async function importWithAlgCache(cache, jwk, alg) {
+    const cached = cache.get(jwk) || cache.set(jwk, {}).get(jwk);
+    if (cached[alg] === undefined) {
+        const key = await (0, import_js_1.importJWK)({ ...jwk, ext: true }, alg);
+        if (key instanceof Uint8Array || key.type !== 'public') {
+            throw new errors_js_1.JWKSInvalid('JSON Web Key Set members must be public keys');
+        }
+        cached[alg] = key;
+    }
+    return cached[alg];
+}
+function createLocalJWKSet(jwks) {
+    const set = new LocalJWKSet(jwks);
+    const localJWKSet = async (protectedHeader, token) => set.getKey(protectedHeader, token);
+    Object.defineProperties(localJWKSet, {
+        jwks: {
+            value: () => clone(set._jwks),
+            enumerable: true,
+            configurable: false,
+            writable: false,
+        },
+    });
+    return localJWKSet;
+}
+exports.createLocalJWKSet = createLocalJWKSet;
+
+
+/***/ }),
+
+/***/ 9035:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.experimental_jwksCache = exports.createRemoteJWKSet = exports.jwksCache = void 0;
+const fetch_jwks_js_1 = __nccwpck_require__(3650);
+const errors_js_1 = __nccwpck_require__(4419);
+const local_js_1 = __nccwpck_require__(9970);
+const is_object_js_1 = __nccwpck_require__(9127);
+function isCloudflareWorkers() {
+    return (typeof WebSocketPair !== 'undefined' ||
+        (typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers') ||
+        (typeof EdgeRuntime !== 'undefined' && EdgeRuntime === 'vercel'));
+}
+let USER_AGENT;
+if (typeof navigator === 'undefined' || !navigator.userAgent?.startsWith?.('Mozilla/5.0 ')) {
+    const NAME = 'jose';
+    const VERSION = 'v5.9.4';
+    USER_AGENT = `${NAME}/${VERSION}`;
+}
+exports.jwksCache = Symbol();
+function isFreshJwksCache(input, cacheMaxAge) {
+    if (typeof input !== 'object' || input === null) {
+        return false;
+    }
+    if (!('uat' in input) || typeof input.uat !== 'number' || Date.now() - input.uat >= cacheMaxAge) {
+        return false;
+    }
+    if (!('jwks' in input) ||
+        !(0, is_object_js_1.default)(input.jwks) ||
+        !Array.isArray(input.jwks.keys) ||
+        !Array.prototype.every.call(input.jwks.keys, is_object_js_1.default)) {
+        return false;
+    }
+    return true;
+}
+class RemoteJWKSet {
+    _url;
+    _timeoutDuration;
+    _cooldownDuration;
+    _cacheMaxAge;
+    _jwksTimestamp;
+    _pendingFetch;
+    _options;
+    _local;
+    _cache;
+    constructor(url, options) {
+        if (!(url instanceof URL)) {
+            throw new TypeError('url must be an instance of URL');
+        }
+        this._url = new URL(url.href);
+        this._options = { agent: options?.agent, headers: options?.headers };
+        this._timeoutDuration =
+            typeof options?.timeoutDuration === 'number' ? options?.timeoutDuration : 5000;
+        this._cooldownDuration =
+            typeof options?.cooldownDuration === 'number' ? options?.cooldownDuration : 30000;
+        this._cacheMaxAge = typeof options?.cacheMaxAge === 'number' ? options?.cacheMaxAge : 600000;
+        if (options?.[exports.jwksCache] !== undefined) {
+            this._cache = options?.[exports.jwksCache];
+            if (isFreshJwksCache(options?.[exports.jwksCache], this._cacheMaxAge)) {
+                this._jwksTimestamp = this._cache.uat;
+                this._local = (0, local_js_1.createLocalJWKSet)(this._cache.jwks);
+            }
+        }
+    }
+    coolingDown() {
+        return typeof this._jwksTimestamp === 'number'
+            ? Date.now() < this._jwksTimestamp + this._cooldownDuration
+            : false;
+    }
+    fresh() {
+        return typeof this._jwksTimestamp === 'number'
+            ? Date.now() < this._jwksTimestamp + this._cacheMaxAge
+            : false;
+    }
+    async getKey(protectedHeader, token) {
+        if (!this._local || !this.fresh()) {
+            await this.reload();
+        }
+        try {
+            return await this._local(protectedHeader, token);
+        }
+        catch (err) {
+            if (err instanceof errors_js_1.JWKSNoMatchingKey) {
+                if (this.coolingDown() === false) {
+                    await this.reload();
+                    return this._local(protectedHeader, token);
+                }
+            }
+            throw err;
+        }
+    }
+    async reload() {
+        if (this._pendingFetch && isCloudflareWorkers()) {
+            this._pendingFetch = undefined;
+        }
+        const headers = new Headers(this._options.headers);
+        if (USER_AGENT && !headers.has('User-Agent')) {
+            headers.set('User-Agent', USER_AGENT);
+            this._options.headers = Object.fromEntries(headers.entries());
+        }
+        this._pendingFetch ||= (0, fetch_jwks_js_1.default)(this._url, this._timeoutDuration, this._options)
+            .then((json) => {
+            this._local = (0, local_js_1.createLocalJWKSet)(json);
+            if (this._cache) {
+                this._cache.uat = Date.now();
+                this._cache.jwks = json;
+            }
+            this._jwksTimestamp = Date.now();
+            this._pendingFetch = undefined;
+        })
+            .catch((err) => {
+            this._pendingFetch = undefined;
+            throw err;
+        });
+        await this._pendingFetch;
+    }
+}
+function createRemoteJWKSet(url, options) {
+    const set = new RemoteJWKSet(url, options);
+    const remoteJWKSet = async (protectedHeader, token) => set.getKey(protectedHeader, token);
+    Object.defineProperties(remoteJWKSet, {
+        coolingDown: {
+            get: () => set.coolingDown(),
+            enumerable: true,
+            configurable: false,
+        },
+        fresh: {
+            get: () => set.fresh(),
+            enumerable: true,
+            configurable: false,
+        },
+        reload: {
+            value: () => set.reload(),
+            enumerable: true,
+            configurable: false,
+            writable: false,
+        },
+        reloading: {
+            get: () => !!set._pendingFetch,
+            enumerable: true,
+            configurable: false,
+        },
+        jwks: {
+            value: () => set._local?.jwks(),
+            enumerable: true,
+            configurable: false,
+            writable: false,
+        },
+    });
+    return remoteJWKSet;
+}
+exports.createRemoteJWKSet = createRemoteJWKSet;
+exports.experimental_jwksCache = exports.jwksCache;
+
+
+/***/ }),
+
+/***/ 8257:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CompactSign = void 0;
+const sign_js_1 = __nccwpck_require__(4825);
+class CompactSign {
+    _flattened;
+    constructor(payload) {
+        this._flattened = new sign_js_1.FlattenedSign(payload);
+    }
+    setProtectedHeader(protectedHeader) {
+        this._flattened.setProtectedHeader(protectedHeader);
+        return this;
+    }
+    async sign(key, options) {
+        const jws = await this._flattened.sign(key, options);
+        if (jws.payload === undefined) {
+            throw new TypeError('use the flattened module for creating JWS with b64: false');
+        }
+        return `${jws.protected}.${jws.payload}.${jws.signature}`;
+    }
+}
+exports.CompactSign = CompactSign;
+
+
+/***/ }),
+
+/***/ 5212:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.compactVerify = void 0;
+const verify_js_1 = __nccwpck_require__(2095);
+const errors_js_1 = __nccwpck_require__(4419);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+async function compactVerify(jws, key, options) {
+    if (jws instanceof Uint8Array) {
+        jws = buffer_utils_js_1.decoder.decode(jws);
+    }
+    if (typeof jws !== 'string') {
+        throw new errors_js_1.JWSInvalid('Compact JWS must be a string or Uint8Array');
+    }
+    const { 0: protectedHeader, 1: payload, 2: signature, length } = jws.split('.');
+    if (length !== 3) {
+        throw new errors_js_1.JWSInvalid('Invalid Compact JWS');
+    }
+    const verified = await (0, verify_js_1.flattenedVerify)({ payload, protected: protectedHeader, signature }, key, options);
+    const result = { payload: verified.payload, protectedHeader: verified.protectedHeader };
+    if (typeof key === 'function') {
+        return { ...result, key: verified.key };
+    }
+    return result;
+}
+exports.compactVerify = compactVerify;
+
+
+/***/ }),
+
+/***/ 4825:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.FlattenedSign = void 0;
+const base64url_js_1 = __nccwpck_require__(518);
+const sign_js_1 = __nccwpck_require__(9935);
+const is_disjoint_js_1 = __nccwpck_require__(6063);
+const errors_js_1 = __nccwpck_require__(4419);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const check_key_type_js_1 = __nccwpck_require__(6241);
+const validate_crit_js_1 = __nccwpck_require__(863);
+class FlattenedSign {
+    _payload;
+    _protectedHeader;
+    _unprotectedHeader;
+    constructor(payload) {
+        if (!(payload instanceof Uint8Array)) {
+            throw new TypeError('payload must be an instance of Uint8Array');
+        }
+        this._payload = payload;
+    }
+    setProtectedHeader(protectedHeader) {
+        if (this._protectedHeader) {
+            throw new TypeError('setProtectedHeader can only be called once');
+        }
+        this._protectedHeader = protectedHeader;
+        return this;
+    }
+    setUnprotectedHeader(unprotectedHeader) {
+        if (this._unprotectedHeader) {
+            throw new TypeError('setUnprotectedHeader can only be called once');
+        }
+        this._unprotectedHeader = unprotectedHeader;
+        return this;
+    }
+    async sign(key, options) {
+        if (!this._protectedHeader && !this._unprotectedHeader) {
+            throw new errors_js_1.JWSInvalid('either setProtectedHeader or setUnprotectedHeader must be called before #sign()');
+        }
+        if (!(0, is_disjoint_js_1.default)(this._protectedHeader, this._unprotectedHeader)) {
+            throw new errors_js_1.JWSInvalid('JWS Protected and JWS Unprotected Header Parameter names must be disjoint');
+        }
+        const joseHeader = {
+            ...this._protectedHeader,
+            ...this._unprotectedHeader,
+        };
+        const extensions = (0, validate_crit_js_1.default)(errors_js_1.JWSInvalid, new Map([['b64', true]]), options?.crit, this._protectedHeader, joseHeader);
+        let b64 = true;
+        if (extensions.has('b64')) {
+            b64 = this._protectedHeader.b64;
+            if (typeof b64 !== 'boolean') {
+                throw new errors_js_1.JWSInvalid('The "b64" (base64url-encode payload) Header Parameter must be a boolean');
+            }
+        }
+        const { alg } = joseHeader;
+        if (typeof alg !== 'string' || !alg) {
+            throw new errors_js_1.JWSInvalid('JWS "alg" (Algorithm) Header Parameter missing or invalid');
+        }
+        (0, check_key_type_js_1.checkKeyTypeWithJwk)(alg, key, 'sign');
+        let payload = this._payload;
+        if (b64) {
+            payload = buffer_utils_js_1.encoder.encode((0, base64url_js_1.encode)(payload));
+        }
+        let protectedHeader;
+        if (this._protectedHeader) {
+            protectedHeader = buffer_utils_js_1.encoder.encode((0, base64url_js_1.encode)(JSON.stringify(this._protectedHeader)));
+        }
+        else {
+            protectedHeader = buffer_utils_js_1.encoder.encode('');
+        }
+        const data = (0, buffer_utils_js_1.concat)(protectedHeader, buffer_utils_js_1.encoder.encode('.'), payload);
+        const signature = await (0, sign_js_1.default)(alg, key, data);
+        const jws = {
+            signature: (0, base64url_js_1.encode)(signature),
+            payload: '',
+        };
+        if (b64) {
+            jws.payload = buffer_utils_js_1.decoder.decode(payload);
+        }
+        if (this._unprotectedHeader) {
+            jws.header = this._unprotectedHeader;
+        }
+        if (this._protectedHeader) {
+            jws.protected = buffer_utils_js_1.decoder.decode(protectedHeader);
+        }
+        return jws;
+    }
+}
+exports.FlattenedSign = FlattenedSign;
+
+
+/***/ }),
+
+/***/ 2095:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.flattenedVerify = void 0;
+const base64url_js_1 = __nccwpck_require__(518);
+const verify_js_1 = __nccwpck_require__(3569);
+const errors_js_1 = __nccwpck_require__(4419);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const is_disjoint_js_1 = __nccwpck_require__(6063);
+const is_object_js_1 = __nccwpck_require__(9127);
+const check_key_type_js_1 = __nccwpck_require__(6241);
+const validate_crit_js_1 = __nccwpck_require__(863);
+const validate_algorithms_js_1 = __nccwpck_require__(5148);
+const is_jwk_js_1 = __nccwpck_require__(8377);
+const import_js_1 = __nccwpck_require__(4230);
+async function flattenedVerify(jws, key, options) {
+    if (!(0, is_object_js_1.default)(jws)) {
+        throw new errors_js_1.JWSInvalid('Flattened JWS must be an object');
+    }
+    if (jws.protected === undefined && jws.header === undefined) {
+        throw new errors_js_1.JWSInvalid('Flattened JWS must have either of the "protected" or "header" members');
+    }
+    if (jws.protected !== undefined && typeof jws.protected !== 'string') {
+        throw new errors_js_1.JWSInvalid('JWS Protected Header incorrect type');
+    }
+    if (jws.payload === undefined) {
+        throw new errors_js_1.JWSInvalid('JWS Payload missing');
+    }
+    if (typeof jws.signature !== 'string') {
+        throw new errors_js_1.JWSInvalid('JWS Signature missing or incorrect type');
+    }
+    if (jws.header !== undefined && !(0, is_object_js_1.default)(jws.header)) {
+        throw new errors_js_1.JWSInvalid('JWS Unprotected Header incorrect type');
+    }
+    let parsedProt = {};
+    if (jws.protected) {
+        try {
+            const protectedHeader = (0, base64url_js_1.decode)(jws.protected);
+            parsedProt = JSON.parse(buffer_utils_js_1.decoder.decode(protectedHeader));
+        }
+        catch {
+            throw new errors_js_1.JWSInvalid('JWS Protected Header is invalid');
+        }
+    }
+    if (!(0, is_disjoint_js_1.default)(parsedProt, jws.header)) {
+        throw new errors_js_1.JWSInvalid('JWS Protected and JWS Unprotected Header Parameter names must be disjoint');
+    }
+    const joseHeader = {
+        ...parsedProt,
+        ...jws.header,
+    };
+    const extensions = (0, validate_crit_js_1.default)(errors_js_1.JWSInvalid, new Map([['b64', true]]), options?.crit, parsedProt, joseHeader);
+    let b64 = true;
+    if (extensions.has('b64')) {
+        b64 = parsedProt.b64;
+        if (typeof b64 !== 'boolean') {
+            throw new errors_js_1.JWSInvalid('The "b64" (base64url-encode payload) Header Parameter must be a boolean');
+        }
+    }
+    const { alg } = joseHeader;
+    if (typeof alg !== 'string' || !alg) {
+        throw new errors_js_1.JWSInvalid('JWS "alg" (Algorithm) Header Parameter missing or invalid');
+    }
+    const algorithms = options && (0, validate_algorithms_js_1.default)('algorithms', options.algorithms);
+    if (algorithms && !algorithms.has(alg)) {
+        throw new errors_js_1.JOSEAlgNotAllowed('"alg" (Algorithm) Header Parameter value not allowed');
+    }
+    if (b64) {
+        if (typeof jws.payload !== 'string') {
+            throw new errors_js_1.JWSInvalid('JWS Payload must be a string');
+        }
+    }
+    else if (typeof jws.payload !== 'string' && !(jws.payload instanceof Uint8Array)) {
+        throw new errors_js_1.JWSInvalid('JWS Payload must be a string or an Uint8Array instance');
+    }
+    let resolvedKey = false;
+    if (typeof key === 'function') {
+        key = await key(parsedProt, jws);
+        resolvedKey = true;
+        (0, check_key_type_js_1.checkKeyTypeWithJwk)(alg, key, 'verify');
+        if ((0, is_jwk_js_1.isJWK)(key)) {
+            key = await (0, import_js_1.importJWK)(key, alg);
+        }
+    }
+    else {
+        (0, check_key_type_js_1.checkKeyTypeWithJwk)(alg, key, 'verify');
+    }
+    const data = (0, buffer_utils_js_1.concat)(buffer_utils_js_1.encoder.encode(jws.protected ?? ''), buffer_utils_js_1.encoder.encode('.'), typeof jws.payload === 'string' ? buffer_utils_js_1.encoder.encode(jws.payload) : jws.payload);
+    let signature;
+    try {
+        signature = (0, base64url_js_1.decode)(jws.signature);
+    }
+    catch {
+        throw new errors_js_1.JWSInvalid('Failed to base64url decode the signature');
+    }
+    const verified = await (0, verify_js_1.default)(alg, key, signature, data);
+    if (!verified) {
+        throw new errors_js_1.JWSSignatureVerificationFailed();
+    }
+    let payload;
+    if (b64) {
+        try {
+            payload = (0, base64url_js_1.decode)(jws.payload);
+        }
+        catch {
+            throw new errors_js_1.JWSInvalid('Failed to base64url decode the payload');
+        }
+    }
+    else if (typeof jws.payload === 'string') {
+        payload = buffer_utils_js_1.encoder.encode(jws.payload);
+    }
+    else {
+        payload = jws.payload;
+    }
+    const result = { payload };
+    if (jws.protected !== undefined) {
+        result.protectedHeader = parsedProt;
+    }
+    if (jws.header !== undefined) {
+        result.unprotectedHeader = jws.header;
+    }
+    if (resolvedKey) {
+        return { ...result, key };
+    }
+    return result;
+}
+exports.flattenedVerify = flattenedVerify;
+
+
+/***/ }),
+
+/***/ 4268:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GeneralSign = void 0;
+const sign_js_1 = __nccwpck_require__(4825);
+const errors_js_1 = __nccwpck_require__(4419);
+class IndividualSignature {
+    parent;
+    protectedHeader;
+    unprotectedHeader;
+    options;
+    key;
+    constructor(sig, key, options) {
+        this.parent = sig;
+        this.key = key;
+        this.options = options;
+    }
+    setProtectedHeader(protectedHeader) {
+        if (this.protectedHeader) {
+            throw new TypeError('setProtectedHeader can only be called once');
+        }
+        this.protectedHeader = protectedHeader;
+        return this;
+    }
+    setUnprotectedHeader(unprotectedHeader) {
+        if (this.unprotectedHeader) {
+            throw new TypeError('setUnprotectedHeader can only be called once');
+        }
+        this.unprotectedHeader = unprotectedHeader;
+        return this;
+    }
+    addSignature(...args) {
+        return this.parent.addSignature(...args);
+    }
+    sign(...args) {
+        return this.parent.sign(...args);
+    }
+    done() {
+        return this.parent;
+    }
+}
+class GeneralSign {
+    _payload;
+    _signatures = [];
+    constructor(payload) {
+        this._payload = payload;
+    }
+    addSignature(key, options) {
+        const signature = new IndividualSignature(this, key, options);
+        this._signatures.push(signature);
+        return signature;
+    }
+    async sign() {
+        if (!this._signatures.length) {
+            throw new errors_js_1.JWSInvalid('at least one signature must be added');
+        }
+        const jws = {
+            signatures: [],
+            payload: '',
+        };
+        for (let i = 0; i < this._signatures.length; i++) {
+            const signature = this._signatures[i];
+            const flattened = new sign_js_1.FlattenedSign(this._payload);
+            flattened.setProtectedHeader(signature.protectedHeader);
+            flattened.setUnprotectedHeader(signature.unprotectedHeader);
+            const { payload, ...rest } = await flattened.sign(signature.key, signature.options);
+            if (i === 0) {
+                jws.payload = payload;
+            }
+            else if (jws.payload !== payload) {
+                throw new errors_js_1.JWSInvalid('inconsistent use of JWS Unencoded Payload (RFC7797)');
+            }
+            jws.signatures.push(rest);
+        }
+        return jws;
+    }
+}
+exports.GeneralSign = GeneralSign;
+
+
+/***/ }),
+
+/***/ 4975:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.generalVerify = void 0;
+const verify_js_1 = __nccwpck_require__(2095);
+const errors_js_1 = __nccwpck_require__(4419);
+const is_object_js_1 = __nccwpck_require__(9127);
+async function generalVerify(jws, key, options) {
+    if (!(0, is_object_js_1.default)(jws)) {
+        throw new errors_js_1.JWSInvalid('General JWS must be an object');
+    }
+    if (!Array.isArray(jws.signatures) || !jws.signatures.every(is_object_js_1.default)) {
+        throw new errors_js_1.JWSInvalid('JWS Signatures missing or incorrect type');
+    }
+    for (const signature of jws.signatures) {
+        try {
+            return await (0, verify_js_1.flattenedVerify)({
+                header: signature.header,
+                payload: jws.payload,
+                protected: signature.protected,
+                signature: signature.signature,
+            }, key, options);
+        }
+        catch {
+        }
+    }
+    throw new errors_js_1.JWSSignatureVerificationFailed();
+}
+exports.generalVerify = generalVerify;
+
+
+/***/ }),
+
+/***/ 3378:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.jwtDecrypt = void 0;
+const decrypt_js_1 = __nccwpck_require__(7651);
+const jwt_claims_set_js_1 = __nccwpck_require__(7274);
+const errors_js_1 = __nccwpck_require__(4419);
+async function jwtDecrypt(jwt, key, options) {
+    const decrypted = await (0, decrypt_js_1.compactDecrypt)(jwt, key, options);
+    const payload = (0, jwt_claims_set_js_1.default)(decrypted.protectedHeader, decrypted.plaintext, options);
+    const { protectedHeader } = decrypted;
+    if (protectedHeader.iss !== undefined && protectedHeader.iss !== payload.iss) {
+        throw new errors_js_1.JWTClaimValidationFailed('replicated "iss" claim header parameter mismatch', payload, 'iss', 'mismatch');
+    }
+    if (protectedHeader.sub !== undefined && protectedHeader.sub !== payload.sub) {
+        throw new errors_js_1.JWTClaimValidationFailed('replicated "sub" claim header parameter mismatch', payload, 'sub', 'mismatch');
+    }
+    if (protectedHeader.aud !== undefined &&
+        JSON.stringify(protectedHeader.aud) !== JSON.stringify(payload.aud)) {
+        throw new errors_js_1.JWTClaimValidationFailed('replicated "aud" claim header parameter mismatch', payload, 'aud', 'mismatch');
+    }
+    const result = { payload, protectedHeader };
+    if (typeof key === 'function') {
+        return { ...result, key: decrypted.key };
+    }
+    return result;
+}
+exports.jwtDecrypt = jwtDecrypt;
+
+
+/***/ }),
+
+/***/ 960:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.EncryptJWT = void 0;
+const encrypt_js_1 = __nccwpck_require__(6203);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const produce_js_1 = __nccwpck_require__(1908);
+class EncryptJWT extends produce_js_1.ProduceJWT {
+    _cek;
+    _iv;
+    _keyManagementParameters;
+    _protectedHeader;
+    _replicateIssuerAsHeader;
+    _replicateSubjectAsHeader;
+    _replicateAudienceAsHeader;
+    setProtectedHeader(protectedHeader) {
+        if (this._protectedHeader) {
+            throw new TypeError('setProtectedHeader can only be called once');
+        }
+        this._protectedHeader = protectedHeader;
+        return this;
+    }
+    setKeyManagementParameters(parameters) {
+        if (this._keyManagementParameters) {
+            throw new TypeError('setKeyManagementParameters can only be called once');
+        }
+        this._keyManagementParameters = parameters;
+        return this;
+    }
+    setContentEncryptionKey(cek) {
+        if (this._cek) {
+            throw new TypeError('setContentEncryptionKey can only be called once');
+        }
+        this._cek = cek;
+        return this;
+    }
+    setInitializationVector(iv) {
+        if (this._iv) {
+            throw new TypeError('setInitializationVector can only be called once');
+        }
+        this._iv = iv;
+        return this;
+    }
+    replicateIssuerAsHeader() {
+        this._replicateIssuerAsHeader = true;
+        return this;
+    }
+    replicateSubjectAsHeader() {
+        this._replicateSubjectAsHeader = true;
+        return this;
+    }
+    replicateAudienceAsHeader() {
+        this._replicateAudienceAsHeader = true;
+        return this;
+    }
+    async encrypt(key, options) {
+        const enc = new encrypt_js_1.CompactEncrypt(buffer_utils_js_1.encoder.encode(JSON.stringify(this._payload)));
+        if (this._replicateIssuerAsHeader) {
+            this._protectedHeader = { ...this._protectedHeader, iss: this._payload.iss };
+        }
+        if (this._replicateSubjectAsHeader) {
+            this._protectedHeader = { ...this._protectedHeader, sub: this._payload.sub };
+        }
+        if (this._replicateAudienceAsHeader) {
+            this._protectedHeader = { ...this._protectedHeader, aud: this._payload.aud };
+        }
+        enc.setProtectedHeader(this._protectedHeader);
+        if (this._iv) {
+            enc.setInitializationVector(this._iv);
+        }
+        if (this._cek) {
+            enc.setContentEncryptionKey(this._cek);
+        }
+        if (this._keyManagementParameters) {
+            enc.setKeyManagementParameters(this._keyManagementParameters);
+        }
+        return enc.encrypt(key, options);
+    }
+}
+exports.EncryptJWT = EncryptJWT;
+
+
+/***/ }),
+
+/***/ 1908:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ProduceJWT = void 0;
+const epoch_js_1 = __nccwpck_require__(4476);
+const is_object_js_1 = __nccwpck_require__(9127);
+const secs_js_1 = __nccwpck_require__(7810);
+function validateInput(label, input) {
+    if (!Number.isFinite(input)) {
+        throw new TypeError(`Invalid ${label} input`);
+    }
+    return input;
+}
+class ProduceJWT {
+    _payload;
+    constructor(payload = {}) {
+        if (!(0, is_object_js_1.default)(payload)) {
+            throw new TypeError('JWT Claims Set MUST be an object');
+        }
+        this._payload = payload;
+    }
+    setIssuer(issuer) {
+        this._payload = { ...this._payload, iss: issuer };
+        return this;
+    }
+    setSubject(subject) {
+        this._payload = { ...this._payload, sub: subject };
+        return this;
+    }
+    setAudience(audience) {
+        this._payload = { ...this._payload, aud: audience };
+        return this;
+    }
+    setJti(jwtId) {
+        this._payload = { ...this._payload, jti: jwtId };
+        return this;
+    }
+    setNotBefore(input) {
+        if (typeof input === 'number') {
+            this._payload = { ...this._payload, nbf: validateInput('setNotBefore', input) };
+        }
+        else if (input instanceof Date) {
+            this._payload = { ...this._payload, nbf: validateInput('setNotBefore', (0, epoch_js_1.default)(input)) };
+        }
+        else {
+            this._payload = { ...this._payload, nbf: (0, epoch_js_1.default)(new Date()) + (0, secs_js_1.default)(input) };
+        }
+        return this;
+    }
+    setExpirationTime(input) {
+        if (typeof input === 'number') {
+            this._payload = { ...this._payload, exp: validateInput('setExpirationTime', input) };
+        }
+        else if (input instanceof Date) {
+            this._payload = { ...this._payload, exp: validateInput('setExpirationTime', (0, epoch_js_1.default)(input)) };
+        }
+        else {
+            this._payload = { ...this._payload, exp: (0, epoch_js_1.default)(new Date()) + (0, secs_js_1.default)(input) };
+        }
+        return this;
+    }
+    setIssuedAt(input) {
+        if (typeof input === 'undefined') {
+            this._payload = { ...this._payload, iat: (0, epoch_js_1.default)(new Date()) };
+        }
+        else if (input instanceof Date) {
+            this._payload = { ...this._payload, iat: validateInput('setIssuedAt', (0, epoch_js_1.default)(input)) };
+        }
+        else if (typeof input === 'string') {
+            this._payload = {
+                ...this._payload,
+                iat: validateInput('setIssuedAt', (0, epoch_js_1.default)(new Date()) + (0, secs_js_1.default)(input)),
+            };
+        }
+        else {
+            this._payload = { ...this._payload, iat: validateInput('setIssuedAt', input) };
+        }
+        return this;
+    }
+}
+exports.ProduceJWT = ProduceJWT;
+
+
+/***/ }),
+
+/***/ 8882:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SignJWT = void 0;
+const sign_js_1 = __nccwpck_require__(8257);
+const errors_js_1 = __nccwpck_require__(4419);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const produce_js_1 = __nccwpck_require__(1908);
+class SignJWT extends produce_js_1.ProduceJWT {
+    _protectedHeader;
+    setProtectedHeader(protectedHeader) {
+        this._protectedHeader = protectedHeader;
+        return this;
+    }
+    async sign(key, options) {
+        const sig = new sign_js_1.CompactSign(buffer_utils_js_1.encoder.encode(JSON.stringify(this._payload)));
+        sig.setProtectedHeader(this._protectedHeader);
+        if (Array.isArray(this._protectedHeader?.crit) &&
+            this._protectedHeader.crit.includes('b64') &&
+            this._protectedHeader.b64 === false) {
+            throw new errors_js_1.JWTInvalid('JWTs MUST NOT use unencoded payload');
+        }
+        return sig.sign(key, options);
+    }
+}
+exports.SignJWT = SignJWT;
+
+
+/***/ }),
+
+/***/ 8568:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.UnsecuredJWT = void 0;
+const base64url = __nccwpck_require__(518);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const errors_js_1 = __nccwpck_require__(4419);
+const jwt_claims_set_js_1 = __nccwpck_require__(7274);
+const produce_js_1 = __nccwpck_require__(1908);
+class UnsecuredJWT extends produce_js_1.ProduceJWT {
+    encode() {
+        const header = base64url.encode(JSON.stringify({ alg: 'none' }));
+        const payload = base64url.encode(JSON.stringify(this._payload));
+        return `${header}.${payload}.`;
+    }
+    static decode(jwt, options) {
+        if (typeof jwt !== 'string') {
+            throw new errors_js_1.JWTInvalid('Unsecured JWT must be a string');
+        }
+        const { 0: encodedHeader, 1: encodedPayload, 2: signature, length } = jwt.split('.');
+        if (length !== 3 || signature !== '') {
+            throw new errors_js_1.JWTInvalid('Invalid Unsecured JWT');
+        }
+        let header;
+        try {
+            header = JSON.parse(buffer_utils_js_1.decoder.decode(base64url.decode(encodedHeader)));
+            if (header.alg !== 'none')
+                throw new Error();
+        }
+        catch {
+            throw new errors_js_1.JWTInvalid('Invalid Unsecured JWT');
+        }
+        const payload = (0, jwt_claims_set_js_1.default)(header, base64url.decode(encodedPayload), options);
+        return { payload, header };
+    }
+}
+exports.UnsecuredJWT = UnsecuredJWT;
+
+
+/***/ }),
+
+/***/ 9887:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.jwtVerify = void 0;
+const verify_js_1 = __nccwpck_require__(5212);
+const jwt_claims_set_js_1 = __nccwpck_require__(7274);
+const errors_js_1 = __nccwpck_require__(4419);
+async function jwtVerify(jwt, key, options) {
+    const verified = await (0, verify_js_1.compactVerify)(jwt, key, options);
+    if (verified.protectedHeader.crit?.includes('b64') && verified.protectedHeader.b64 === false) {
+        throw new errors_js_1.JWTInvalid('JWTs MUST NOT use unencoded payload');
+    }
+    const payload = (0, jwt_claims_set_js_1.default)(verified.protectedHeader, verified.payload, options);
+    const result = { payload, protectedHeader: verified.protectedHeader };
+    if (typeof key === 'function') {
+        return { ...result, key: verified.key };
+    }
+    return result;
+}
+exports.jwtVerify = jwtVerify;
+
+
+/***/ }),
+
+/***/ 465:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.exportJWK = exports.exportPKCS8 = exports.exportSPKI = void 0;
+const asn1_js_1 = __nccwpck_require__(858);
+const asn1_js_2 = __nccwpck_require__(858);
+const key_to_jwk_js_1 = __nccwpck_require__(997);
+async function exportSPKI(key) {
+    return (0, asn1_js_1.toSPKI)(key);
+}
+exports.exportSPKI = exportSPKI;
+async function exportPKCS8(key) {
+    return (0, asn1_js_2.toPKCS8)(key);
+}
+exports.exportPKCS8 = exportPKCS8;
+async function exportJWK(key) {
+    return (0, key_to_jwk_js_1.default)(key);
+}
+exports.exportJWK = exportJWK;
+
+
+/***/ }),
+
+/***/ 1036:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.generateKeyPair = void 0;
+const generate_js_1 = __nccwpck_require__(9378);
+async function generateKeyPair(alg, options) {
+    return (0, generate_js_1.generateKeyPair)(alg, options);
+}
+exports.generateKeyPair = generateKeyPair;
+
+
+/***/ }),
+
+/***/ 6617:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.generateSecret = void 0;
+const generate_js_1 = __nccwpck_require__(9378);
+async function generateSecret(alg, options) {
+    return (0, generate_js_1.generateSecret)(alg, options);
+}
+exports.generateSecret = generateSecret;
+
+
+/***/ }),
+
+/***/ 4230:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.importJWK = exports.importPKCS8 = exports.importX509 = exports.importSPKI = void 0;
+const base64url_js_1 = __nccwpck_require__(518);
+const asn1_js_1 = __nccwpck_require__(858);
+const jwk_to_key_js_1 = __nccwpck_require__(2659);
+const errors_js_1 = __nccwpck_require__(4419);
+const is_object_js_1 = __nccwpck_require__(9127);
+async function importSPKI(spki, alg, options) {
+    if (typeof spki !== 'string' || spki.indexOf('-----BEGIN PUBLIC KEY-----') !== 0) {
+        throw new TypeError('"spki" must be SPKI formatted string');
+    }
+    return (0, asn1_js_1.fromSPKI)(spki, alg, options);
+}
+exports.importSPKI = importSPKI;
+async function importX509(x509, alg, options) {
+    if (typeof x509 !== 'string' || x509.indexOf('-----BEGIN CERTIFICATE-----') !== 0) {
+        throw new TypeError('"x509" must be X.509 formatted string');
+    }
+    return (0, asn1_js_1.fromX509)(x509, alg, options);
+}
+exports.importX509 = importX509;
+async function importPKCS8(pkcs8, alg, options) {
+    if (typeof pkcs8 !== 'string' || pkcs8.indexOf('-----BEGIN PRIVATE KEY-----') !== 0) {
+        throw new TypeError('"pkcs8" must be PKCS#8 formatted string');
+    }
+    return (0, asn1_js_1.fromPKCS8)(pkcs8, alg, options);
+}
+exports.importPKCS8 = importPKCS8;
+async function importJWK(jwk, alg) {
+    if (!(0, is_object_js_1.default)(jwk)) {
+        throw new TypeError('JWK must be an object');
+    }
+    alg ||= jwk.alg;
+    switch (jwk.kty) {
+        case 'oct':
+            if (typeof jwk.k !== 'string' || !jwk.k) {
+                throw new TypeError('missing "k" (Key Value) Parameter value');
+            }
+            return (0, base64url_js_1.decode)(jwk.k);
+        case 'RSA':
+            if (jwk.oth !== undefined) {
+                throw new errors_js_1.JOSENotSupported('RSA JWK "oth" (Other Primes Info) Parameter value is not supported');
+            }
+        case 'EC':
+        case 'OKP':
+            return (0, jwk_to_key_js_1.default)({ ...jwk, alg });
+        default:
+            throw new errors_js_1.JOSENotSupported('Unsupported "kty" (Key Type) Parameter value');
+    }
+}
+exports.importJWK = importJWK;
+
+
+/***/ }),
+
+/***/ 233:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.unwrap = exports.wrap = void 0;
+const encrypt_js_1 = __nccwpck_require__(6476);
+const decrypt_js_1 = __nccwpck_require__(6137);
+const base64url_js_1 = __nccwpck_require__(518);
+async function wrap(alg, key, cek, iv) {
+    const jweAlgorithm = alg.slice(0, 7);
+    const wrapped = await (0, encrypt_js_1.default)(jweAlgorithm, cek, key, iv, new Uint8Array(0));
+    return {
+        encryptedKey: wrapped.ciphertext,
+        iv: (0, base64url_js_1.encode)(wrapped.iv),
+        tag: (0, base64url_js_1.encode)(wrapped.tag),
+    };
+}
+exports.wrap = wrap;
+async function unwrap(alg, key, encryptedKey, iv, tag) {
+    const jweAlgorithm = alg.slice(0, 7);
+    return (0, decrypt_js_1.default)(jweAlgorithm, key, encryptedKey, iv, tag, new Uint8Array(0));
+}
+exports.unwrap = unwrap;
+
+
+/***/ }),
+
+/***/ 1691:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.concatKdf = exports.lengthAndInput = exports.uint32be = exports.uint64be = exports.p2s = exports.concat = exports.decoder = exports.encoder = void 0;
+const digest_js_1 = __nccwpck_require__(2355);
+exports.encoder = new TextEncoder();
+exports.decoder = new TextDecoder();
+const MAX_INT32 = 2 ** 32;
+function concat(...buffers) {
+    const size = buffers.reduce((acc, { length }) => acc + length, 0);
+    const buf = new Uint8Array(size);
+    let i = 0;
+    for (const buffer of buffers) {
+        buf.set(buffer, i);
+        i += buffer.length;
+    }
+    return buf;
+}
+exports.concat = concat;
+function p2s(alg, p2sInput) {
+    return concat(exports.encoder.encode(alg), new Uint8Array([0]), p2sInput);
+}
+exports.p2s = p2s;
+function writeUInt32BE(buf, value, offset) {
+    if (value < 0 || value >= MAX_INT32) {
+        throw new RangeError(`value must be >= 0 and <= ${MAX_INT32 - 1}. Received ${value}`);
+    }
+    buf.set([value >>> 24, value >>> 16, value >>> 8, value & 0xff], offset);
+}
+function uint64be(value) {
+    const high = Math.floor(value / MAX_INT32);
+    const low = value % MAX_INT32;
+    const buf = new Uint8Array(8);
+    writeUInt32BE(buf, high, 0);
+    writeUInt32BE(buf, low, 4);
+    return buf;
+}
+exports.uint64be = uint64be;
+function uint32be(value) {
+    const buf = new Uint8Array(4);
+    writeUInt32BE(buf, value);
+    return buf;
+}
+exports.uint32be = uint32be;
+function lengthAndInput(input) {
+    return concat(uint32be(input.length), input);
+}
+exports.lengthAndInput = lengthAndInput;
+async function concatKdf(secret, bits, value) {
+    const iterations = Math.ceil((bits >> 3) / 32);
+    const res = new Uint8Array(iterations * 32);
+    for (let iter = 0; iter < iterations; iter++) {
+        const buf = new Uint8Array(4 + secret.length + value.length);
+        buf.set(uint32be(iter + 1));
+        buf.set(secret, 4);
+        buf.set(value, 4 + secret.length);
+        res.set(await (0, digest_js_1.default)('sha256', buf), iter * 32);
+    }
+    return res.slice(0, bits >> 3);
+}
+exports.concatKdf = concatKdf;
+
+
+/***/ }),
+
+/***/ 3987:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.bitLength = void 0;
+const errors_js_1 = __nccwpck_require__(4419);
+const random_js_1 = __nccwpck_require__(5770);
+function bitLength(alg) {
+    switch (alg) {
+        case 'A128GCM':
+            return 128;
+        case 'A192GCM':
+            return 192;
+        case 'A256GCM':
+        case 'A128CBC-HS256':
+            return 256;
+        case 'A192CBC-HS384':
+            return 384;
+        case 'A256CBC-HS512':
+            return 512;
+        default:
+            throw new errors_js_1.JOSENotSupported(`Unsupported JWE Algorithm: ${alg}`);
+    }
+}
+exports.bitLength = bitLength;
+exports["default"] = (alg) => (0, random_js_1.default)(new Uint8Array(bitLength(alg) >> 3));
+
+
+/***/ }),
+
+/***/ 1120:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const errors_js_1 = __nccwpck_require__(4419);
+const iv_js_1 = __nccwpck_require__(4630);
+const checkIvLength = (enc, iv) => {
+    if (iv.length << 3 !== (0, iv_js_1.bitLength)(enc)) {
+        throw new errors_js_1.JWEInvalid('Invalid Initialization Vector length');
+    }
+};
+exports["default"] = checkIvLength;
+
+
+/***/ }),
+
+/***/ 6241:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.checkKeyTypeWithJwk = void 0;
+const invalid_key_input_js_1 = __nccwpck_require__(1146);
+const is_key_like_js_1 = __nccwpck_require__(7947);
+const jwk = __nccwpck_require__(8377);
+const tag = (key) => key?.[Symbol.toStringTag];
+const jwkMatchesOp = (alg, key, usage) => {
+    if (key.use !== undefined && key.use !== 'sig') {
+        throw new TypeError('Invalid key for this operation, when present its use must be sig');
+    }
+    if (key.key_ops !== undefined && key.key_ops.includes?.(usage) !== true) {
+        throw new TypeError(`Invalid key for this operation, when present its key_ops must include ${usage}`);
+    }
+    if (key.alg !== undefined && key.alg !== alg) {
+        throw new TypeError(`Invalid key for this operation, when present its alg must be ${alg}`);
+    }
+    return true;
+};
+const symmetricTypeCheck = (alg, key, usage, allowJwk) => {
+    if (key instanceof Uint8Array)
+        return;
+    if (allowJwk && jwk.isJWK(key)) {
+        if (jwk.isSecretJWK(key) && jwkMatchesOp(alg, key, usage))
+            return;
+        throw new TypeError(`JSON Web Key for symmetric algorithms must have JWK "kty" (Key Type) equal to "oct" and the JWK "k" (Key Value) present`);
+    }
+    if (!(0, is_key_like_js_1.default)(key)) {
+        throw new TypeError((0, invalid_key_input_js_1.withAlg)(alg, key, ...is_key_like_js_1.types, 'Uint8Array', allowJwk ? 'JSON Web Key' : null));
+    }
+    if (key.type !== 'secret') {
+        throw new TypeError(`${tag(key)} instances for symmetric algorithms must be of type "secret"`);
+    }
+};
+const asymmetricTypeCheck = (alg, key, usage, allowJwk) => {
+    if (allowJwk && jwk.isJWK(key)) {
+        switch (usage) {
+            case 'sign':
+                if (jwk.isPrivateJWK(key) && jwkMatchesOp(alg, key, usage))
+                    return;
+                throw new TypeError(`JSON Web Key for this operation be a private JWK`);
+            case 'verify':
+                if (jwk.isPublicJWK(key) && jwkMatchesOp(alg, key, usage))
+                    return;
+                throw new TypeError(`JSON Web Key for this operation be a public JWK`);
+        }
+    }
+    if (!(0, is_key_like_js_1.default)(key)) {
+        throw new TypeError((0, invalid_key_input_js_1.withAlg)(alg, key, ...is_key_like_js_1.types, allowJwk ? 'JSON Web Key' : null));
+    }
+    if (key.type === 'secret') {
+        throw new TypeError(`${tag(key)} instances for asymmetric algorithms must not be of type "secret"`);
+    }
+    if (usage === 'sign' && key.type === 'public') {
+        throw new TypeError(`${tag(key)} instances for asymmetric algorithm signing must be of type "private"`);
+    }
+    if (usage === 'decrypt' && key.type === 'public') {
+        throw new TypeError(`${tag(key)} instances for asymmetric algorithm decryption must be of type "private"`);
+    }
+    if (key.algorithm && usage === 'verify' && key.type === 'private') {
+        throw new TypeError(`${tag(key)} instances for asymmetric algorithm verifying must be of type "public"`);
+    }
+    if (key.algorithm && usage === 'encrypt' && key.type === 'private') {
+        throw new TypeError(`${tag(key)} instances for asymmetric algorithm encryption must be of type "public"`);
+    }
+};
+function checkKeyType(allowJwk, alg, key, usage) {
+    const symmetric = alg.startsWith('HS') ||
+        alg === 'dir' ||
+        alg.startsWith('PBES2') ||
+        /^A\d{3}(?:GCM)?KW$/.test(alg);
+    if (symmetric) {
+        symmetricTypeCheck(alg, key, usage, allowJwk);
+    }
+    else {
+        asymmetricTypeCheck(alg, key, usage, allowJwk);
+    }
+}
+exports["default"] = checkKeyType.bind(undefined, false);
+exports.checkKeyTypeWithJwk = checkKeyType.bind(undefined, true);
+
+
+/***/ }),
+
+/***/ 3499:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const errors_js_1 = __nccwpck_require__(4419);
+function checkP2s(p2s) {
+    if (!(p2s instanceof Uint8Array) || p2s.length < 8) {
+        throw new errors_js_1.JWEInvalid('PBES2 Salt Input must be 8 or more octets');
+    }
+}
+exports["default"] = checkP2s;
+
+
+/***/ }),
+
+/***/ 3386:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.checkEncCryptoKey = exports.checkSigCryptoKey = void 0;
+function unusable(name, prop = 'algorithm.name') {
+    return new TypeError(`CryptoKey does not support this operation, its ${prop} must be ${name}`);
+}
+function isAlgorithm(algorithm, name) {
+    return algorithm.name === name;
+}
+function getHashLength(hash) {
+    return parseInt(hash.name.slice(4), 10);
+}
+function getNamedCurve(alg) {
+    switch (alg) {
+        case 'ES256':
+            return 'P-256';
+        case 'ES384':
+            return 'P-384';
+        case 'ES512':
+            return 'P-521';
+        default:
+            throw new Error('unreachable');
+    }
+}
+function checkUsage(key, usages) {
+    if (usages.length && !usages.some((expected) => key.usages.includes(expected))) {
+        let msg = 'CryptoKey does not support this operation, its usages must include ';
+        if (usages.length > 2) {
+            const last = usages.pop();
+            msg += `one of ${usages.join(', ')}, or ${last}.`;
+        }
+        else if (usages.length === 2) {
+            msg += `one of ${usages[0]} or ${usages[1]}.`;
+        }
+        else {
+            msg += `${usages[0]}.`;
+        }
+        throw new TypeError(msg);
+    }
+}
+function checkSigCryptoKey(key, alg, ...usages) {
+    switch (alg) {
+        case 'HS256':
+        case 'HS384':
+        case 'HS512': {
+            if (!isAlgorithm(key.algorithm, 'HMAC'))
+                throw unusable('HMAC');
+            const expected = parseInt(alg.slice(2), 10);
+            const actual = getHashLength(key.algorithm.hash);
+            if (actual !== expected)
+                throw unusable(`SHA-${expected}`, 'algorithm.hash');
+            break;
+        }
+        case 'RS256':
+        case 'RS384':
+        case 'RS512': {
+            if (!isAlgorithm(key.algorithm, 'RSASSA-PKCS1-v1_5'))
+                throw unusable('RSASSA-PKCS1-v1_5');
+            const expected = parseInt(alg.slice(2), 10);
+            const actual = getHashLength(key.algorithm.hash);
+            if (actual !== expected)
+                throw unusable(`SHA-${expected}`, 'algorithm.hash');
+            break;
+        }
+        case 'PS256':
+        case 'PS384':
+        case 'PS512': {
+            if (!isAlgorithm(key.algorithm, 'RSA-PSS'))
+                throw unusable('RSA-PSS');
+            const expected = parseInt(alg.slice(2), 10);
+            const actual = getHashLength(key.algorithm.hash);
+            if (actual !== expected)
+                throw unusable(`SHA-${expected}`, 'algorithm.hash');
+            break;
+        }
+        case 'EdDSA': {
+            if (key.algorithm.name !== 'Ed25519' && key.algorithm.name !== 'Ed448') {
+                throw unusable('Ed25519 or Ed448');
+            }
+            break;
+        }
+        case 'ES256':
+        case 'ES384':
+        case 'ES512': {
+            if (!isAlgorithm(key.algorithm, 'ECDSA'))
+                throw unusable('ECDSA');
+            const expected = getNamedCurve(alg);
+            const actual = key.algorithm.namedCurve;
+            if (actual !== expected)
+                throw unusable(expected, 'algorithm.namedCurve');
+            break;
+        }
+        default:
+            throw new TypeError('CryptoKey does not support this operation');
+    }
+    checkUsage(key, usages);
+}
+exports.checkSigCryptoKey = checkSigCryptoKey;
+function checkEncCryptoKey(key, alg, ...usages) {
+    switch (alg) {
+        case 'A128GCM':
+        case 'A192GCM':
+        case 'A256GCM': {
+            if (!isAlgorithm(key.algorithm, 'AES-GCM'))
+                throw unusable('AES-GCM');
+            const expected = parseInt(alg.slice(1, 4), 10);
+            const actual = key.algorithm.length;
+            if (actual !== expected)
+                throw unusable(expected, 'algorithm.length');
+            break;
+        }
+        case 'A128KW':
+        case 'A192KW':
+        case 'A256KW': {
+            if (!isAlgorithm(key.algorithm, 'AES-KW'))
+                throw unusable('AES-KW');
+            const expected = parseInt(alg.slice(1, 4), 10);
+            const actual = key.algorithm.length;
+            if (actual !== expected)
+                throw unusable(expected, 'algorithm.length');
+            break;
+        }
+        case 'ECDH': {
+            switch (key.algorithm.name) {
+                case 'ECDH':
+                case 'X25519':
+                case 'X448':
+                    break;
+                default:
+                    throw unusable('ECDH, X25519, or X448');
+            }
+            break;
+        }
+        case 'PBES2-HS256+A128KW':
+        case 'PBES2-HS384+A192KW':
+        case 'PBES2-HS512+A256KW':
+            if (!isAlgorithm(key.algorithm, 'PBKDF2'))
+                throw unusable('PBKDF2');
+            break;
+        case 'RSA-OAEP':
+        case 'RSA-OAEP-256':
+        case 'RSA-OAEP-384':
+        case 'RSA-OAEP-512': {
+            if (!isAlgorithm(key.algorithm, 'RSA-OAEP'))
+                throw unusable('RSA-OAEP');
+            const expected = parseInt(alg.slice(9), 10) || 1;
+            const actual = getHashLength(key.algorithm.hash);
+            if (actual !== expected)
+                throw unusable(`SHA-${expected}`, 'algorithm.hash');
+            break;
+        }
+        default:
+            throw new TypeError('CryptoKey does not support this operation');
+    }
+    checkUsage(key, usages);
+}
+exports.checkEncCryptoKey = checkEncCryptoKey;
+
+
+/***/ }),
+
+/***/ 6127:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const aeskw_js_1 = __nccwpck_require__(6083);
+const ECDH = __nccwpck_require__(3706);
+const pbes2kw_js_1 = __nccwpck_require__(6898);
+const rsaes_js_1 = __nccwpck_require__(9526);
+const base64url_js_1 = __nccwpck_require__(518);
+const normalize_key_js_1 = __nccwpck_require__(3367);
+const errors_js_1 = __nccwpck_require__(4419);
+const cek_js_1 = __nccwpck_require__(3987);
+const import_js_1 = __nccwpck_require__(4230);
+const check_key_type_js_1 = __nccwpck_require__(6241);
+const is_object_js_1 = __nccwpck_require__(9127);
+const aesgcmkw_js_1 = __nccwpck_require__(233);
+async function decryptKeyManagement(alg, key, encryptedKey, joseHeader, options) {
+    (0, check_key_type_js_1.default)(alg, key, 'decrypt');
+    key = (await normalize_key_js_1.default.normalizePrivateKey?.(key, alg)) || key;
+    switch (alg) {
+        case 'dir': {
+            if (encryptedKey !== undefined)
+                throw new errors_js_1.JWEInvalid('Encountered unexpected JWE Encrypted Key');
+            return key;
+        }
+        case 'ECDH-ES':
+            if (encryptedKey !== undefined)
+                throw new errors_js_1.JWEInvalid('Encountered unexpected JWE Encrypted Key');
+        case 'ECDH-ES+A128KW':
+        case 'ECDH-ES+A192KW':
+        case 'ECDH-ES+A256KW': {
+            if (!(0, is_object_js_1.default)(joseHeader.epk))
+                throw new errors_js_1.JWEInvalid(`JOSE Header "epk" (Ephemeral Public Key) missing or invalid`);
+            if (!ECDH.ecdhAllowed(key))
+                throw new errors_js_1.JOSENotSupported('ECDH with the provided key is not allowed or not supported by your javascript runtime');
+            const epk = await (0, import_js_1.importJWK)(joseHeader.epk, alg);
+            let partyUInfo;
+            let partyVInfo;
+            if (joseHeader.apu !== undefined) {
+                if (typeof joseHeader.apu !== 'string')
+                    throw new errors_js_1.JWEInvalid(`JOSE Header "apu" (Agreement PartyUInfo) invalid`);
+                try {
+                    partyUInfo = (0, base64url_js_1.decode)(joseHeader.apu);
+                }
+                catch {
+                    throw new errors_js_1.JWEInvalid('Failed to base64url decode the apu');
+                }
+            }
+            if (joseHeader.apv !== undefined) {
+                if (typeof joseHeader.apv !== 'string')
+                    throw new errors_js_1.JWEInvalid(`JOSE Header "apv" (Agreement PartyVInfo) invalid`);
+                try {
+                    partyVInfo = (0, base64url_js_1.decode)(joseHeader.apv);
+                }
+                catch {
+                    throw new errors_js_1.JWEInvalid('Failed to base64url decode the apv');
+                }
+            }
+            const sharedSecret = await ECDH.deriveKey(epk, key, alg === 'ECDH-ES' ? joseHeader.enc : alg, alg === 'ECDH-ES' ? (0, cek_js_1.bitLength)(joseHeader.enc) : parseInt(alg.slice(-5, -2), 10), partyUInfo, partyVInfo);
+            if (alg === 'ECDH-ES')
+                return sharedSecret;
+            if (encryptedKey === undefined)
+                throw new errors_js_1.JWEInvalid('JWE Encrypted Key missing');
+            return (0, aeskw_js_1.unwrap)(alg.slice(-6), sharedSecret, encryptedKey);
+        }
+        case 'RSA1_5':
+        case 'RSA-OAEP':
+        case 'RSA-OAEP-256':
+        case 'RSA-OAEP-384':
+        case 'RSA-OAEP-512': {
+            if (encryptedKey === undefined)
+                throw new errors_js_1.JWEInvalid('JWE Encrypted Key missing');
+            return (0, rsaes_js_1.decrypt)(alg, key, encryptedKey);
+        }
+        case 'PBES2-HS256+A128KW':
+        case 'PBES2-HS384+A192KW':
+        case 'PBES2-HS512+A256KW': {
+            if (encryptedKey === undefined)
+                throw new errors_js_1.JWEInvalid('JWE Encrypted Key missing');
+            if (typeof joseHeader.p2c !== 'number')
+                throw new errors_js_1.JWEInvalid(`JOSE Header "p2c" (PBES2 Count) missing or invalid`);
+            const p2cLimit = options?.maxPBES2Count || 10_000;
+            if (joseHeader.p2c > p2cLimit)
+                throw new errors_js_1.JWEInvalid(`JOSE Header "p2c" (PBES2 Count) out is of acceptable bounds`);
+            if (typeof joseHeader.p2s !== 'string')
+                throw new errors_js_1.JWEInvalid(`JOSE Header "p2s" (PBES2 Salt) missing or invalid`);
+            let p2s;
+            try {
+                p2s = (0, base64url_js_1.decode)(joseHeader.p2s);
+            }
+            catch {
+                throw new errors_js_1.JWEInvalid('Failed to base64url decode the p2s');
+            }
+            return (0, pbes2kw_js_1.decrypt)(alg, key, encryptedKey, joseHeader.p2c, p2s);
+        }
+        case 'A128KW':
+        case 'A192KW':
+        case 'A256KW': {
+            if (encryptedKey === undefined)
+                throw new errors_js_1.JWEInvalid('JWE Encrypted Key missing');
+            return (0, aeskw_js_1.unwrap)(alg, key, encryptedKey);
+        }
+        case 'A128GCMKW':
+        case 'A192GCMKW':
+        case 'A256GCMKW': {
+            if (encryptedKey === undefined)
+                throw new errors_js_1.JWEInvalid('JWE Encrypted Key missing');
+            if (typeof joseHeader.iv !== 'string')
+                throw new errors_js_1.JWEInvalid(`JOSE Header "iv" (Initialization Vector) missing or invalid`);
+            if (typeof joseHeader.tag !== 'string')
+                throw new errors_js_1.JWEInvalid(`JOSE Header "tag" (Authentication Tag) missing or invalid`);
+            let iv;
+            try {
+                iv = (0, base64url_js_1.decode)(joseHeader.iv);
+            }
+            catch {
+                throw new errors_js_1.JWEInvalid('Failed to base64url decode the iv');
+            }
+            let tag;
+            try {
+                tag = (0, base64url_js_1.decode)(joseHeader.tag);
+            }
+            catch {
+                throw new errors_js_1.JWEInvalid('Failed to base64url decode the tag');
+            }
+            return (0, aesgcmkw_js_1.unwrap)(alg, key, encryptedKey, iv, tag);
+        }
+        default: {
+            throw new errors_js_1.JOSENotSupported('Invalid or unsupported "alg" (JWE Algorithm) header value');
+        }
+    }
+}
+exports["default"] = decryptKeyManagement;
+
+
+/***/ }),
+
+/***/ 3286:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const aeskw_js_1 = __nccwpck_require__(6083);
+const ECDH = __nccwpck_require__(3706);
+const pbes2kw_js_1 = __nccwpck_require__(6898);
+const rsaes_js_1 = __nccwpck_require__(9526);
+const base64url_js_1 = __nccwpck_require__(518);
+const normalize_key_js_1 = __nccwpck_require__(3367);
+const cek_js_1 = __nccwpck_require__(3987);
+const errors_js_1 = __nccwpck_require__(4419);
+const export_js_1 = __nccwpck_require__(465);
+const check_key_type_js_1 = __nccwpck_require__(6241);
+const aesgcmkw_js_1 = __nccwpck_require__(233);
+async function encryptKeyManagement(alg, enc, key, providedCek, providedParameters = {}) {
+    let encryptedKey;
+    let parameters;
+    let cek;
+    (0, check_key_type_js_1.default)(alg, key, 'encrypt');
+    key = (await normalize_key_js_1.default.normalizePublicKey?.(key, alg)) || key;
+    switch (alg) {
+        case 'dir': {
+            cek = key;
+            break;
+        }
+        case 'ECDH-ES':
+        case 'ECDH-ES+A128KW':
+        case 'ECDH-ES+A192KW':
+        case 'ECDH-ES+A256KW': {
+            if (!ECDH.ecdhAllowed(key)) {
+                throw new errors_js_1.JOSENotSupported('ECDH with the provided key is not allowed or not supported by your javascript runtime');
+            }
+            const { apu, apv } = providedParameters;
+            let { epk: ephemeralKey } = providedParameters;
+            ephemeralKey ||= (await ECDH.generateEpk(key)).privateKey;
+            const { x, y, crv, kty } = await (0, export_js_1.exportJWK)(ephemeralKey);
+            const sharedSecret = await ECDH.deriveKey(key, ephemeralKey, alg === 'ECDH-ES' ? enc : alg, alg === 'ECDH-ES' ? (0, cek_js_1.bitLength)(enc) : parseInt(alg.slice(-5, -2), 10), apu, apv);
+            parameters = { epk: { x, crv, kty } };
+            if (kty === 'EC')
+                parameters.epk.y = y;
+            if (apu)
+                parameters.apu = (0, base64url_js_1.encode)(apu);
+            if (apv)
+                parameters.apv = (0, base64url_js_1.encode)(apv);
+            if (alg === 'ECDH-ES') {
+                cek = sharedSecret;
+                break;
+            }
+            cek = providedCek || (0, cek_js_1.default)(enc);
+            const kwAlg = alg.slice(-6);
+            encryptedKey = await (0, aeskw_js_1.wrap)(kwAlg, sharedSecret, cek);
+            break;
+        }
+        case 'RSA1_5':
+        case 'RSA-OAEP':
+        case 'RSA-OAEP-256':
+        case 'RSA-OAEP-384':
+        case 'RSA-OAEP-512': {
+            cek = providedCek || (0, cek_js_1.default)(enc);
+            encryptedKey = await (0, rsaes_js_1.encrypt)(alg, key, cek);
+            break;
+        }
+        case 'PBES2-HS256+A128KW':
+        case 'PBES2-HS384+A192KW':
+        case 'PBES2-HS512+A256KW': {
+            cek = providedCek || (0, cek_js_1.default)(enc);
+            const { p2c, p2s } = providedParameters;
+            ({ encryptedKey, ...parameters } = await (0, pbes2kw_js_1.encrypt)(alg, key, cek, p2c, p2s));
+            break;
+        }
+        case 'A128KW':
+        case 'A192KW':
+        case 'A256KW': {
+            cek = providedCek || (0, cek_js_1.default)(enc);
+            encryptedKey = await (0, aeskw_js_1.wrap)(alg, key, cek);
+            break;
+        }
+        case 'A128GCMKW':
+        case 'A192GCMKW':
+        case 'A256GCMKW': {
+            cek = providedCek || (0, cek_js_1.default)(enc);
+            const { iv } = providedParameters;
+            ({ encryptedKey, ...parameters } = await (0, aesgcmkw_js_1.wrap)(alg, key, cek, iv));
+            break;
+        }
+        default: {
+            throw new errors_js_1.JOSENotSupported('Invalid or unsupported "alg" (JWE Algorithm) header value');
+        }
+    }
+    return { cek, encryptedKey, parameters };
+}
+exports["default"] = encryptKeyManagement;
+
+
+/***/ }),
+
+/***/ 4476:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports["default"] = (date) => Math.floor(date.getTime() / 1000);
+
+
+/***/ }),
+
+/***/ 1146:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.withAlg = void 0;
+function message(msg, actual, ...types) {
+    types = types.filter(Boolean);
+    if (types.length > 2) {
+        const last = types.pop();
+        msg += `one of type ${types.join(', ')}, or ${last}.`;
+    }
+    else if (types.length === 2) {
+        msg += `one of type ${types[0]} or ${types[1]}.`;
+    }
+    else {
+        msg += `of type ${types[0]}.`;
+    }
+    if (actual == null) {
+        msg += ` Received ${actual}`;
+    }
+    else if (typeof actual === 'function' && actual.name) {
+        msg += ` Received function ${actual.name}`;
+    }
+    else if (typeof actual === 'object' && actual != null) {
+        if (actual.constructor?.name) {
+            msg += ` Received an instance of ${actual.constructor.name}`;
+        }
+    }
+    return msg;
+}
+exports["default"] = (actual, ...types) => {
+    return message('Key must be ', actual, ...types);
+};
+function withAlg(alg, actual, ...types) {
+    return message(`Key for the ${alg} algorithm must be `, actual, ...types);
+}
+exports.withAlg = withAlg;
+
+
+/***/ }),
+
+/***/ 6063:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const isDisjoint = (...headers) => {
+    const sources = headers.filter(Boolean);
+    if (sources.length === 0 || sources.length === 1) {
+        return true;
+    }
+    let acc;
+    for (const header of sources) {
+        const parameters = Object.keys(header);
+        if (!acc || acc.size === 0) {
+            acc = new Set(parameters);
+            continue;
+        }
+        for (const parameter of parameters) {
+            if (acc.has(parameter)) {
+                return false;
+            }
+            acc.add(parameter);
+        }
+    }
+    return true;
+};
+exports["default"] = isDisjoint;
+
+
+/***/ }),
+
+/***/ 8377:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.isSecretJWK = exports.isPublicJWK = exports.isPrivateJWK = exports.isJWK = void 0;
+const is_object_js_1 = __nccwpck_require__(9127);
+function isJWK(key) {
+    return (0, is_object_js_1.default)(key) && typeof key.kty === 'string';
+}
+exports.isJWK = isJWK;
+function isPrivateJWK(key) {
+    return key.kty !== 'oct' && typeof key.d === 'string';
+}
+exports.isPrivateJWK = isPrivateJWK;
+function isPublicJWK(key) {
+    return key.kty !== 'oct' && typeof key.d === 'undefined';
+}
+exports.isPublicJWK = isPublicJWK;
+function isSecretJWK(key) {
+    return isJWK(key) && key.kty === 'oct' && typeof key.k === 'string';
+}
+exports.isSecretJWK = isSecretJWK;
+
+
+/***/ }),
+
+/***/ 9127:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+function isObjectLike(value) {
+    return typeof value === 'object' && value !== null;
+}
+function isObject(input) {
+    if (!isObjectLike(input) || Object.prototype.toString.call(input) !== '[object Object]') {
+        return false;
+    }
+    if (Object.getPrototypeOf(input) === null) {
+        return true;
+    }
+    let proto = input;
+    while (Object.getPrototypeOf(proto) !== null) {
+        proto = Object.getPrototypeOf(proto);
+    }
+    return Object.getPrototypeOf(input) === proto;
+}
+exports["default"] = isObject;
+
+
+/***/ }),
+
+/***/ 4630:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.bitLength = void 0;
+const errors_js_1 = __nccwpck_require__(4419);
+const random_js_1 = __nccwpck_require__(5770);
+function bitLength(alg) {
+    switch (alg) {
+        case 'A128GCM':
+        case 'A128GCMKW':
+        case 'A192GCM':
+        case 'A192GCMKW':
+        case 'A256GCM':
+        case 'A256GCMKW':
+            return 96;
+        case 'A128CBC-HS256':
+        case 'A192CBC-HS384':
+        case 'A256CBC-HS512':
+            return 128;
+        default:
+            throw new errors_js_1.JOSENotSupported(`Unsupported JWE Algorithm: ${alg}`);
+    }
+}
+exports.bitLength = bitLength;
+exports["default"] = (alg) => (0, random_js_1.default)(new Uint8Array(bitLength(alg) >> 3));
+
+
+/***/ }),
+
+/***/ 7274:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const errors_js_1 = __nccwpck_require__(4419);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const epoch_js_1 = __nccwpck_require__(4476);
+const secs_js_1 = __nccwpck_require__(7810);
+const is_object_js_1 = __nccwpck_require__(9127);
+const normalizeTyp = (value) => value.toLowerCase().replace(/^application\//, '');
+const checkAudiencePresence = (audPayload, audOption) => {
+    if (typeof audPayload === 'string') {
+        return audOption.includes(audPayload);
+    }
+    if (Array.isArray(audPayload)) {
+        return audOption.some(Set.prototype.has.bind(new Set(audPayload)));
+    }
+    return false;
+};
+exports["default"] = (protectedHeader, encodedPayload, options = {}) => {
+    let payload;
+    try {
+        payload = JSON.parse(buffer_utils_js_1.decoder.decode(encodedPayload));
+    }
+    catch {
+    }
+    if (!(0, is_object_js_1.default)(payload)) {
+        throw new errors_js_1.JWTInvalid('JWT Claims Set must be a top-level JSON object');
+    }
+    const { typ } = options;
+    if (typ &&
+        (typeof protectedHeader.typ !== 'string' ||
+            normalizeTyp(protectedHeader.typ) !== normalizeTyp(typ))) {
+        throw new errors_js_1.JWTClaimValidationFailed('unexpected "typ" JWT header value', payload, 'typ', 'check_failed');
+    }
+    const { requiredClaims = [], issuer, subject, audience, maxTokenAge } = options;
+    const presenceCheck = [...requiredClaims];
+    if (maxTokenAge !== undefined)
+        presenceCheck.push('iat');
+    if (audience !== undefined)
+        presenceCheck.push('aud');
+    if (subject !== undefined)
+        presenceCheck.push('sub');
+    if (issuer !== undefined)
+        presenceCheck.push('iss');
+    for (const claim of new Set(presenceCheck.reverse())) {
+        if (!(claim in payload)) {
+            throw new errors_js_1.JWTClaimValidationFailed(`missing required "${claim}" claim`, payload, claim, 'missing');
+        }
+    }
+    if (issuer &&
+        !(Array.isArray(issuer) ? issuer : [issuer]).includes(payload.iss)) {
+        throw new errors_js_1.JWTClaimValidationFailed('unexpected "iss" claim value', payload, 'iss', 'check_failed');
+    }
+    if (subject && payload.sub !== subject) {
+        throw new errors_js_1.JWTClaimValidationFailed('unexpected "sub" claim value', payload, 'sub', 'check_failed');
+    }
+    if (audience &&
+        !checkAudiencePresence(payload.aud, typeof audience === 'string' ? [audience] : audience)) {
+        throw new errors_js_1.JWTClaimValidationFailed('unexpected "aud" claim value', payload, 'aud', 'check_failed');
+    }
+    let tolerance;
+    switch (typeof options.clockTolerance) {
+        case 'string':
+            tolerance = (0, secs_js_1.default)(options.clockTolerance);
+            break;
+        case 'number':
+            tolerance = options.clockTolerance;
+            break;
+        case 'undefined':
+            tolerance = 0;
+            break;
+        default:
+            throw new TypeError('Invalid clockTolerance option type');
+    }
+    const { currentDate } = options;
+    const now = (0, epoch_js_1.default)(currentDate || new Date());
+    if ((payload.iat !== undefined || maxTokenAge) && typeof payload.iat !== 'number') {
+        throw new errors_js_1.JWTClaimValidationFailed('"iat" claim must be a number', payload, 'iat', 'invalid');
+    }
+    if (payload.nbf !== undefined) {
+        if (typeof payload.nbf !== 'number') {
+            throw new errors_js_1.JWTClaimValidationFailed('"nbf" claim must be a number', payload, 'nbf', 'invalid');
+        }
+        if (payload.nbf > now + tolerance) {
+            throw new errors_js_1.JWTClaimValidationFailed('"nbf" claim timestamp check failed', payload, 'nbf', 'check_failed');
+        }
+    }
+    if (payload.exp !== undefined) {
+        if (typeof payload.exp !== 'number') {
+            throw new errors_js_1.JWTClaimValidationFailed('"exp" claim must be a number', payload, 'exp', 'invalid');
+        }
+        if (payload.exp <= now - tolerance) {
+            throw new errors_js_1.JWTExpired('"exp" claim timestamp check failed', payload, 'exp', 'check_failed');
+        }
+    }
+    if (maxTokenAge) {
+        const age = now - payload.iat;
+        const max = typeof maxTokenAge === 'number' ? maxTokenAge : (0, secs_js_1.default)(maxTokenAge);
+        if (age - tolerance > max) {
+            throw new errors_js_1.JWTExpired('"iat" claim timestamp check failed (too far in the past)', payload, 'iat', 'check_failed');
+        }
+        if (age < 0 - tolerance) {
+            throw new errors_js_1.JWTClaimValidationFailed('"iat" claim timestamp check failed (it should be in the past)', payload, 'iat', 'check_failed');
+        }
+    }
+    return payload;
+};
+
+
+/***/ }),
+
+/***/ 8863:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.unprotected = void 0;
+exports.unprotected = Symbol();
+
+
+/***/ }),
+
+/***/ 7810:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const minute = 60;
+const hour = minute * 60;
+const day = hour * 24;
+const week = day * 7;
+const year = day * 365.25;
+const REGEX = /^(\+|\-)? ?(\d+|\d+\.\d+) ?(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)(?: (ago|from now))?$/i;
+exports["default"] = (str) => {
+    const matched = REGEX.exec(str);
+    if (!matched || (matched[4] && matched[1])) {
+        throw new TypeError('Invalid time period format');
+    }
+    const value = parseFloat(matched[2]);
+    const unit = matched[3].toLowerCase();
+    let numericDate;
+    switch (unit) {
+        case 'sec':
+        case 'secs':
+        case 'second':
+        case 'seconds':
+        case 's':
+            numericDate = Math.round(value);
+            break;
+        case 'minute':
+        case 'minutes':
+        case 'min':
+        case 'mins':
+        case 'm':
+            numericDate = Math.round(value * minute);
+            break;
+        case 'hour':
+        case 'hours':
+        case 'hr':
+        case 'hrs':
+        case 'h':
+            numericDate = Math.round(value * hour);
+            break;
+        case 'day':
+        case 'days':
+        case 'd':
+            numericDate = Math.round(value * day);
+            break;
+        case 'week':
+        case 'weeks':
+        case 'w':
+            numericDate = Math.round(value * week);
+            break;
+        default:
+            numericDate = Math.round(value * year);
+            break;
+    }
+    if (matched[1] === '-' || matched[4] === 'ago') {
+        return -numericDate;
+    }
+    return numericDate;
+};
+
+
+/***/ }),
+
+/***/ 5148:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const validateAlgorithms = (option, algorithms) => {
+    if (algorithms !== undefined &&
+        (!Array.isArray(algorithms) || algorithms.some((s) => typeof s !== 'string'))) {
+        throw new TypeError(`"${option}" option must be an array of strings`);
+    }
+    if (!algorithms) {
+        return undefined;
+    }
+    return new Set(algorithms);
+};
+exports["default"] = validateAlgorithms;
+
+
+/***/ }),
+
+/***/ 863:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const errors_js_1 = __nccwpck_require__(4419);
+function validateCrit(Err, recognizedDefault, recognizedOption, protectedHeader, joseHeader) {
+    if (joseHeader.crit !== undefined && protectedHeader?.crit === undefined) {
+        throw new Err('"crit" (Critical) Header Parameter MUST be integrity protected');
+    }
+    if (!protectedHeader || protectedHeader.crit === undefined) {
+        return new Set();
+    }
+    if (!Array.isArray(protectedHeader.crit) ||
+        protectedHeader.crit.length === 0 ||
+        protectedHeader.crit.some((input) => typeof input !== 'string' || input.length === 0)) {
+        throw new Err('"crit" (Critical) Header Parameter MUST be an array of non-empty strings when present');
+    }
+    let recognized;
+    if (recognizedOption !== undefined) {
+        recognized = new Map([...Object.entries(recognizedOption), ...recognizedDefault.entries()]);
+    }
+    else {
+        recognized = recognizedDefault;
+    }
+    for (const parameter of protectedHeader.crit) {
+        if (!recognized.has(parameter)) {
+            throw new errors_js_1.JOSENotSupported(`Extension Header Parameter "${parameter}" is not recognized`);
+        }
+        if (joseHeader[parameter] === undefined) {
+            throw new Err(`Extension Header Parameter "${parameter}" is missing`);
+        }
+        if (recognized.get(parameter) && protectedHeader[parameter] === undefined) {
+            throw new Err(`Extension Header Parameter "${parameter}" MUST be integrity protected`);
+        }
+    }
+    return new Set(protectedHeader.crit);
+}
+exports["default"] = validateCrit;
+
+
+/***/ }),
+
+/***/ 6083:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.unwrap = exports.wrap = void 0;
+const node_buffer_1 = __nccwpck_require__(2254);
+const node_crypto_1 = __nccwpck_require__(6005);
+const errors_js_1 = __nccwpck_require__(4419);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const webcrypto_js_1 = __nccwpck_require__(6852);
+const crypto_key_js_1 = __nccwpck_require__(3386);
+const is_key_object_js_1 = __nccwpck_require__(2768);
+const invalid_key_input_js_1 = __nccwpck_require__(1146);
+const ciphers_js_1 = __nccwpck_require__(4618);
+const is_key_like_js_1 = __nccwpck_require__(7947);
+function checkKeySize(key, alg) {
+    if (key.symmetricKeySize << 3 !== parseInt(alg.slice(1, 4), 10)) {
+        throw new TypeError(`Invalid key size for alg: ${alg}`);
+    }
+}
+function ensureKeyObject(key, alg, usage) {
+    if ((0, is_key_object_js_1.default)(key)) {
+        return key;
+    }
+    if (key instanceof Uint8Array) {
+        return (0, node_crypto_1.createSecretKey)(key);
+    }
+    if ((0, webcrypto_js_1.isCryptoKey)(key)) {
+        (0, crypto_key_js_1.checkEncCryptoKey)(key, alg, usage);
+        return node_crypto_1.KeyObject.from(key);
+    }
+    throw new TypeError((0, invalid_key_input_js_1.default)(key, ...is_key_like_js_1.types, 'Uint8Array'));
+}
+const wrap = (alg, key, cek) => {
+    const size = parseInt(alg.slice(1, 4), 10);
+    const algorithm = `aes${size}-wrap`;
+    if (!(0, ciphers_js_1.default)(algorithm)) {
+        throw new errors_js_1.JOSENotSupported(`alg ${alg} is not supported either by JOSE or your javascript runtime`);
+    }
+    const keyObject = ensureKeyObject(key, alg, 'wrapKey');
+    checkKeySize(keyObject, alg);
+    const cipher = (0, node_crypto_1.createCipheriv)(algorithm, keyObject, node_buffer_1.Buffer.alloc(8, 0xa6));
+    return (0, buffer_utils_js_1.concat)(cipher.update(cek), cipher.final());
+};
+exports.wrap = wrap;
+const unwrap = (alg, key, encryptedKey) => {
+    const size = parseInt(alg.slice(1, 4), 10);
+    const algorithm = `aes${size}-wrap`;
+    if (!(0, ciphers_js_1.default)(algorithm)) {
+        throw new errors_js_1.JOSENotSupported(`alg ${alg} is not supported either by JOSE or your javascript runtime`);
+    }
+    const keyObject = ensureKeyObject(key, alg, 'unwrapKey');
+    checkKeySize(keyObject, alg);
+    const cipher = (0, node_crypto_1.createDecipheriv)(algorithm, keyObject, node_buffer_1.Buffer.alloc(8, 0xa6));
+    return (0, buffer_utils_js_1.concat)(cipher.update(encryptedKey), cipher.final());
+};
+exports.unwrap = unwrap;
+
+
+/***/ }),
+
+/***/ 858:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.fromX509 = exports.fromSPKI = exports.fromPKCS8 = exports.toPKCS8 = exports.toSPKI = void 0;
+const node_crypto_1 = __nccwpck_require__(6005);
+const node_buffer_1 = __nccwpck_require__(2254);
+const webcrypto_js_1 = __nccwpck_require__(6852);
+const is_key_object_js_1 = __nccwpck_require__(2768);
+const invalid_key_input_js_1 = __nccwpck_require__(1146);
+const is_key_like_js_1 = __nccwpck_require__(7947);
+const genericExport = (keyType, keyFormat, key) => {
+    let keyObject;
+    if ((0, webcrypto_js_1.isCryptoKey)(key)) {
+        if (!key.extractable) {
+            throw new TypeError('CryptoKey is not extractable');
+        }
+        keyObject = node_crypto_1.KeyObject.from(key);
+    }
+    else if ((0, is_key_object_js_1.default)(key)) {
+        keyObject = key;
+    }
+    else {
+        throw new TypeError((0, invalid_key_input_js_1.default)(key, ...is_key_like_js_1.types));
+    }
+    if (keyObject.type !== keyType) {
+        throw new TypeError(`key is not a ${keyType} key`);
+    }
+    return keyObject.export({ format: 'pem', type: keyFormat });
+};
+const toSPKI = (key) => {
+    return genericExport('public', 'spki', key);
+};
+exports.toSPKI = toSPKI;
+const toPKCS8 = (key) => {
+    return genericExport('private', 'pkcs8', key);
+};
+exports.toPKCS8 = toPKCS8;
+const fromPKCS8 = (pem) => (0, node_crypto_1.createPrivateKey)({
+    key: node_buffer_1.Buffer.from(pem.replace(/(?:-----(?:BEGIN|END) PRIVATE KEY-----|\s)/g, ''), 'base64'),
+    type: 'pkcs8',
+    format: 'der',
+});
+exports.fromPKCS8 = fromPKCS8;
+const fromSPKI = (pem) => (0, node_crypto_1.createPublicKey)({
+    key: node_buffer_1.Buffer.from(pem.replace(/(?:-----(?:BEGIN|END) PUBLIC KEY-----|\s)/g, ''), 'base64'),
+    type: 'spki',
+    format: 'der',
+});
+exports.fromSPKI = fromSPKI;
+const fromX509 = (pem) => (0, node_crypto_1.createPublicKey)({
+    key: pem,
+    type: 'spki',
+    format: 'pem',
+});
+exports.fromX509 = fromX509;
+
+
+/***/ }),
+
+/***/ 518:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.decode = exports.encode = exports.encodeBase64 = exports.decodeBase64 = void 0;
+const node_buffer_1 = __nccwpck_require__(2254);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+function normalize(input) {
+    let encoded = input;
+    if (encoded instanceof Uint8Array) {
+        encoded = buffer_utils_js_1.decoder.decode(encoded);
+    }
+    return encoded;
+}
+const encode = (input) => node_buffer_1.Buffer.from(input).toString('base64url');
+exports.encode = encode;
+const decodeBase64 = (input) => new Uint8Array(node_buffer_1.Buffer.from(input, 'base64'));
+exports.decodeBase64 = decodeBase64;
+const encodeBase64 = (input) => node_buffer_1.Buffer.from(input).toString('base64');
+exports.encodeBase64 = encodeBase64;
+const decode = (input) => new Uint8Array(node_buffer_1.Buffer.from(normalize(input), 'base64url'));
+exports.decode = decode;
+
+
+/***/ }),
+
+/***/ 4519:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const node_crypto_1 = __nccwpck_require__(6005);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+function cbcTag(aad, iv, ciphertext, macSize, macKey, keySize) {
+    const macData = (0, buffer_utils_js_1.concat)(aad, iv, ciphertext, (0, buffer_utils_js_1.uint64be)(aad.length << 3));
+    const hmac = (0, node_crypto_1.createHmac)(`sha${macSize}`, macKey);
+    hmac.update(macData);
+    return hmac.digest().slice(0, keySize >> 3);
+}
+exports["default"] = cbcTag;
+
+
+/***/ }),
+
+/***/ 4047:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const errors_js_1 = __nccwpck_require__(4419);
+const is_key_object_js_1 = __nccwpck_require__(2768);
+const checkCekLength = (enc, cek) => {
+    let expected;
+    switch (enc) {
+        case 'A128CBC-HS256':
+        case 'A192CBC-HS384':
+        case 'A256CBC-HS512':
+            expected = parseInt(enc.slice(-3), 10);
+            break;
+        case 'A128GCM':
+        case 'A192GCM':
+        case 'A256GCM':
+            expected = parseInt(enc.slice(1, 4), 10);
+            break;
+        default:
+            throw new errors_js_1.JOSENotSupported(`Content Encryption Algorithm ${enc} is not supported either by JOSE or your javascript runtime`);
+    }
+    if (cek instanceof Uint8Array) {
+        const actual = cek.byteLength << 3;
+        if (actual !== expected) {
+            throw new errors_js_1.JWEInvalid(`Invalid Content Encryption Key length. Expected ${expected} bits, got ${actual} bits`);
+        }
+        return;
+    }
+    if ((0, is_key_object_js_1.default)(cek) && cek.type === 'secret') {
+        const actual = cek.symmetricKeySize << 3;
+        if (actual !== expected) {
+            throw new errors_js_1.JWEInvalid(`Invalid Content Encryption Key length. Expected ${expected} bits, got ${actual} bits`);
+        }
+        return;
+    }
+    throw new TypeError('Invalid Content Encryption Key type');
+};
+exports["default"] = checkCekLength;
+
+
+/***/ }),
+
+/***/ 4647:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const node_crypto_1 = __nccwpck_require__(6005);
+exports["default"] = (key, alg) => {
+    let modulusLength;
+    try {
+        if (key instanceof node_crypto_1.KeyObject) {
+            modulusLength = key.asymmetricKeyDetails?.modulusLength;
+        }
+        else {
+            modulusLength = Buffer.from(key.n, 'base64url').byteLength << 3;
+        }
+    }
+    catch { }
+    if (typeof modulusLength !== 'number' || modulusLength < 2048) {
+        throw new TypeError(`${alg} requires key modulusLength to be 2048 bits or larger`);
+    }
+};
+
+
+/***/ }),
+
+/***/ 4618:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const node_crypto_1 = __nccwpck_require__(6005);
+let ciphers;
+exports["default"] = (algorithm) => {
+    ciphers ||= new Set((0, node_crypto_1.getCiphers)());
+    return ciphers.has(algorithm);
+};
+
+
+/***/ }),
+
+/***/ 6137:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const node_crypto_1 = __nccwpck_require__(6005);
+const check_iv_length_js_1 = __nccwpck_require__(1120);
+const check_cek_length_js_1 = __nccwpck_require__(4047);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const errors_js_1 = __nccwpck_require__(4419);
+const timing_safe_equal_js_1 = __nccwpck_require__(5390);
+const cbc_tag_js_1 = __nccwpck_require__(4519);
+const webcrypto_js_1 = __nccwpck_require__(6852);
+const crypto_key_js_1 = __nccwpck_require__(3386);
+const is_key_object_js_1 = __nccwpck_require__(2768);
+const invalid_key_input_js_1 = __nccwpck_require__(1146);
+const ciphers_js_1 = __nccwpck_require__(4618);
+const is_key_like_js_1 = __nccwpck_require__(7947);
+function cbcDecrypt(enc, cek, ciphertext, iv, tag, aad) {
+    const keySize = parseInt(enc.slice(1, 4), 10);
+    if ((0, is_key_object_js_1.default)(cek)) {
+        cek = cek.export();
+    }
+    const encKey = cek.subarray(keySize >> 3);
+    const macKey = cek.subarray(0, keySize >> 3);
+    const macSize = parseInt(enc.slice(-3), 10);
+    const algorithm = `aes-${keySize}-cbc`;
+    if (!(0, ciphers_js_1.default)(algorithm)) {
+        throw new errors_js_1.JOSENotSupported(`alg ${enc} is not supported by your javascript runtime`);
+    }
+    const expectedTag = (0, cbc_tag_js_1.default)(aad, iv, ciphertext, macSize, macKey, keySize);
+    let macCheckPassed;
+    try {
+        macCheckPassed = (0, timing_safe_equal_js_1.default)(tag, expectedTag);
+    }
+    catch {
+    }
+    if (!macCheckPassed) {
+        throw new errors_js_1.JWEDecryptionFailed();
+    }
+    let plaintext;
+    try {
+        const decipher = (0, node_crypto_1.createDecipheriv)(algorithm, encKey, iv);
+        plaintext = (0, buffer_utils_js_1.concat)(decipher.update(ciphertext), decipher.final());
+    }
+    catch {
+    }
+    if (!plaintext) {
+        throw new errors_js_1.JWEDecryptionFailed();
+    }
+    return plaintext;
+}
+function gcmDecrypt(enc, cek, ciphertext, iv, tag, aad) {
+    const keySize = parseInt(enc.slice(1, 4), 10);
+    const algorithm = `aes-${keySize}-gcm`;
+    if (!(0, ciphers_js_1.default)(algorithm)) {
+        throw new errors_js_1.JOSENotSupported(`alg ${enc} is not supported by your javascript runtime`);
+    }
+    try {
+        const decipher = (0, node_crypto_1.createDecipheriv)(algorithm, cek, iv, { authTagLength: 16 });
+        decipher.setAuthTag(tag);
+        if (aad.byteLength) {
+            decipher.setAAD(aad, { plaintextLength: ciphertext.length });
+        }
+        const plaintext = decipher.update(ciphertext);
+        decipher.final();
+        return plaintext;
+    }
+    catch {
+        throw new errors_js_1.JWEDecryptionFailed();
+    }
+}
+const decrypt = (enc, cek, ciphertext, iv, tag, aad) => {
+    let key;
+    if ((0, webcrypto_js_1.isCryptoKey)(cek)) {
+        (0, crypto_key_js_1.checkEncCryptoKey)(cek, enc, 'decrypt');
+        key = node_crypto_1.KeyObject.from(cek);
+    }
+    else if (cek instanceof Uint8Array || (0, is_key_object_js_1.default)(cek)) {
+        key = cek;
+    }
+    else {
+        throw new TypeError((0, invalid_key_input_js_1.default)(cek, ...is_key_like_js_1.types, 'Uint8Array'));
+    }
+    if (!iv) {
+        throw new errors_js_1.JWEInvalid('JWE Initialization Vector missing');
+    }
+    if (!tag) {
+        throw new errors_js_1.JWEInvalid('JWE Authentication Tag missing');
+    }
+    (0, check_cek_length_js_1.default)(enc, key);
+    (0, check_iv_length_js_1.default)(enc, iv);
+    switch (enc) {
+        case 'A128CBC-HS256':
+        case 'A192CBC-HS384':
+        case 'A256CBC-HS512':
+            return cbcDecrypt(enc, key, ciphertext, iv, tag, aad);
+        case 'A128GCM':
+        case 'A192GCM':
+        case 'A256GCM':
+            return gcmDecrypt(enc, key, ciphertext, iv, tag, aad);
+        default:
+            throw new errors_js_1.JOSENotSupported('Unsupported JWE Content Encryption Algorithm');
+    }
+};
+exports["default"] = decrypt;
+
+
+/***/ }),
+
+/***/ 2355:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const node_crypto_1 = __nccwpck_require__(6005);
+const digest = (algorithm, data) => (0, node_crypto_1.createHash)(algorithm).update(data).digest();
+exports["default"] = digest;
+
+
+/***/ }),
+
+/***/ 4965:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const errors_js_1 = __nccwpck_require__(4419);
+function dsaDigest(alg) {
+    switch (alg) {
+        case 'PS256':
+        case 'RS256':
+        case 'ES256':
+        case 'ES256K':
+            return 'sha256';
+        case 'PS384':
+        case 'RS384':
+        case 'ES384':
+            return 'sha384';
+        case 'PS512':
+        case 'RS512':
+        case 'ES512':
+            return 'sha512';
+        case 'EdDSA':
+            return undefined;
+        default:
+            throw new errors_js_1.JOSENotSupported(`alg ${alg} is not supported either by JOSE or your javascript runtime`);
+    }
+}
+exports["default"] = dsaDigest;
+
+
+/***/ }),
+
+/***/ 3706:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ecdhAllowed = exports.generateEpk = exports.deriveKey = void 0;
+const node_crypto_1 = __nccwpck_require__(6005);
+const node_util_1 = __nccwpck_require__(7261);
+const get_named_curve_js_1 = __nccwpck_require__(9302);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const errors_js_1 = __nccwpck_require__(4419);
+const webcrypto_js_1 = __nccwpck_require__(6852);
+const crypto_key_js_1 = __nccwpck_require__(3386);
+const is_key_object_js_1 = __nccwpck_require__(2768);
+const invalid_key_input_js_1 = __nccwpck_require__(1146);
+const is_key_like_js_1 = __nccwpck_require__(7947);
+const generateKeyPair = (0, node_util_1.promisify)(node_crypto_1.generateKeyPair);
+async function deriveKey(publicKee, privateKee, algorithm, keyLength, apu = new Uint8Array(0), apv = new Uint8Array(0)) {
+    let publicKey;
+    if ((0, webcrypto_js_1.isCryptoKey)(publicKee)) {
+        (0, crypto_key_js_1.checkEncCryptoKey)(publicKee, 'ECDH');
+        publicKey = node_crypto_1.KeyObject.from(publicKee);
+    }
+    else if ((0, is_key_object_js_1.default)(publicKee)) {
+        publicKey = publicKee;
+    }
+    else {
+        throw new TypeError((0, invalid_key_input_js_1.default)(publicKee, ...is_key_like_js_1.types));
+    }
+    let privateKey;
+    if ((0, webcrypto_js_1.isCryptoKey)(privateKee)) {
+        (0, crypto_key_js_1.checkEncCryptoKey)(privateKee, 'ECDH', 'deriveBits');
+        privateKey = node_crypto_1.KeyObject.from(privateKee);
+    }
+    else if ((0, is_key_object_js_1.default)(privateKee)) {
+        privateKey = privateKee;
+    }
+    else {
+        throw new TypeError((0, invalid_key_input_js_1.default)(privateKee, ...is_key_like_js_1.types));
+    }
+    const value = (0, buffer_utils_js_1.concat)((0, buffer_utils_js_1.lengthAndInput)(buffer_utils_js_1.encoder.encode(algorithm)), (0, buffer_utils_js_1.lengthAndInput)(apu), (0, buffer_utils_js_1.lengthAndInput)(apv), (0, buffer_utils_js_1.uint32be)(keyLength));
+    const sharedSecret = (0, node_crypto_1.diffieHellman)({ privateKey, publicKey });
+    return (0, buffer_utils_js_1.concatKdf)(sharedSecret, keyLength, value);
+}
+exports.deriveKey = deriveKey;
+async function generateEpk(kee) {
+    let key;
+    if ((0, webcrypto_js_1.isCryptoKey)(kee)) {
+        key = node_crypto_1.KeyObject.from(kee);
+    }
+    else if ((0, is_key_object_js_1.default)(kee)) {
+        key = kee;
+    }
+    else {
+        throw new TypeError((0, invalid_key_input_js_1.default)(kee, ...is_key_like_js_1.types));
+    }
+    switch (key.asymmetricKeyType) {
+        case 'x25519':
+            return generateKeyPair('x25519');
+        case 'x448': {
+            return generateKeyPair('x448');
+        }
+        case 'ec': {
+            const namedCurve = (0, get_named_curve_js_1.default)(key);
+            return generateKeyPair('ec', { namedCurve });
+        }
+        default:
+            throw new errors_js_1.JOSENotSupported('Invalid or unsupported EPK');
+    }
+}
+exports.generateEpk = generateEpk;
+const ecdhAllowed = (key) => ['P-256', 'P-384', 'P-521', 'X25519', 'X448'].includes((0, get_named_curve_js_1.default)(key));
+exports.ecdhAllowed = ecdhAllowed;
+
+
+/***/ }),
+
+/***/ 6476:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const node_crypto_1 = __nccwpck_require__(6005);
+const check_iv_length_js_1 = __nccwpck_require__(1120);
+const check_cek_length_js_1 = __nccwpck_require__(4047);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const cbc_tag_js_1 = __nccwpck_require__(4519);
+const webcrypto_js_1 = __nccwpck_require__(6852);
+const crypto_key_js_1 = __nccwpck_require__(3386);
+const is_key_object_js_1 = __nccwpck_require__(2768);
+const invalid_key_input_js_1 = __nccwpck_require__(1146);
+const iv_js_1 = __nccwpck_require__(4630);
+const errors_js_1 = __nccwpck_require__(4419);
+const ciphers_js_1 = __nccwpck_require__(4618);
+const is_key_like_js_1 = __nccwpck_require__(7947);
+function cbcEncrypt(enc, plaintext, cek, iv, aad) {
+    const keySize = parseInt(enc.slice(1, 4), 10);
+    if ((0, is_key_object_js_1.default)(cek)) {
+        cek = cek.export();
+    }
+    const encKey = cek.subarray(keySize >> 3);
+    const macKey = cek.subarray(0, keySize >> 3);
+    const algorithm = `aes-${keySize}-cbc`;
+    if (!(0, ciphers_js_1.default)(algorithm)) {
+        throw new errors_js_1.JOSENotSupported(`alg ${enc} is not supported by your javascript runtime`);
+    }
+    const cipher = (0, node_crypto_1.createCipheriv)(algorithm, encKey, iv);
+    const ciphertext = (0, buffer_utils_js_1.concat)(cipher.update(plaintext), cipher.final());
+    const macSize = parseInt(enc.slice(-3), 10);
+    const tag = (0, cbc_tag_js_1.default)(aad, iv, ciphertext, macSize, macKey, keySize);
+    return { ciphertext, tag, iv };
+}
+function gcmEncrypt(enc, plaintext, cek, iv, aad) {
+    const keySize = parseInt(enc.slice(1, 4), 10);
+    const algorithm = `aes-${keySize}-gcm`;
+    if (!(0, ciphers_js_1.default)(algorithm)) {
+        throw new errors_js_1.JOSENotSupported(`alg ${enc} is not supported by your javascript runtime`);
+    }
+    const cipher = (0, node_crypto_1.createCipheriv)(algorithm, cek, iv, { authTagLength: 16 });
+    if (aad.byteLength) {
+        cipher.setAAD(aad, { plaintextLength: plaintext.length });
+    }
+    const ciphertext = cipher.update(plaintext);
+    cipher.final();
+    const tag = cipher.getAuthTag();
+    return { ciphertext, tag, iv };
+}
+const encrypt = (enc, plaintext, cek, iv, aad) => {
+    let key;
+    if ((0, webcrypto_js_1.isCryptoKey)(cek)) {
+        (0, crypto_key_js_1.checkEncCryptoKey)(cek, enc, 'encrypt');
+        key = node_crypto_1.KeyObject.from(cek);
+    }
+    else if (cek instanceof Uint8Array || (0, is_key_object_js_1.default)(cek)) {
+        key = cek;
+    }
+    else {
+        throw new TypeError((0, invalid_key_input_js_1.default)(cek, ...is_key_like_js_1.types, 'Uint8Array'));
+    }
+    (0, check_cek_length_js_1.default)(enc, key);
+    if (iv) {
+        (0, check_iv_length_js_1.default)(enc, iv);
+    }
+    else {
+        iv = (0, iv_js_1.default)(enc);
+    }
+    switch (enc) {
+        case 'A128CBC-HS256':
+        case 'A192CBC-HS384':
+        case 'A256CBC-HS512':
+            return cbcEncrypt(enc, plaintext, key, iv, aad);
+        case 'A128GCM':
+        case 'A192GCM':
+        case 'A256GCM':
+            return gcmEncrypt(enc, plaintext, key, iv, aad);
+        default:
+            throw new errors_js_1.JOSENotSupported('Unsupported JWE Content Encryption Algorithm');
+    }
+};
+exports["default"] = encrypt;
+
+
+/***/ }),
+
+/***/ 3650:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const http = __nccwpck_require__(8849);
+const https = __nccwpck_require__(5200);
+const node_events_1 = __nccwpck_require__(5673);
+const errors_js_1 = __nccwpck_require__(4419);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const fetchJwks = async (url, timeout, options) => {
+    let get;
+    switch (url.protocol) {
+        case 'https:':
+            get = https.get;
+            break;
+        case 'http:':
+            get = http.get;
+            break;
+        default:
+            throw new TypeError('Unsupported URL protocol.');
+    }
+    const { agent, headers } = options;
+    const req = get(url.href, {
+        agent,
+        timeout,
+        headers,
+    });
+    const [response] = (await Promise.race([(0, node_events_1.once)(req, 'response'), (0, node_events_1.once)(req, 'timeout')]));
+    if (!response) {
+        req.destroy();
+        throw new errors_js_1.JWKSTimeout();
+    }
+    if (response.statusCode !== 200) {
+        throw new errors_js_1.JOSEError('Expected 200 OK from the JSON Web Key Set HTTP response');
+    }
+    const parts = [];
+    for await (const part of response) {
+        parts.push(part);
+    }
+    try {
+        return JSON.parse(buffer_utils_js_1.decoder.decode((0, buffer_utils_js_1.concat)(...parts)));
+    }
+    catch {
+        throw new errors_js_1.JOSEError('Failed to parse the JSON Web Key Set HTTP response as JSON');
+    }
+};
+exports["default"] = fetchJwks;
+
+
+/***/ }),
+
+/***/ 9378:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.generateKeyPair = exports.generateSecret = void 0;
+const node_crypto_1 = __nccwpck_require__(6005);
+const node_util_1 = __nccwpck_require__(7261);
+const random_js_1 = __nccwpck_require__(5770);
+const errors_js_1 = __nccwpck_require__(4419);
+const generate = (0, node_util_1.promisify)(node_crypto_1.generateKeyPair);
+async function generateSecret(alg, options) {
+    let length;
+    switch (alg) {
+        case 'HS256':
+        case 'HS384':
+        case 'HS512':
+        case 'A128CBC-HS256':
+        case 'A192CBC-HS384':
+        case 'A256CBC-HS512':
+            length = parseInt(alg.slice(-3), 10);
+            break;
+        case 'A128KW':
+        case 'A192KW':
+        case 'A256KW':
+        case 'A128GCMKW':
+        case 'A192GCMKW':
+        case 'A256GCMKW':
+        case 'A128GCM':
+        case 'A192GCM':
+        case 'A256GCM':
+            length = parseInt(alg.slice(1, 4), 10);
+            break;
+        default:
+            throw new errors_js_1.JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
+    }
+    return (0, node_crypto_1.createSecretKey)((0, random_js_1.default)(new Uint8Array(length >> 3)));
+}
+exports.generateSecret = generateSecret;
+async function generateKeyPair(alg, options) {
+    switch (alg) {
+        case 'RS256':
+        case 'RS384':
+        case 'RS512':
+        case 'PS256':
+        case 'PS384':
+        case 'PS512':
+        case 'RSA-OAEP':
+        case 'RSA-OAEP-256':
+        case 'RSA-OAEP-384':
+        case 'RSA-OAEP-512':
+        case 'RSA1_5': {
+            const modulusLength = options?.modulusLength ?? 2048;
+            if (typeof modulusLength !== 'number' || modulusLength < 2048) {
+                throw new errors_js_1.JOSENotSupported('Invalid or unsupported modulusLength option provided, 2048 bits or larger keys must be used');
+            }
+            const keypair = await generate('rsa', {
+                modulusLength,
+                publicExponent: 0x10001,
+            });
+            return keypair;
+        }
+        case 'ES256':
+            return generate('ec', { namedCurve: 'P-256' });
+        case 'ES256K':
+            return generate('ec', { namedCurve: 'secp256k1' });
+        case 'ES384':
+            return generate('ec', { namedCurve: 'P-384' });
+        case 'ES512':
+            return generate('ec', { namedCurve: 'P-521' });
+        case 'EdDSA': {
+            switch (options?.crv) {
+                case undefined:
+                case 'Ed25519':
+                    return generate('ed25519');
+                case 'Ed448':
+                    return generate('ed448');
+                default:
+                    throw new errors_js_1.JOSENotSupported('Invalid or unsupported crv option provided, supported values are Ed25519 and Ed448');
+            }
+        }
+        case 'ECDH-ES':
+        case 'ECDH-ES+A128KW':
+        case 'ECDH-ES+A192KW':
+        case 'ECDH-ES+A256KW': {
+            const crv = options?.crv ?? 'P-256';
+            switch (crv) {
+                case undefined:
+                case 'P-256':
+                case 'P-384':
+                case 'P-521':
+                    return generate('ec', { namedCurve: crv });
+                case 'X25519':
+                    return generate('x25519');
+                case 'X448':
+                    return generate('x448');
+                default:
+                    throw new errors_js_1.JOSENotSupported('Invalid or unsupported crv option provided, supported values are P-256, P-384, P-521, X25519, and X448');
+            }
+        }
+        default:
+            throw new errors_js_1.JOSENotSupported('Invalid or unsupported JWK "alg" (Algorithm) Parameter value');
+    }
+}
+exports.generateKeyPair = generateKeyPair;
+
+
+/***/ }),
+
+/***/ 9302:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.weakMap = void 0;
+const node_crypto_1 = __nccwpck_require__(6005);
+const errors_js_1 = __nccwpck_require__(4419);
+const webcrypto_js_1 = __nccwpck_require__(6852);
+const is_key_object_js_1 = __nccwpck_require__(2768);
+const invalid_key_input_js_1 = __nccwpck_require__(1146);
+const is_key_like_js_1 = __nccwpck_require__(7947);
+const is_jwk_js_1 = __nccwpck_require__(8377);
+exports.weakMap = new WeakMap();
+const namedCurveToJOSE = (namedCurve) => {
+    switch (namedCurve) {
+        case 'prime256v1':
+            return 'P-256';
+        case 'secp384r1':
+            return 'P-384';
+        case 'secp521r1':
+            return 'P-521';
+        case 'secp256k1':
+            return 'secp256k1';
+        default:
+            throw new errors_js_1.JOSENotSupported('Unsupported key curve for this operation');
+    }
+};
+const getNamedCurve = (kee, raw) => {
+    let key;
+    if ((0, webcrypto_js_1.isCryptoKey)(kee)) {
+        key = node_crypto_1.KeyObject.from(kee);
+    }
+    else if ((0, is_key_object_js_1.default)(kee)) {
+        key = kee;
+    }
+    else if ((0, is_jwk_js_1.isJWK)(kee)) {
+        return kee.crv;
+    }
+    else {
+        throw new TypeError((0, invalid_key_input_js_1.default)(kee, ...is_key_like_js_1.types));
+    }
+    if (key.type === 'secret') {
+        throw new TypeError('only "private" or "public" type keys can be used for this operation');
+    }
+    switch (key.asymmetricKeyType) {
+        case 'ed25519':
+        case 'ed448':
+            return `Ed${key.asymmetricKeyType.slice(2)}`;
+        case 'x25519':
+        case 'x448':
+            return `X${key.asymmetricKeyType.slice(1)}`;
+        case 'ec': {
+            const namedCurve = key.asymmetricKeyDetails.namedCurve;
+            if (raw) {
+                return namedCurve;
+            }
+            return namedCurveToJOSE(namedCurve);
+        }
+        default:
+            throw new TypeError('Invalid asymmetric key type for this operation');
+    }
+};
+exports["default"] = getNamedCurve;
+
+
+/***/ }),
+
+/***/ 3170:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const node_crypto_1 = __nccwpck_require__(6005);
+const webcrypto_js_1 = __nccwpck_require__(6852);
+const crypto_key_js_1 = __nccwpck_require__(3386);
+const invalid_key_input_js_1 = __nccwpck_require__(1146);
+const is_key_like_js_1 = __nccwpck_require__(7947);
+const jwk = __nccwpck_require__(8377);
+function getSignVerifyKey(alg, key, usage) {
+    if (key instanceof Uint8Array) {
+        if (!alg.startsWith('HS')) {
+            throw new TypeError((0, invalid_key_input_js_1.default)(key, ...is_key_like_js_1.types));
+        }
+        return (0, node_crypto_1.createSecretKey)(key);
+    }
+    if (key instanceof node_crypto_1.KeyObject) {
+        return key;
+    }
+    if ((0, webcrypto_js_1.isCryptoKey)(key)) {
+        (0, crypto_key_js_1.checkSigCryptoKey)(key, alg, usage);
+        return node_crypto_1.KeyObject.from(key);
+    }
+    if (jwk.isJWK(key)) {
+        if (alg.startsWith('HS')) {
+            return (0, node_crypto_1.createSecretKey)(Buffer.from(key.k, 'base64url'));
+        }
+        return key;
+    }
+    throw new TypeError((0, invalid_key_input_js_1.default)(key, ...is_key_like_js_1.types, 'Uint8Array', 'JSON Web Key'));
+}
+exports["default"] = getSignVerifyKey;
+
+
+/***/ }),
+
+/***/ 3811:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const errors_js_1 = __nccwpck_require__(4419);
+function hmacDigest(alg) {
+    switch (alg) {
+        case 'HS256':
+            return 'sha256';
+        case 'HS384':
+            return 'sha384';
+        case 'HS512':
+            return 'sha512';
+        default:
+            throw new errors_js_1.JOSENotSupported(`alg ${alg} is not supported either by JOSE or your javascript runtime`);
+    }
+}
+exports["default"] = hmacDigest;
+
+
+/***/ }),
+
+/***/ 7947:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.types = void 0;
+const webcrypto_js_1 = __nccwpck_require__(6852);
+const is_key_object_js_1 = __nccwpck_require__(2768);
+exports["default"] = (key) => (0, is_key_object_js_1.default)(key) || (0, webcrypto_js_1.isCryptoKey)(key);
+const types = ['KeyObject'];
+exports.types = types;
+if (globalThis.CryptoKey || webcrypto_js_1.default?.CryptoKey) {
+    types.push('CryptoKey');
+}
+
+
+/***/ }),
+
+/***/ 2768:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const util = __nccwpck_require__(7261);
+exports["default"] = (obj) => util.types.isKeyObject(obj);
+
+
+/***/ }),
+
+/***/ 2659:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const node_crypto_1 = __nccwpck_require__(6005);
+const parse = (key) => {
+    if (key.d) {
+        return (0, node_crypto_1.createPrivateKey)({ format: 'jwk', key });
+    }
+    return (0, node_crypto_1.createPublicKey)({ format: 'jwk', key });
+};
+exports["default"] = parse;
+
+
+/***/ }),
+
+/***/ 997:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const node_crypto_1 = __nccwpck_require__(6005);
+const base64url_js_1 = __nccwpck_require__(518);
+const errors_js_1 = __nccwpck_require__(4419);
+const webcrypto_js_1 = __nccwpck_require__(6852);
+const is_key_object_js_1 = __nccwpck_require__(2768);
+const invalid_key_input_js_1 = __nccwpck_require__(1146);
+const is_key_like_js_1 = __nccwpck_require__(7947);
+const keyToJWK = (key) => {
+    let keyObject;
+    if ((0, webcrypto_js_1.isCryptoKey)(key)) {
+        if (!key.extractable) {
+            throw new TypeError('CryptoKey is not extractable');
+        }
+        keyObject = node_crypto_1.KeyObject.from(key);
+    }
+    else if ((0, is_key_object_js_1.default)(key)) {
+        keyObject = key;
+    }
+    else if (key instanceof Uint8Array) {
+        return {
+            kty: 'oct',
+            k: (0, base64url_js_1.encode)(key),
+        };
+    }
+    else {
+        throw new TypeError((0, invalid_key_input_js_1.default)(key, ...is_key_like_js_1.types, 'Uint8Array'));
+    }
+    if (keyObject.type !== 'secret' &&
+        !['rsa', 'ec', 'ed25519', 'x25519', 'ed448', 'x448'].includes(keyObject.asymmetricKeyType)) {
+        throw new errors_js_1.JOSENotSupported('Unsupported key asymmetricKeyType');
+    }
+    return keyObject.export({ format: 'jwk' });
+};
+exports["default"] = keyToJWK;
+
+
+/***/ }),
+
+/***/ 2413:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const node_crypto_1 = __nccwpck_require__(6005);
+const get_named_curve_js_1 = __nccwpck_require__(9302);
+const errors_js_1 = __nccwpck_require__(4419);
+const check_key_length_js_1 = __nccwpck_require__(4647);
+const ecCurveAlgMap = new Map([
+    ['ES256', 'P-256'],
+    ['ES256K', 'secp256k1'],
+    ['ES384', 'P-384'],
+    ['ES512', 'P-521'],
+]);
+function keyForCrypto(alg, key) {
+    let asymmetricKeyType;
+    let asymmetricKeyDetails;
+    let isJWK;
+    if (key instanceof node_crypto_1.KeyObject) {
+        asymmetricKeyType = key.asymmetricKeyType;
+        asymmetricKeyDetails = key.asymmetricKeyDetails;
+    }
+    else {
+        isJWK = true;
+        switch (key.kty) {
+            case 'RSA':
+                asymmetricKeyType = 'rsa';
+                break;
+            case 'EC':
+                asymmetricKeyType = 'ec';
+                break;
+            case 'OKP': {
+                if (key.crv === 'Ed25519') {
+                    asymmetricKeyType = 'ed25519';
+                    break;
+                }
+                if (key.crv === 'Ed448') {
+                    asymmetricKeyType = 'ed448';
+                    break;
+                }
+                throw new TypeError('Invalid key for this operation, its crv must be Ed25519 or Ed448');
+            }
+            default:
+                throw new TypeError('Invalid key for this operation, its kty must be RSA, OKP, or EC');
+        }
+    }
+    let options;
+    switch (alg) {
+        case 'EdDSA':
+            if (!['ed25519', 'ed448'].includes(asymmetricKeyType)) {
+                throw new TypeError('Invalid key for this operation, its asymmetricKeyType must be ed25519 or ed448');
+            }
+            break;
+        case 'RS256':
+        case 'RS384':
+        case 'RS512':
+            if (asymmetricKeyType !== 'rsa') {
+                throw new TypeError('Invalid key for this operation, its asymmetricKeyType must be rsa');
+            }
+            (0, check_key_length_js_1.default)(key, alg);
+            break;
+        case 'PS256':
+        case 'PS384':
+        case 'PS512':
+            if (asymmetricKeyType === 'rsa-pss') {
+                const { hashAlgorithm, mgf1HashAlgorithm, saltLength } = asymmetricKeyDetails;
+                const length = parseInt(alg.slice(-3), 10);
+                if (hashAlgorithm !== undefined &&
+                    (hashAlgorithm !== `sha${length}` || mgf1HashAlgorithm !== hashAlgorithm)) {
+                    throw new TypeError(`Invalid key for this operation, its RSA-PSS parameters do not meet the requirements of "alg" ${alg}`);
+                }
+                if (saltLength !== undefined && saltLength > length >> 3) {
+                    throw new TypeError(`Invalid key for this operation, its RSA-PSS parameter saltLength does not meet the requirements of "alg" ${alg}`);
+                }
+            }
+            else if (asymmetricKeyType !== 'rsa') {
+                throw new TypeError('Invalid key for this operation, its asymmetricKeyType must be rsa or rsa-pss');
+            }
+            (0, check_key_length_js_1.default)(key, alg);
+            options = {
+                padding: node_crypto_1.constants.RSA_PKCS1_PSS_PADDING,
+                saltLength: node_crypto_1.constants.RSA_PSS_SALTLEN_DIGEST,
+            };
+            break;
+        case 'ES256':
+        case 'ES256K':
+        case 'ES384':
+        case 'ES512': {
+            if (asymmetricKeyType !== 'ec') {
+                throw new TypeError('Invalid key for this operation, its asymmetricKeyType must be ec');
+            }
+            const actual = (0, get_named_curve_js_1.default)(key);
+            const expected = ecCurveAlgMap.get(alg);
+            if (actual !== expected) {
+                throw new TypeError(`Invalid key curve for the algorithm, its curve must be ${expected}, got ${actual}`);
+            }
+            options = { dsaEncoding: 'ieee-p1363' };
+            break;
+        }
+        default:
+            throw new errors_js_1.JOSENotSupported(`alg ${alg} is not supported either by JOSE or your javascript runtime`);
+    }
+    if (isJWK) {
+        return { format: 'jwk', key, ...options };
+    }
+    return options ? { ...options, key } : key;
+}
+exports["default"] = keyForCrypto;
+
+
+/***/ }),
+
+/***/ 3367:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports["default"] = {};
+
+
+/***/ }),
+
+/***/ 6898:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.decrypt = exports.encrypt = void 0;
+const node_util_1 = __nccwpck_require__(7261);
+const node_crypto_1 = __nccwpck_require__(6005);
+const random_js_1 = __nccwpck_require__(5770);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const base64url_js_1 = __nccwpck_require__(518);
+const aeskw_js_1 = __nccwpck_require__(6083);
+const check_p2s_js_1 = __nccwpck_require__(3499);
+const webcrypto_js_1 = __nccwpck_require__(6852);
+const crypto_key_js_1 = __nccwpck_require__(3386);
+const is_key_object_js_1 = __nccwpck_require__(2768);
+const invalid_key_input_js_1 = __nccwpck_require__(1146);
+const is_key_like_js_1 = __nccwpck_require__(7947);
+const pbkdf2 = (0, node_util_1.promisify)(node_crypto_1.pbkdf2);
+function getPassword(key, alg) {
+    if ((0, is_key_object_js_1.default)(key)) {
+        return key.export();
+    }
+    if (key instanceof Uint8Array) {
+        return key;
+    }
+    if ((0, webcrypto_js_1.isCryptoKey)(key)) {
+        (0, crypto_key_js_1.checkEncCryptoKey)(key, alg, 'deriveBits', 'deriveKey');
+        return node_crypto_1.KeyObject.from(key).export();
+    }
+    throw new TypeError((0, invalid_key_input_js_1.default)(key, ...is_key_like_js_1.types, 'Uint8Array'));
+}
+const encrypt = async (alg, key, cek, p2c = 2048, p2s = (0, random_js_1.default)(new Uint8Array(16))) => {
+    (0, check_p2s_js_1.default)(p2s);
+    const salt = (0, buffer_utils_js_1.p2s)(alg, p2s);
+    const keylen = parseInt(alg.slice(13, 16), 10) >> 3;
+    const password = getPassword(key, alg);
+    const derivedKey = await pbkdf2(password, salt, p2c, keylen, `sha${alg.slice(8, 11)}`);
+    const encryptedKey = await (0, aeskw_js_1.wrap)(alg.slice(-6), derivedKey, cek);
+    return { encryptedKey, p2c, p2s: (0, base64url_js_1.encode)(p2s) };
+};
+exports.encrypt = encrypt;
+const decrypt = async (alg, key, encryptedKey, p2c, p2s) => {
+    (0, check_p2s_js_1.default)(p2s);
+    const salt = (0, buffer_utils_js_1.p2s)(alg, p2s);
+    const keylen = parseInt(alg.slice(13, 16), 10) >> 3;
+    const password = getPassword(key, alg);
+    const derivedKey = await pbkdf2(password, salt, p2c, keylen, `sha${alg.slice(8, 11)}`);
+    return (0, aeskw_js_1.unwrap)(alg.slice(-6), derivedKey, encryptedKey);
+};
+exports.decrypt = decrypt;
+
+
+/***/ }),
+
+/***/ 5770:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports["default"] = void 0;
+var node_crypto_1 = __nccwpck_require__(6005);
+Object.defineProperty(exports, "default", ({ enumerable: true, get: function () { return node_crypto_1.randomFillSync; } }));
+
+
+/***/ }),
+
+/***/ 9526:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.decrypt = exports.encrypt = void 0;
+const node_crypto_1 = __nccwpck_require__(6005);
+const node_util_1 = __nccwpck_require__(7261);
+const check_key_length_js_1 = __nccwpck_require__(4647);
+const webcrypto_js_1 = __nccwpck_require__(6852);
+const crypto_key_js_1 = __nccwpck_require__(3386);
+const is_key_object_js_1 = __nccwpck_require__(2768);
+const invalid_key_input_js_1 = __nccwpck_require__(1146);
+const is_key_like_js_1 = __nccwpck_require__(7947);
+const checkKey = (key, alg) => {
+    if (key.asymmetricKeyType !== 'rsa') {
+        throw new TypeError('Invalid key for this operation, its asymmetricKeyType must be rsa');
+    }
+    (0, check_key_length_js_1.default)(key, alg);
+};
+const RSA1_5 = (0, node_util_1.deprecate)(() => node_crypto_1.constants.RSA_PKCS1_PADDING, 'The RSA1_5 "alg" (JWE Algorithm) is deprecated and will be removed in the next major revision.');
+const resolvePadding = (alg) => {
+    switch (alg) {
+        case 'RSA-OAEP':
+        case 'RSA-OAEP-256':
+        case 'RSA-OAEP-384':
+        case 'RSA-OAEP-512':
+            return node_crypto_1.constants.RSA_PKCS1_OAEP_PADDING;
+        case 'RSA1_5':
+            return RSA1_5();
+        default:
+            return undefined;
+    }
+};
+const resolveOaepHash = (alg) => {
+    switch (alg) {
+        case 'RSA-OAEP':
+            return 'sha1';
+        case 'RSA-OAEP-256':
+            return 'sha256';
+        case 'RSA-OAEP-384':
+            return 'sha384';
+        case 'RSA-OAEP-512':
+            return 'sha512';
+        default:
+            return undefined;
+    }
+};
+function ensureKeyObject(key, alg, ...usages) {
+    if ((0, is_key_object_js_1.default)(key)) {
+        return key;
+    }
+    if ((0, webcrypto_js_1.isCryptoKey)(key)) {
+        (0, crypto_key_js_1.checkEncCryptoKey)(key, alg, ...usages);
+        return node_crypto_1.KeyObject.from(key);
+    }
+    throw new TypeError((0, invalid_key_input_js_1.default)(key, ...is_key_like_js_1.types));
+}
+const encrypt = (alg, key, cek) => {
+    const padding = resolvePadding(alg);
+    const oaepHash = resolveOaepHash(alg);
+    const keyObject = ensureKeyObject(key, alg, 'wrapKey', 'encrypt');
+    checkKey(keyObject, alg);
+    return (0, node_crypto_1.publicEncrypt)({ key: keyObject, oaepHash, padding }, cek);
+};
+exports.encrypt = encrypt;
+const decrypt = (alg, key, encryptedKey) => {
+    const padding = resolvePadding(alg);
+    const oaepHash = resolveOaepHash(alg);
+    const keyObject = ensureKeyObject(key, alg, 'unwrapKey', 'decrypt');
+    checkKey(keyObject, alg);
+    return (0, node_crypto_1.privateDecrypt)({ key: keyObject, oaepHash, padding }, encryptedKey);
+};
+exports.decrypt = decrypt;
+
+
+/***/ }),
+
+/***/ 1622:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports["default"] = 'node:crypto';
+
+
+/***/ }),
+
+/***/ 9935:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const crypto = __nccwpck_require__(6005);
+const node_util_1 = __nccwpck_require__(7261);
+const dsa_digest_js_1 = __nccwpck_require__(4965);
+const hmac_digest_js_1 = __nccwpck_require__(3811);
+const node_key_js_1 = __nccwpck_require__(2413);
+const get_sign_verify_key_js_1 = __nccwpck_require__(3170);
+const oneShotSign = (0, node_util_1.promisify)(crypto.sign);
+const sign = async (alg, key, data) => {
+    const k = (0, get_sign_verify_key_js_1.default)(alg, key, 'sign');
+    if (alg.startsWith('HS')) {
+        const hmac = crypto.createHmac((0, hmac_digest_js_1.default)(alg), k);
+        hmac.update(data);
+        return hmac.digest();
+    }
+    return oneShotSign((0, dsa_digest_js_1.default)(alg), data, (0, node_key_js_1.default)(alg, k));
+};
+exports["default"] = sign;
+
+
+/***/ }),
+
+/***/ 5390:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const node_crypto_1 = __nccwpck_require__(6005);
+const timingSafeEqual = node_crypto_1.timingSafeEqual;
+exports["default"] = timingSafeEqual;
+
+
+/***/ }),
+
+/***/ 3569:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const crypto = __nccwpck_require__(6005);
+const node_util_1 = __nccwpck_require__(7261);
+const dsa_digest_js_1 = __nccwpck_require__(4965);
+const node_key_js_1 = __nccwpck_require__(2413);
+const sign_js_1 = __nccwpck_require__(9935);
+const get_sign_verify_key_js_1 = __nccwpck_require__(3170);
+const oneShotVerify = (0, node_util_1.promisify)(crypto.verify);
+const verify = async (alg, key, signature, data) => {
+    const k = (0, get_sign_verify_key_js_1.default)(alg, key, 'verify');
+    if (alg.startsWith('HS')) {
+        const expected = await (0, sign_js_1.default)(alg, k, data);
+        const actual = signature;
+        try {
+            return crypto.timingSafeEqual(actual, expected);
+        }
+        catch {
+            return false;
+        }
+    }
+    const algorithm = (0, dsa_digest_js_1.default)(alg);
+    const keyInput = (0, node_key_js_1.default)(alg, k);
+    try {
+        return await oneShotVerify(algorithm, data, keyInput, signature);
+    }
+    catch {
+        return false;
+    }
+};
+exports["default"] = verify;
+
+
+/***/ }),
+
+/***/ 6852:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.isCryptoKey = void 0;
+const crypto = __nccwpck_require__(6005);
+const util = __nccwpck_require__(7261);
+const webcrypto = crypto.webcrypto;
+exports["default"] = webcrypto;
+const isCryptoKey = (key) => util.types.isCryptoKey(key);
+exports.isCryptoKey = isCryptoKey;
+
+
+/***/ }),
+
+/***/ 3238:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.decode = exports.encode = void 0;
+const base64url = __nccwpck_require__(518);
+exports.encode = base64url.encode;
+exports.decode = base64url.decode;
+
+
+/***/ }),
+
+/***/ 5611:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.decodeJwt = void 0;
+const base64url_js_1 = __nccwpck_require__(3238);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const is_object_js_1 = __nccwpck_require__(9127);
+const errors_js_1 = __nccwpck_require__(4419);
+function decodeJwt(jwt) {
+    if (typeof jwt !== 'string')
+        throw new errors_js_1.JWTInvalid('JWTs must use Compact JWS serialization, JWT must be a string');
+    const { 1: payload, length } = jwt.split('.');
+    if (length === 5)
+        throw new errors_js_1.JWTInvalid('Only JWTs using Compact JWS serialization can be decoded');
+    if (length !== 3)
+        throw new errors_js_1.JWTInvalid('Invalid JWT');
+    if (!payload)
+        throw new errors_js_1.JWTInvalid('JWTs must contain a payload');
+    let decoded;
+    try {
+        decoded = (0, base64url_js_1.decode)(payload);
+    }
+    catch {
+        throw new errors_js_1.JWTInvalid('Failed to base64url decode the payload');
+    }
+    let result;
+    try {
+        result = JSON.parse(buffer_utils_js_1.decoder.decode(decoded));
+    }
+    catch {
+        throw new errors_js_1.JWTInvalid('Failed to parse the decoded payload as JSON');
+    }
+    if (!(0, is_object_js_1.default)(result))
+        throw new errors_js_1.JWTInvalid('Invalid JWT Claims Set');
+    return result;
+}
+exports.decodeJwt = decodeJwt;
+
+
+/***/ }),
+
+/***/ 3991:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.decodeProtectedHeader = void 0;
+const base64url_js_1 = __nccwpck_require__(3238);
+const buffer_utils_js_1 = __nccwpck_require__(1691);
+const is_object_js_1 = __nccwpck_require__(9127);
+function decodeProtectedHeader(token) {
+    let protectedB64u;
+    if (typeof token === 'string') {
+        const parts = token.split('.');
+        if (parts.length === 3 || parts.length === 5) {
+            ;
+            [protectedB64u] = parts;
+        }
+    }
+    else if (typeof token === 'object' && token) {
+        if ('protected' in token) {
+            protectedB64u = token.protected;
+        }
+        else {
+            throw new TypeError('Token does not contain a Protected Header');
+        }
+    }
+    try {
+        if (typeof protectedB64u !== 'string' || !protectedB64u) {
+            throw new Error();
+        }
+        const result = JSON.parse(buffer_utils_js_1.decoder.decode((0, base64url_js_1.decode)(protectedB64u)));
+        if (!(0, is_object_js_1.default)(result)) {
+            throw new Error();
+        }
+        return result;
+    }
+    catch {
+        throw new TypeError('Invalid Token or Protected Header formatting');
+    }
+}
+exports.decodeProtectedHeader = decodeProtectedHeader;
+
+
+/***/ }),
+
+/***/ 4419:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.JWSSignatureVerificationFailed = exports.JWKSTimeout = exports.JWKSMultipleMatchingKeys = exports.JWKSNoMatchingKey = exports.JWKSInvalid = exports.JWKInvalid = exports.JWTInvalid = exports.JWSInvalid = exports.JWEInvalid = exports.JWEDecryptionFailed = exports.JOSENotSupported = exports.JOSEAlgNotAllowed = exports.JWTExpired = exports.JWTClaimValidationFailed = exports.JOSEError = void 0;
+class JOSEError extends Error {
+    static code = 'ERR_JOSE_GENERIC';
+    code = 'ERR_JOSE_GENERIC';
+    constructor(message, options) {
+        super(message, options);
+        this.name = this.constructor.name;
+        Error.captureStackTrace?.(this, this.constructor);
+    }
+}
+exports.JOSEError = JOSEError;
+class JWTClaimValidationFailed extends JOSEError {
+    static code = 'ERR_JWT_CLAIM_VALIDATION_FAILED';
+    code = 'ERR_JWT_CLAIM_VALIDATION_FAILED';
+    claim;
+    reason;
+    payload;
+    constructor(message, payload, claim = 'unspecified', reason = 'unspecified') {
+        super(message, { cause: { claim, reason, payload } });
+        this.claim = claim;
+        this.reason = reason;
+        this.payload = payload;
+    }
+}
+exports.JWTClaimValidationFailed = JWTClaimValidationFailed;
+class JWTExpired extends JOSEError {
+    static code = 'ERR_JWT_EXPIRED';
+    code = 'ERR_JWT_EXPIRED';
+    claim;
+    reason;
+    payload;
+    constructor(message, payload, claim = 'unspecified', reason = 'unspecified') {
+        super(message, { cause: { claim, reason, payload } });
+        this.claim = claim;
+        this.reason = reason;
+        this.payload = payload;
+    }
+}
+exports.JWTExpired = JWTExpired;
+class JOSEAlgNotAllowed extends JOSEError {
+    static code = 'ERR_JOSE_ALG_NOT_ALLOWED';
+    code = 'ERR_JOSE_ALG_NOT_ALLOWED';
+}
+exports.JOSEAlgNotAllowed = JOSEAlgNotAllowed;
+class JOSENotSupported extends JOSEError {
+    static code = 'ERR_JOSE_NOT_SUPPORTED';
+    code = 'ERR_JOSE_NOT_SUPPORTED';
+}
+exports.JOSENotSupported = JOSENotSupported;
+class JWEDecryptionFailed extends JOSEError {
+    static code = 'ERR_JWE_DECRYPTION_FAILED';
+    code = 'ERR_JWE_DECRYPTION_FAILED';
+    constructor(message = 'decryption operation failed', options) {
+        super(message, options);
+    }
+}
+exports.JWEDecryptionFailed = JWEDecryptionFailed;
+class JWEInvalid extends JOSEError {
+    static code = 'ERR_JWE_INVALID';
+    code = 'ERR_JWE_INVALID';
+}
+exports.JWEInvalid = JWEInvalid;
+class JWSInvalid extends JOSEError {
+    static code = 'ERR_JWS_INVALID';
+    code = 'ERR_JWS_INVALID';
+}
+exports.JWSInvalid = JWSInvalid;
+class JWTInvalid extends JOSEError {
+    static code = 'ERR_JWT_INVALID';
+    code = 'ERR_JWT_INVALID';
+}
+exports.JWTInvalid = JWTInvalid;
+class JWKInvalid extends JOSEError {
+    static code = 'ERR_JWK_INVALID';
+    code = 'ERR_JWK_INVALID';
+}
+exports.JWKInvalid = JWKInvalid;
+class JWKSInvalid extends JOSEError {
+    static code = 'ERR_JWKS_INVALID';
+    code = 'ERR_JWKS_INVALID';
+}
+exports.JWKSInvalid = JWKSInvalid;
+class JWKSNoMatchingKey extends JOSEError {
+    static code = 'ERR_JWKS_NO_MATCHING_KEY';
+    code = 'ERR_JWKS_NO_MATCHING_KEY';
+    constructor(message = 'no applicable key found in the JSON Web Key Set', options) {
+        super(message, options);
+    }
+}
+exports.JWKSNoMatchingKey = JWKSNoMatchingKey;
+class JWKSMultipleMatchingKeys extends JOSEError {
+    [Symbol.asyncIterator];
+    static code = 'ERR_JWKS_MULTIPLE_MATCHING_KEYS';
+    code = 'ERR_JWKS_MULTIPLE_MATCHING_KEYS';
+    constructor(message = 'multiple matching keys found in the JSON Web Key Set', options) {
+        super(message, options);
+    }
+}
+exports.JWKSMultipleMatchingKeys = JWKSMultipleMatchingKeys;
+class JWKSTimeout extends JOSEError {
+    static code = 'ERR_JWKS_TIMEOUT';
+    code = 'ERR_JWKS_TIMEOUT';
+    constructor(message = 'request timed out', options) {
+        super(message, options);
+    }
+}
+exports.JWKSTimeout = JWKSTimeout;
+class JWSSignatureVerificationFailed extends JOSEError {
+    static code = 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED';
+    code = 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED';
+    constructor(message = 'signature verification failed', options) {
+        super(message, options);
+    }
+}
+exports.JWSSignatureVerificationFailed = JWSSignatureVerificationFailed;
+
+
+/***/ }),
+
+/***/ 1173:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const runtime_js_1 = __nccwpck_require__(1622);
+exports["default"] = runtime_js_1.default;
 
 
 /***/ }),
@@ -43107,6 +53829,110 @@ var _default = exports["default"] = version;
 
 /***/ }),
 
+/***/ 486:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GetAppId = GetAppId;
+exports.GetLatestBundleVersion = GetLatestBundleVersion;
+const app_store_connect_api_1 = __nccwpck_require__(9073);
+let appStoreConnectClient = null;
+async function getOrCreateClient(project) {
+    if (appStoreConnectClient) {
+        return appStoreConnectClient;
+    }
+    if (!project.credential) {
+        throw new Error('Missing AppleCredential');
+    }
+    const options = {
+        issuerId: project.credential.appStoreConnectIssuerId,
+        privateKeyId: project.credential.appStoreConnectKeyId,
+        privateKey: project.credential.appStoreConnectKey,
+    };
+    appStoreConnectClient = new app_store_connect_api_1.AppStoreConnectClient(options);
+}
+async function GetAppId(project) {
+    if (project.appId) {
+        return project;
+    }
+    await getOrCreateClient(project);
+    const { data: response, error } = await appStoreConnectClient.api.appsGetCollection({
+        query: { 'filter[bundleId]': [project.bundleId] }
+    });
+    if (error) {
+        throw new Error(`Error fetching apps: ${JSON.stringify(error)}`);
+    }
+    if (!response) {
+        throw new Error(`No apps found for bundle id ${project.bundleId}`);
+    }
+    if (response.data.length === 0) {
+        throw new Error(`No apps found for bundle id ${project.bundleId}`);
+    }
+    project.appId = response.data[0].id;
+    return project;
+}
+async function GetLatestBundleVersion(project) {
+    await getOrCreateClient(project);
+    if (!project.appId) {
+        project = await GetAppId(project);
+    }
+    const preReleaseVersionRequest = {
+        query: {
+            'filter[app]': [project.appId],
+            'filter[platform]': [mapPlatform(project)],
+            sort: ['-version'],
+            limit: 1,
+        }
+    };
+    const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
+    if (preReleaseError) {
+        throw new Error(`Error fetching pre-release versions: ${JSON.stringify(preReleaseError)}`);
+    }
+    if (!preReleaseResponse || preReleaseResponse.data.length === 0) {
+        throw new Error(`No pre-release versions found ${JSON.stringify(preReleaseResponse)}`);
+    }
+    const preReleaseId = preReleaseResponse.data[0].id;
+    const buildsRequest = {
+        query: {
+            "filter[preReleaseVersion]": [preReleaseId],
+            include: ['preReleaseVersion'],
+            sort: ['-version'],
+            limit: 1,
+        }
+    };
+    const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
+    if (buildsError) {
+        throw new Error(`Error fetching builds: ${JSON.stringify(buildsError)}`);
+    }
+    if (!buildsResponse || buildsResponse.data.length === 0) {
+        throw new Error(`No builds found ${JSON.stringify(buildsResponse)}`);
+    }
+    const buildVersion = buildsResponse.data[0].attributes.version;
+    if (!buildVersion) {
+        throw new Error(`No build version found ${JSON.stringify(buildsResponse)}`);
+    }
+    return Number(buildVersion);
+}
+function mapPlatform(project) {
+    switch (project.platform) {
+        case 'iOS':
+            return 'IOS';
+        case 'macOS':
+            return 'MAC_OS';
+        case 'tvOS':
+            return 'TV_OS';
+        case 'visionOS':
+            return 'VISION_OS';
+        default:
+            throw new Error(`Unsupported platform: ${project.platform}`);
+    }
+}
+
+
+/***/ }),
+
 /***/ 4199:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -43279,13 +54105,12 @@ async function RemoveCredentials() {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.XcodeProject = void 0;
 class XcodeProject {
-    constructor(projectPath, projectName, platform, bundleId, projectDirectory, version, versionString, scheme) {
+    constructor(projectPath, projectName, platform, bundleId, projectDirectory, versionString, scheme) {
         this.projectPath = projectPath;
         this.projectName = projectName;
         this.platform = platform;
         this.bundleId = bundleId;
         this.projectDirectory = projectDirectory;
-        this.version = version;
         this.versionString = versionString;
         this.scheme = scheme;
     }
@@ -43318,6 +54143,7 @@ const plist = __nccwpck_require__(1933);
 const path = __nccwpck_require__(1017);
 const fs = __nccwpck_require__(7147);
 const semver = __nccwpck_require__(1383);
+const AppStoreConnectClient_1 = __nccwpck_require__(486);
 const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
@@ -43361,11 +54187,9 @@ async function GetProjectDetails() {
     }
     core.info(`Info.plist path: ${infoPlistPath}`);
     let infoPlistContent = plist.parse(fs.readFileSync(infoPlistPath, 'utf8'));
-    const version = infoPlistContent['CFBundleVersion'];
-    core.info(`Version: ${version}`);
     const versionString = infoPlistContent['CFBundleShortVersionString'];
     core.info(`Version string: ${versionString}`);
-    return new XcodeProject_1.XcodeProject(projectPath, projectName, platform, bundleId, projectDirectory, version, versionString, scheme);
+    return new XcodeProject_1.XcodeProject(projectPath, projectName, platform, bundleId, projectDirectory, versionString, scheme);
 }
 async function parseBuildSettings(projectPath, scheme) {
     let buildSettingsOutput = '';
@@ -43821,7 +54645,7 @@ async function getAppId(projectRef) {
     if (exitCode > 0) {
         throw new Error(`Failed to list providers\n${outputJson}`);
     }
-    core.debug(`Apps: ${outputJson}`);
+    core.info(`Apps: ${outputJson}`);
     const app = response.applications.find((app) => app.ExistingBundleIdentifier === projectRef.bundleId);
     if (!app) {
         throw new Error(`App not found with bundleId: ${projectRef.bundleId}`);
@@ -43834,6 +54658,7 @@ async function getAppId(projectRef) {
 }
 async function UploadApp(projectRef) {
     projectRef = await getAppId(projectRef);
+    const bundleVersion = await (0, AppStoreConnectClient_1.GetLatestBundleVersion)(projectRef);
     const platforms = {
         'iOS': 'ios',
         'macOS': 'macos',
@@ -43846,7 +54671,7 @@ async function UploadApp(projectRef) {
         '--type', platforms[projectRef.platform],
         '--apple-id', projectRef.credential.appleId,
         '--bundle-id', projectRef.bundleId,
-        '--bundle-version', projectRef.version,
+        '--bundle-version', bundleVersion + 1,
         '--bundle-short-version-string', projectRef.versionString,
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
@@ -43986,6 +54811,14 @@ module.exports = require("net");
 
 /***/ }),
 
+/***/ 2254:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:buffer");
+
+/***/ }),
+
 /***/ 6005:
 /***/ ((module) => {
 
@@ -43999,6 +54832,22 @@ module.exports = require("node:crypto");
 
 "use strict";
 module.exports = require("node:events");
+
+/***/ }),
+
+/***/ 8849:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:http");
+
+/***/ }),
+
+/***/ 5200:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:https");
 
 /***/ }),
 

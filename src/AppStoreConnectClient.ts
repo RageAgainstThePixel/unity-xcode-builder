@@ -1,5 +1,12 @@
-import { AppStoreConnectClient, AppStoreConnectOptions } from '@rage-against-the-pixel/app-store-connect-api';
+import {
+    AppStoreConnectClient,
+    AppStoreConnectOptions
+} from '@rage-against-the-pixel/app-store-connect-api';
 import { XcodeProject } from './XcodeProject';
+import {
+    BuildsGetCollectionData,
+    PreReleaseVersionsGetCollectionData
+} from '@rage-against-the-pixel/app-store-connect-api/dist/app_store_connect_api';
 import core = require('@actions/core');
 
 let appStoreConnectClient: AppStoreConnectClient | null = null;
@@ -17,12 +24,11 @@ async function getOrCreateClient(project: XcodeProject) {
     appStoreConnectClient = new AppStoreConnectClient(options);
 }
 
-async function getAppId(project: XcodeProject) {
-    if (project.appId) { return project.appId; }
+async function GetAppId(project: XcodeProject): Promise<XcodeProject> {
+    if (project.appId) { return project; }
+    await getOrCreateClient(project);
     const { data: response, error } = await appStoreConnectClient.api.appsGetCollection({
-        query: {
-            'filter[bundleId]': [project.bundleId],
-        }
+        query: { 'filter[bundleId]': [project.bundleId] }
     });
     if (error) {
         throw new Error(`Error fetching apps: ${JSON.stringify(error)}`);
@@ -34,39 +40,68 @@ async function getAppId(project: XcodeProject) {
         throw new Error(`No apps found for bundle id ${project.bundleId}`);
     }
     project.appId = response.data[0].id;
-    return project.appId;
+    return project;
 }
 
-async function getLatestAppStoreBuildNumber(project: XcodeProject): Promise<number> {
-    await getAppId(project);
-    const { data: response, error } = await appStoreConnectClient.api.buildsGetCollection({
+async function GetLatestBundleVersion(project: XcodeProject): Promise<number> {
+    await getOrCreateClient(project);
+    if (!project.appId) {
+        project = await GetAppId(project);
+    }
+    const preReleaseVersionRequest: PreReleaseVersionsGetCollectionData = {
         query: {
-            'fields[apps]': ['bundleId'],
-            'filter[app]': [project.bundleId],
+            'filter[app]': [project.appId],
+            'filter[platform]': [mapPlatform(project)],
             sort: ['-version'],
             limit: 1,
         }
-    });
-    if (error) {
-        throw new Error(`Error fetching builds: ${JSON.stringify(error)}`);
+    };
+    const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
+    if (preReleaseError) {
+        throw new Error(`Error fetching pre-release versions: ${JSON.stringify(preReleaseError)}`);
     }
-    if (!response) {
-        return 0;
+    if (!preReleaseResponse || preReleaseResponse.data.length === 0) {
+        throw new Error(`No pre-release versions found ${JSON.stringify(preReleaseResponse)}`);
     }
-    if (response.data.length === 0) {
-        return 0;
+    const preReleaseId = preReleaseResponse.data[0].id;
+    const buildsRequest: BuildsGetCollectionData = {
+        query: {
+            "filter[preReleaseVersion]": [preReleaseId],
+            include: ['preReleaseVersion'],
+            sort: ['-version'],
+            limit: 1,
+        }
+    };
+    const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
+    if (buildsError) {
+        throw new Error(`Error fetching builds: ${JSON.stringify(buildsError)}`);
     }
-    return Number(response.data[0].attributes.version);
+    if (!buildsResponse || buildsResponse.data.length === 0) {
+        throw new Error(`No builds found ${JSON.stringify(buildsResponse)}`);
+    }
+    const buildVersion = buildsResponse.data[0].attributes.version;
+    if (!buildVersion) {
+        throw new Error(`No build version found ${JSON.stringify(buildsResponse)}`);
+    }
+    return Number(buildVersion);
 }
 
-async function UploadTestFlightBuild(project: XcodeProject) {
-    await getOrCreateClient(project);
-    const lastBuildNumber = await getLatestAppStoreBuildNumber(project);
-    core.info(`Last build number: ${lastBuildNumber}`);
-    // const nextBuildNumber = lastBuildNumber + 1;
-    // const { data: response, error } = await appStoreConnectClient.api.build
+function mapPlatform(project: XcodeProject) {
+    switch (project.platform) {
+        case 'iOS':
+            return 'IOS';
+        case 'macOS':
+            return 'MAC_OS';
+        case 'tvOS':
+            return 'TV_OS';
+        case 'visionOS':
+            return 'VISION_OS';
+        default:
+            throw new Error(`Unsupported platform: ${project.platform}`);
+    }
 }
 
 export {
-    UploadTestFlightBuild
+    GetAppId,
+    GetLatestBundleVersion
 }

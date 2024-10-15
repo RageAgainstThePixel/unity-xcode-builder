@@ -8,7 +8,6 @@ export class XcodeProject {
         platform: string,
         bundleId: string,
         projectDirectory: string,
-        version: string,
         versionString: string,
         scheme: string,
     ) {
@@ -17,7 +16,6 @@ export class XcodeProject {
         this.platform = platform;
         this.bundleId = bundleId;
         this.projectDirectory = projectDirectory;
-        this.version = version;
         this.versionString = versionString;
         this.scheme = scheme;
     }
@@ -34,7 +32,6 @@ export class XcodeProject {
     exportOptionsPath: string;
     entitlementsPath: string;
     appId: string;
-    version: string;
     versionString: string;
     scheme: string;
     xcodeVersion: SemVer;
