@@ -33,7 +33,7 @@ async function GetProjectDetails(): Promise<XcodeProject> {
     core.debug(`Resolved Project path: ${projectPath}`);
     await fs.promises.access(projectPath, fs.constants.R_OK);
     const projectDirectory = path.dirname(projectPath);
-    core.debug(`Project directory: ${projectDirectory}`);
+    core.info(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
     const scheme = await getProjectScheme(projectPath);
     const [platform, bundleId] = await parseBuildSettings(projectPath, scheme);
@@ -528,7 +528,7 @@ async function getAppId(projectRef: XcodeProject): Promise<XcodeProject> {
     if (exitCode > 0) {
         throw new Error(`Failed to list providers\n${outputJson}`);
     }
-    core.info(`Apps: ${outputJson}`);
+    core.debug(`Apps: ${outputJson}`);
     const app = response.applications.find((app: any) => app.ExistingBundleIdentifier === projectRef.bundleId);
     if (!app) {
         throw new Error(`App not found with bundleId: ${projectRef.bundleId}`);
@@ -567,9 +567,9 @@ async function UploadApp(projectRef: XcodeProject) {
         '--verbose',
         '--output-format', 'json'
     ];
-    // if (!core.isDebug()) {
-    //     core.info(`[command]${xcrun} ${uploadArgs.join(' ')}`);
-    // }
+    if (!core.isDebug()) {
+        core.info(`[command]${xcrun} ${uploadArgs.join(' ')}`);
+    }
     let output = '';
     const exitCode = await exec(xcrun, uploadArgs, {
         listeners: {
@@ -577,16 +577,14 @@ async function UploadApp(projectRef: XcodeProject) {
                 output += data.toString();
             }
         },
-        // silent: !core.isDebug(),
+        silent: !core.isDebug(),
         ignoreReturnCode: true
     });
     const outputJson = JSON.stringify(JSON.parse(output), null, 2);
     if (exitCode > 0) {
         throw new Error(`Failed to upload app\n${outputJson}`);
     }
-    core.startGroup('Upload result');
-    core.info(outputJson);
-    core.endGroup();
+    core.debug(outputJson);
 }
 
 export {
