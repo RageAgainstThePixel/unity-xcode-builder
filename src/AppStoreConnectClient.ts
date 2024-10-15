@@ -141,6 +141,7 @@ async function getBetaBuildLocalization(preReleaseVersion: PrereleaseVersion, bu
     const betaBuildLocalizationRequest: BetaBuildLocalizationsGetCollectionData = {
         query: {
             'filter[build]': [build.id],
+            "filter[locale]": ["en-US"],
             limit: 1,
         }
     };

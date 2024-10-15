@@ -604,9 +604,11 @@ async function UploadApp(projectRef: XcodeProject) {
 async function getWhatsNew(): Promise<string> {
     let whatsNew = core.getInput('whats-new');
     if (!whatsNew) {
-        const commitSha = process.env.GITHUB_SHA;
-        const branchName = process.env.GITHUB_REF.replace('refs/heads/', '');
-        const commitMessage = await execGit(['log', '-1', '--pretty=%s']);
+        const headRef = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF || 'HEAD';
+        const commitSha = await execGit(['log', headRef, '-1', '--format=%h']);
+        const branchNameDetails = await execGit(['log', headRef, '-1', '--format=%d']);
+        const branchName = branchNameDetails.match(/->\s(?<branchName>\w+)/);
+        const commitMessage = await execGit(['log', headRef, '-1', '--format=%s']);
         whatsNew = `[${commitSha}]${branchName}\n${commitMessage}`;
     }
     return whatsNew;
