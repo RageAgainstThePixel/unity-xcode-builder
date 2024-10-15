@@ -51,6 +51,7 @@ async function GetLatestBundleVersion(project: XcodeProject): Promise<number> {
         query: {
             'filter[app]': [project.appId],
             'filter[platform]': [mapPlatform(project)],
+            'filter[version]': [project.versionString],
             sort: ['-version'],
             limit: 1,
         }
