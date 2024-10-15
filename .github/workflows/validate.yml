@@ -55,11 +55,9 @@ jobs:
           $projectPath = "${{ github.workspace }}/UnityProject"
           echo "UNITY_PROJECT_PATH=$projectPath" >> $env:GITHUB_ENV
           $tags = $(git rev-list --tags --max-count=2)
-          # get the latest tag e.g. v1.1.0 not v1
           $version = $(git describe --tags $tags)
-          # Remove the 'v' prefix from the version
+          $version = $version -replace '-.*', ''
           $version = $version.Substring(1)
-          # validate the version string
           if ($version -match '^\d+\.\d+\.\d+$') {
             Write-Host "Version: $version"
           } else {
