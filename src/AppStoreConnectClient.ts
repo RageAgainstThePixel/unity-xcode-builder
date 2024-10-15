@@ -4,13 +4,15 @@ import {
 } from '@rage-against-the-pixel/app-store-connect-api';
 import { XcodeProject } from './XcodeProject';
 import {
-    BuildsGetCollectionData,
     Build,
-    BetaBuildLocalizationsGetCollectionData,
+    BuildsGetCollectionData,
+    BetaBuildLocalization,
     BetaBuildLocalizationUpdateRequest,
+    BetaBuildLocalizationsGetCollectionData,
     PrereleaseVersion,
     PreReleaseVersionsGetCollectionData,
 } from '@rage-against-the-pixel/app-store-connect-api/dist/app_store_connect_api';
+import core = require('@actions/core');
 
 let appStoreConnectClient: AppStoreConnectClient | null = null;
 
@@ -114,11 +116,10 @@ async function getPreReleaseBuild(prereleaseVersion: PrereleaseVersion, buildVer
     return buildsResponse.data[0];
 }
 
-async function getBetaBuildLocalization(prereleaseVersion: PrereleaseVersion, buildVersion: number) {
-    const build = await getPreReleaseBuild(prereleaseVersion, buildVersion);
+async function getBetaBuildLocalization(buildId: string): Promise<BetaBuildLocalization> {
     const betaBuildLocalizationRequest: BetaBuildLocalizationsGetCollectionData = {
         query: {
-            'filter[build]': [build.id],
+            'filter[build]': [buildId],
             limit: 1,
         }
     };
@@ -132,10 +133,22 @@ async function getBetaBuildLocalization(prereleaseVersion: PrereleaseVersion, bu
     return betaBuildLocalizationResponse.data[0];
 }
 
-async function UpdateTestDetails(project: XcodeProject, buildVersion: number, whatsNew: string): Promise<void> {
+async function pollForBuildLocalization(buildId: string, maxRetries: number = 60, interval: number = 30): Promise<BetaBuildLocalization> {
+    let retries = 0;
+    while (retries <= maxRetries) {
+        core.info(`Polling for build localization... Attempt ${++retries}/${maxRetries}`);
+        const betaBuildLocalization = await getBetaBuildLocalization(buildId);
+        if (betaBuildLocalization) {
+            return betaBuildLocalization;
+        }
+        await new Promise(resolve => setTimeout(resolve, interval * 1000));
+    }
+    throw new Error('Timed out waiting for build localization');
+}
+
+async function UpdateTestDetails(project: XcodeProject, buildId: string, whatsNew: string): Promise<void> {
     await getOrCreateClient(project);
-    const prereleaseVersion = await getLastPreReleaseVersion(project);
-    const betaBuildLocalization = await getBetaBuildLocalization(prereleaseVersion, buildVersion);
+    const betaBuildLocalization = await pollForBuildLocalization(buildId);
     const updateBuildLocalization: BetaBuildLocalizationUpdateRequest = {
         data: {
             id: betaBuildLocalization.id,
@@ -145,6 +158,7 @@ async function UpdateTestDetails(project: XcodeProject, buildVersion: number, wh
             }
         }
     };
+    core.info(`Updating beta build localization: ${JSON.stringify(updateBuildLocalization, null, 2)}`);
     const { error: updateError } = await appStoreConnectClient.api.betaBuildLocalizationsUpdateInstance({
         path: {
             id: betaBuildLocalization.id

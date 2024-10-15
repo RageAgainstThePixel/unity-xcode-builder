@@ -53839,6 +53839,7 @@ exports.GetAppId = GetAppId;
 exports.GetLatestBundleVersion = GetLatestBundleVersion;
 exports.UpdateTestDetails = UpdateTestDetails;
 const app_store_connect_api_1 = __nccwpck_require__(9073);
+const core = __nccwpck_require__(2186);
 let appStoreConnectClient = null;
 async function getOrCreateClient(project) {
     if (appStoreConnectClient) {
@@ -53940,11 +53941,10 @@ async function getPreReleaseBuild(prereleaseVersion, buildVersion = null) {
     }
     return buildsResponse.data[0];
 }
-async function getBetaBuildLocalization(prereleaseVersion, buildVersion) {
-    const build = await getPreReleaseBuild(prereleaseVersion, buildVersion);
+async function getBetaBuildLocalization(buildId) {
     const betaBuildLocalizationRequest = {
         query: {
-            'filter[build]': [build.id],
+            'filter[build]': [buildId],
             limit: 1,
         }
     };
@@ -53957,10 +53957,21 @@ async function getBetaBuildLocalization(prereleaseVersion, buildVersion) {
     }
     return betaBuildLocalizationResponse.data[0];
 }
-async function UpdateTestDetails(project, buildVersion, whatsNew) {
+async function pollForBuildLocalization(buildId, maxRetries = 60, interval = 30) {
+    let retries = 0;
+    while (retries <= maxRetries) {
+        core.info(`Polling for build localization... Attempt ${++retries}/${maxRetries}`);
+        const betaBuildLocalization = await getBetaBuildLocalization(buildId);
+        if (betaBuildLocalization) {
+            return betaBuildLocalization;
+        }
+        await new Promise(resolve => setTimeout(resolve, interval * 1000));
+    }
+    throw new Error('Timed out waiting for build localization');
+}
+async function UpdateTestDetails(project, buildId, whatsNew) {
     await getOrCreateClient(project);
-    const prereleaseVersion = await getLastPreReleaseVersion(project);
-    const betaBuildLocalization = await getBetaBuildLocalization(prereleaseVersion, buildVersion);
+    const betaBuildLocalization = await pollForBuildLocalization(buildId);
     const updateBuildLocalization = {
         data: {
             id: betaBuildLocalization.id,
@@ -53970,6 +53981,7 @@ async function UpdateTestDetails(project, buildVersion, whatsNew) {
             }
         }
     };
+    core.info(`Updating beta build localization: ${JSON.stringify(updateBuildLocalization, null, 2)}`);
     const { error: updateError } = await appStoreConnectClient.api.betaBuildLocalizationsUpdateInstance({
         path: {
             id: betaBuildLocalization.id
@@ -54708,6 +54720,7 @@ async function getAppId(projectRef) {
     return projectRef;
 }
 async function UploadApp(projectRef) {
+    var _a;
     projectRef = await getAppId(projectRef);
     let bundleVersion = -1;
     try {
@@ -54754,14 +54767,19 @@ async function UploadApp(projectRef) {
         throw new Error(`Failed to upload app\n${outputJson}`);
     }
     core.debug(outputJson);
-    await (0, AppStoreConnectClient_1.UpdateTestDetails)(projectRef, bundleVersion, await getWhatsNew());
+    const buildIdMatch = output.match(/Delivery UUID: (?<buildId>\w+)/);
+    if (!buildIdMatch) {
+        throw new Error('Failed to match build id!');
+    }
+    const buildId = (_a = buildIdMatch.groups) === null || _a === void 0 ? void 0 : _a.buildId;
+    await (0, AppStoreConnectClient_1.UpdateTestDetails)(projectRef, buildId, await getWhatsNew());
 }
 async function getWhatsNew() {
     let whatsNew = core.getInput('whats-new');
     if (!whatsNew) {
-        const commitSha = await execGit(['rev-parse', '--short', 'HEAD']);
-        const branchName = await execGit(['rev-parse', '--abbrev-ref', 'HEAD']);
-        const commitMessage = await execGit(['log', '-1', '--pretty=%B']);
+        const commitSha = process.env.GITHUB_SHA;
+        const branchName = process.env.GITHUB_REF.replace('refs/heads/', '');
+        const commitMessage = await execGit(['log', '-1', '--pretty=%s']);
         whatsNew = `[${commitSha}]${branchName}\n${commitMessage}`;
     }
     return whatsNew;

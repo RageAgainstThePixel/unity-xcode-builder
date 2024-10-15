@@ -589,15 +589,21 @@ async function UploadApp(projectRef: XcodeProject) {
         throw new Error(`Failed to upload app\n${outputJson}`);
     }
     core.debug(outputJson);
-    await UpdateTestDetails(projectRef, bundleVersion, await getWhatsNew());
+    // Delivery UUID: XXXXXX
+    const buildIdMatch = output.match(/Delivery UUID: (?<buildId>\w+)/);
+    if (!buildIdMatch) {
+        throw new Error('Failed to match build id!');
+    }
+    const buildId = buildIdMatch.groups?.buildId;
+    await UpdateTestDetails(projectRef, buildId, await getWhatsNew());
 }
 
 async function getWhatsNew(): Promise<string> {
     let whatsNew = core.getInput('whats-new');
     if (!whatsNew) {
-        const commitSha = await execGit(['rev-parse', '--short', 'HEAD']);
-        const branchName = await execGit(['rev-parse', '--abbrev-ref', 'HEAD']);
-        const commitMessage = await execGit(['log', '-1', '--pretty=%B']);
+        const commitSha = process.env.GITHUB_SHA;
+        const branchName = process.env.GITHUB_REF.replace('refs/heads/', '');
+        const commitMessage = await execGit(['log', '-1', '--pretty=%s']);
         whatsNew = `[${commitSha}]${branchName}\n${commitMessage}`;
     }
     return whatsNew;
