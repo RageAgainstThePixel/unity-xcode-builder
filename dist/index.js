@@ -58202,11 +58202,14 @@ async function getLastPreReleaseVersion(project) {
             limit: 1,
         }
     };
+    core.info(`/preReleaseVersions?${JSON.stringify(preReleaseVersionRequest.query)}`);
     const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
+    const responseJson = JSON.stringify(preReleaseResponse, null, 2);
     if (preReleaseError) {
         checkAuthError(preReleaseError);
-        throw new Error(`Error fetching pre-release versions: ${JSON.stringify(preReleaseError, null, 2)}`);
+        throw new Error(`Error fetching pre-release versions: ${responseJson}`);
     }
+    core.info(responseJson);
     if (!preReleaseResponse || preReleaseResponse.data.length === 0) {
         return null;
     }
@@ -58216,21 +58219,23 @@ async function getPreReleaseBuild(prereleaseVersion, buildVersion = null) {
     const buildsRequest = {
         query: {
             'filter[preReleaseVersion]': [prereleaseVersion.id],
-            sort: ['-version'],
-            limit: 1,
+            sort: ['-version']
         }
     };
     if (buildVersion) {
         buildsRequest.query['filter[version]'] = [buildVersion.toString()];
     }
+    core.info(`/builds?${JSON.stringify(buildsRequest.query)}`);
     const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
+    const responseJson = JSON.stringify(buildsResponse, null, 2);
     if (buildsError) {
         checkAuthError(buildsError);
         throw new Error(`Error fetching builds: ${JSON.stringify(buildsError, null, 2)}`);
     }
     if (!buildsResponse || buildsResponse.data.length === 0) {
-        throw new Error(`No builds found ${JSON.stringify(buildsResponse, null, 2)}`);
+        throw new Error(`No builds found! ${responseJson}`);
     }
+    core.info(responseJson);
     return buildsResponse.data[0];
 }
 async function getBetaBuildLocalization(preReleaseVersion, buildVersion) {
@@ -58239,22 +58244,24 @@ async function getBetaBuildLocalization(preReleaseVersion, buildVersion) {
         query: {
             'filter[build]': [build.id],
             "filter[locale]": ["en-US"],
-            limit: 1,
         }
     };
+    core.info(`/betaBuildLocalizations?${JSON.stringify(betaBuildLocalizationRequest.query)}`);
     const { data: betaBuildLocalizationResponse, error: betaBuildLocalizationError } = await appStoreConnectClient.api.betaBuildLocalizationsGetCollection(betaBuildLocalizationRequest);
+    const responseJson = JSON.stringify(betaBuildLocalizationResponse, null, 2);
     if (betaBuildLocalizationError) {
         checkAuthError(betaBuildLocalizationError);
         throw new Error(`Error fetching beta build localization: ${JSON.stringify(betaBuildLocalizationError, null, 2)}`);
     }
     if (!betaBuildLocalizationResponse || betaBuildLocalizationResponse.data.length === 0) {
-        throw new Error(`No beta build localization found ${JSON.stringify(betaBuildLocalizationResponse, null, 2)}`);
+        throw new Error(`No beta build localization found\n${responseJson}`);
     }
+    core.info(responseJson);
     return betaBuildLocalizationResponse.data[0];
 }
 async function pollForBuildLocalization(preReleaseVersion, buildVersion, maxRetries = 60, interval = 30) {
     let retries = 0;
-    while (retries <= maxRetries) {
+    while (retries < maxRetries) {
         core.info(`Polling for build localization... Attempt ${++retries}/${maxRetries}`);
         try {
             const betaBuildLocalization = await getBetaBuildLocalization(preReleaseVersion, buildVersion);
@@ -58282,15 +58289,17 @@ async function UpdateTestDetails(project, buildVersion, whatsNew) {
             }
         }
     };
-    core.info(`Updating beta build localization: ${JSON.stringify(updateBuildLocalization, null, 2)}`);
+    core.info(`/betaBuildLocalizations/${betaBuildLocalization.id}\n${JSON.stringify(updateBuildLocalization, null, 2)}`);
     const { error: updateError } = await appStoreConnectClient.api.betaBuildLocalizationsUpdateInstance({
         path: { id: betaBuildLocalization.id },
         body: updateBuildLocalization
     });
+    const responseJson = JSON.stringify(updateBuildLocalization, null, 2);
     if (updateError) {
         checkAuthError(updateError);
         throw new Error(`Error updating beta build localization: ${JSON.stringify(updateError, null, 2)}`);
     }
+    core.info(responseJson);
 }
 
 
@@ -58900,6 +58909,7 @@ async function getDefaultEntitlementsMacOS(projectRef) {
     await fs.promises.writeFile(entitlementsPath, plist.build(defaultEntitlements));
 }
 async function execWithXcBeautify(xcodeBuildArgs) {
+    var _a;
     try {
         await (0, exec_1.exec)('xcbeautify', ['--version'], { silent: true });
     }
@@ -58937,6 +58947,18 @@ async function execWithXcBeautify(xcodeBuildArgs) {
         });
     });
     if (exitCode !== 0) {
+        const logsPath = (_a = errorOutput.match(/Created bundle at path "(.+)"/)) === null || _a === void 0 ? void 0 : _a[1];
+        if (logsPath) {
+            try {
+                const logs = await fs.promises.readFile(logsPath, 'utf8');
+                core.startGroup('Distribution logs');
+                core.info(`${logs}`);
+                core.endGroup();
+            }
+            catch (error) {
+                core.warning(`Failed to read logs at: ${logsPath}`);
+            }
+        }
         throw new Error(`xcodebuild exited with code ${exitCode}\n${errorOutput}`);
     }
 }
@@ -59088,13 +59110,13 @@ async function getWhatsNew() {
             : github.context.sha || 'HEAD';
         const commitSha = await execGit(['log', head, '-1', '--format=%h']);
         const branchNameDetails = await execGit(['log', head, '-1', '--format=%d']);
-        const branchNameMatch = branchNameDetails.match(/->\s(?<branch>\w+)/);
+        const branchNameMatch = branchNameDetails.match(/\((?<branch>.+)\)/);
         let branchName = '';
         if (branchNameMatch) {
             branchName = (_b = branchNameMatch.groups) === null || _b === void 0 ? void 0 : _b.branch;
         }
         const commitMessage = await execGit(['log', head, '-1', '--format=%s']);
-        whatsNew = `[${commitSha}]${branchName}\n${commitMessage}`;
+        whatsNew = `[${commitSha.trim()}]${branchName.trim()}\n${commitMessage.trim()}`;
     }
     if (whatsNew.length === 0) {
         throw new Error('Test details empty!');

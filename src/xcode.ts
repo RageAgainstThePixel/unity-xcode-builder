@@ -460,6 +460,17 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
         });
     });
     if (exitCode !== 0) {
+        const logsPath = errorOutput.match(/Created bundle at path "(.+)"/)?.[1];
+        if (logsPath) {
+            try {
+                const logs = await fs.promises.readFile(logsPath, 'utf8');
+                core.startGroup('Distribution logs');
+                core.info(`${logs}`);
+                core.endGroup();
+            } catch (error) {
+                core.warning(`Failed to read logs at: ${logsPath}`);
+            }
+        }
         throw new Error(`xcodebuild exited with code ${exitCode}\n${errorOutput}`);
     }
 }
@@ -610,13 +621,13 @@ async function getWhatsNew(): Promise<string> {
             : github.context.sha || 'HEAD';
         const commitSha = await execGit(['log', head, '-1', '--format=%h']);
         const branchNameDetails = await execGit(['log', head, '-1', '--format=%d']);
-        const branchNameMatch = branchNameDetails.match(/->\s(?<branch>\w+)/);
+        const branchNameMatch = branchNameDetails.match(/\((?<branch>.+)\)/);
         let branchName = '';
         if (branchNameMatch) {
             branchName = branchNameMatch.groups?.branch;
         }
         const commitMessage = await execGit(['log', head, '-1', '--format=%s']);
-        whatsNew = `[${commitSha}]${branchName}\n${commitMessage}`;
+        whatsNew = `[${commitSha.trim()}]${branchName.trim()}\n${commitMessage.trim()}`;
     }
     if (whatsNew.length === 0) {
         throw new Error('Test details empty!');
