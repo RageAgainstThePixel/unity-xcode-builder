@@ -24,8 +24,6 @@ const main = async () => {
                 await exec.exec('sudo', ['xcode-select', '-s', `/Applications/Xcode_${xcodeVersion}.app/Contents/Developer`]);
             }
             let xcodeVersionOutput = '';
-            // Xcode 16.0
-            // Build version 16A242d
             await exec.exec('xcodebuild', ['-version'], {
                 listeners: {
                     stdout: (data: Buffer) => {
