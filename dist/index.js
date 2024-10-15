@@ -54817,7 +54817,7 @@ async function getWhatsNew() {
         const branchNameDetails = await execGit(['log', head, '-1', '--format=%d']);
         const branchNameMatch = branchNameDetails.match(/->\s(?<branch>\w+)/);
         let branchName = '';
-        if (!branchNameMatch) {
+        if (branchNameMatch) {
             branchName = (_c = branchNameMatch.groups) === null || _c === void 0 ? void 0 : _c.branch;
         }
         const commitMessage = await execGit(['log', head, '-1', '--format=%s']);

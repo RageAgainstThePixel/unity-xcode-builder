@@ -612,7 +612,7 @@ async function getWhatsNew(): Promise<string> {
         const branchNameDetails = await execGit(['log', head, '-1', '--format=%d']);
         const branchNameMatch = branchNameDetails.match(/->\s(?<branch>\w+)/);
         let branchName = '';
-        if (!branchNameMatch) {
+        if (branchNameMatch) {
             branchName = branchNameMatch.groups?.branch;
         }
         const commitMessage = await execGit(['log', head, '-1', '--format=%s']);
