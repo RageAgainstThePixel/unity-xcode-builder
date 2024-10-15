@@ -54807,18 +54807,18 @@ async function UploadApp(projectRef) {
     }
 }
 async function getWhatsNew() {
-    var _a;
+    var _a, _b, _c;
     let whatsNew = core.getInput('whats-new');
     if (!whatsNew || whatsNew.length === 0) {
         const head = process.env.GITHUB_EVENT_NAME === 'pull_request'
-            ? process.env.GITHUB_EVENT_PULL_REQUEST_HEAD_SHA
+            ? ((_b = (_a = JSON.parse(process.env.GITHUB_PULL_REQUEST)) === null || _a === void 0 ? void 0 : _a.head) === null || _b === void 0 ? void 0 : _b.sha) || 'HEAD'
             : process.env.GITHUB_SHA || 'HEAD';
         const commitSha = await execGit(['log', head, '-1', '--format=%h']);
         const branchNameDetails = await execGit(['log', head, '-1', '--format=%d']);
         const branchNameMatch = branchNameDetails.match(/->\s(?<branch>\w+)/);
         let branchName = '';
         if (!branchNameMatch) {
-            branchName = (_a = branchNameMatch.groups) === null || _a === void 0 ? void 0 : _a.branch;
+            branchName = (_c = branchNameMatch.groups) === null || _c === void 0 ? void 0 : _c.branch;
         }
         const commitMessage = await execGit(['log', head, '-1', '--format=%s']);
         whatsNew = `[${commitSha}]${branchName}\n${commitMessage}`;

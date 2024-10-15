@@ -606,7 +606,7 @@ async function getWhatsNew(): Promise<string> {
     if (!whatsNew || whatsNew.length === 0) {
         // if we are PR use github.event.pull_request.head.sha, else fall back to the github.sha, then HEAD
         const head = process.env.GITHUB_EVENT_NAME === 'pull_request'
-            ? process.env.GITHUB_EVENT_PULL_REQUEST_HEAD_SHA
+            ? JSON.parse(process.env.GITHUB_PULL_REQUEST)?.head?.sha || 'HEAD'
             : process.env.GITHUB_SHA || 'HEAD';
         const commitSha = await execGit(['log', head, '-1', '--format=%h']);
         const branchNameDetails = await execGit(['log', head, '-1', '--format=%d']);
