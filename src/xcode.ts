@@ -607,7 +607,11 @@ async function getWhatsNew(): Promise<string> {
         const headRef = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF || 'HEAD';
         const commitSha = await execGit(['log', headRef, '-1', '--format=%h']);
         const branchNameDetails = await execGit(['log', headRef, '-1', '--format=%d']);
-        const branchName = branchNameDetails.match(/->\s(?<branchName>\w+)/);
+        const branchNameMatch = branchNameDetails.match(/->\s(?<branch>\w+)/);
+        let branchName = '';
+        if (!branchNameMatch) {
+            branchName = branchNameMatch.groups?.branch;
+        }
         const commitMessage = await execGit(['log', headRef, '-1', '--format=%s']);
         whatsNew = `[${commitSha}]${branchName}\n${commitMessage}`;
     }

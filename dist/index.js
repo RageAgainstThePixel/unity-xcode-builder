@@ -54807,12 +54807,17 @@ async function UploadApp(projectRef) {
     }
 }
 async function getWhatsNew() {
+    var _a;
     let whatsNew = core.getInput('whats-new');
     if (!whatsNew) {
         const headRef = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF || 'HEAD';
         const commitSha = await execGit(['log', headRef, '-1', '--format=%h']);
         const branchNameDetails = await execGit(['log', headRef, '-1', '--format=%d']);
-        const branchName = branchNameDetails.match(/->\s(?<branchName>\w+)/);
+        const branchNameMatch = branchNameDetails.match(/->\s(?<branch>\w+)/);
+        let branchName = '';
+        if (!branchNameMatch) {
+            branchName = (_a = branchNameMatch.groups) === null || _a === void 0 ? void 0 : _a.branch;
+        }
         const commitMessage = await execGit(['log', headRef, '-1', '--format=%s']);
         whatsNew = `[${commitSha}]${branchName}\n${commitMessage}`;
     }
