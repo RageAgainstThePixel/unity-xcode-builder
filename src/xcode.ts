@@ -603,7 +603,7 @@ async function UploadApp(projectRef: XcodeProject) {
 
 async function getWhatsNew(): Promise<string> {
     let whatsNew = core.getInput('whats-new');
-    if (!whatsNew) {
+    if (!whatsNew || whatsNew.length === 0) {
         const head = process.env.GITHUB_SHA || 'HEAD';
         const commitSha = await execGit(['log', head, '-1', '--format=%h']);
         const branchNameDetails = await execGit(['log', head, '-1', '--format=%d']);
