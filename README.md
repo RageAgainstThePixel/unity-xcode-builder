@@ -63,6 +63,7 @@ This action requires several secrets that need to be setup in the repository or 
 | `entitlements-plist` | The path to custom entitlements plist file. | Generates [default hardened runtime entitlements](https://developer.apple.com/documentation/security/hardened-runtime) if not provided. |
 | `notarize` | Whether to notarize the exported Xcode project. | Defaults to `true` if `export-option !== app-store`. |
 | `upload` | Whether to upload the exported Xcode project to App Store Connect. | Defaults to `true` if `export-option === app-store`. |
+| `whats-new` | When `uploading === true`, Let your testers know what you would like them to test in this build. This information will be available to testers in all groups who have access to this build. | Defaults to the last git commit sha, current branch name, and commit message. |
 
 ### outputs
 

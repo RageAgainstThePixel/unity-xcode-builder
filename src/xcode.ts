@@ -7,7 +7,10 @@ import plist = require('plist');
 import path = require('path');
 import fs = require('fs');
 import semver = require('semver');
-import { GetLatestBundleVersion } from './AppStoreConnectClient';
+import {
+    GetLatestBundleVersion,
+    UpdateTestDetails
+} from './AppStoreConnectClient';
 
 const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
@@ -554,13 +557,14 @@ async function UploadApp(projectRef: XcodeProject) {
         'tvOS': 'appletvos',
         'visionOS': 'xros'
     };
+    bundleVersion++;
     const uploadArgs = [
         'altool',
         '--upload-package', projectRef.executablePath,
         '--type', platforms[projectRef.platform],
         '--apple-id', projectRef.credential.appleId,
         '--bundle-id', projectRef.bundleId,
-        '--bundle-version', bundleVersion + 1,
+        '--bundle-version', bundleVersion,
         '--bundle-short-version-string', projectRef.versionString,
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
@@ -585,6 +589,33 @@ async function UploadApp(projectRef: XcodeProject) {
         throw new Error(`Failed to upload app\n${outputJson}`);
     }
     core.debug(outputJson);
+    await UpdateTestDetails(projectRef, bundleVersion, await getWhatsNew());
+}
+
+async function getWhatsNew(): Promise<string> {
+    let whatsNew = core.getInput('whats-new');
+    if (!whatsNew) {
+        const commitSha = await execGit(['rev-parse', '--short', 'HEAD']);
+        const branchName = await execGit(['rev-parse', '--abbrev-ref', 'HEAD']);
+        const commitMessage = await execGit(['log', '-1', '--pretty=%B']);
+        whatsNew = `[${commitSha}]${branchName}\n${commitMessage}`;
+    }
+    return whatsNew;
+}
+
+async function execGit(args: string[]): Promise<string> {
+    let output = '';
+    const exitCode = await exec('git', args, {
+        listeners: {
+            stdout: (data: Buffer) => {
+                output += data.toString();
+            }
+        }
+    });
+    if (exitCode > 0) {
+        throw new Error(`Error: ${output}`);
+    }
+    return output;
 }
 
 export {

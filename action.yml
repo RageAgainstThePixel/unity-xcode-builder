@@ -69,6 +69,9 @@ inputs:
   upload:
     description: Whether to upload the exported Xcode project to App Store Connect. Defaults to `true` if `export-option === app-store`.
     required: false
+  whats-new:
+    description: 'When `uploading === true`, Let your testers know what you would like them to test in this build. This information will be available to testers in all groups who have access to this build. Defaults to the last git commit sha, current branch name, and commit message.'
+    required: false
 outputs:
   executable:
     description: The path to the generated archive executable.

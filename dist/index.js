@@ -53837,6 +53837,7 @@ var _default = exports["default"] = version;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GetAppId = GetAppId;
 exports.GetLatestBundleVersion = GetLatestBundleVersion;
+exports.UpdateTestDetails = UpdateTestDetails;
 const app_store_connect_api_1 = __nccwpck_require__(9073);
 let appStoreConnectClient = null;
 async function getOrCreateClient(project) {
@@ -53875,48 +53876,15 @@ async function GetAppId(project) {
 }
 async function GetLatestBundleVersion(project) {
     await getOrCreateClient(project);
-    if (!project.appId) {
-        project = await GetAppId(project);
-    }
-    const preReleaseVersionRequest = {
-        query: {
-            'filter[app]': [project.appId],
-            'filter[platform]': [mapPlatform(project)],
-            'filter[version]': [project.versionString],
-            sort: ['-version'],
-            limit: 1,
-        }
-    };
-    const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
-    if (preReleaseError) {
-        throw new Error(`Error fetching pre-release versions: ${JSON.stringify(preReleaseError, null, 2)}`);
-    }
-    if (!preReleaseResponse || preReleaseResponse.data.length === 0) {
-        throw new Error(`No pre-release versions found ${JSON.stringify(preReleaseResponse, null, 2)}`);
-    }
-    const preReleaseId = preReleaseResponse.data[0].id;
-    const buildsRequest = {
-        query: {
-            "filter[preReleaseVersion]": [preReleaseId],
-            include: ['preReleaseVersion'],
-            sort: ['-version'],
-            limit: 1,
-        }
-    };
-    const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
-    if (buildsError) {
-        throw new Error(`Error fetching builds: ${JSON.stringify(buildsError, null, 2)}`);
-    }
-    if (!buildsResponse || buildsResponse.data.length === 0) {
-        throw new Error(`No builds found ${JSON.stringify(buildsResponse, null, 2)}`);
-    }
-    const buildVersion = buildsResponse.data[0].attributes.version;
+    const prereleaseVersion = await getLastPreReleaseVersion(project);
+    const build = await getPreReleaseBuild(prereleaseVersion);
+    const buildVersion = build.attributes.version;
     if (!buildVersion) {
-        throw new Error(`No build version found ${JSON.stringify(buildsResponse, null, 2)}`);
+        throw new Error(`No build version found!\n${JSON.stringify(build, null, 2)}`);
     }
     return Number(buildVersion);
 }
-function mapPlatform(project) {
+function reMapPlatform(project) {
     switch (project.platform) {
         case 'iOS':
             return 'IOS';
@@ -53928,6 +53896,88 @@ function mapPlatform(project) {
             return 'VISION_OS';
         default:
             throw new Error(`Unsupported platform: ${project.platform}`);
+    }
+}
+async function getLastPreReleaseVersion(project) {
+    if (!project.appId) {
+        project = await GetAppId(project);
+    }
+    const preReleaseVersionRequest = {
+        query: {
+            'filter[app]': [project.appId],
+            'filter[platform]': [reMapPlatform(project)],
+            'filter[version]': [project.versionString],
+            sort: ['-version'],
+            limit: 1,
+        }
+    };
+    const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
+    if (preReleaseError) {
+        throw new Error(`Error fetching pre-release versions: ${JSON.stringify(preReleaseError, null, 2)}`);
+    }
+    if (!preReleaseResponse || preReleaseResponse.data.length === 0) {
+        return null;
+    }
+    return preReleaseResponse.data[0];
+}
+async function getPreReleaseBuild(prereleaseVersion, buildVersion = null) {
+    const buildsRequest = {
+        query: {
+            'filter[preReleaseVersion]': [prereleaseVersion.id],
+            sort: ['-version'],
+            limit: 1,
+        }
+    };
+    if (buildVersion) {
+        buildsRequest.query['filter[version]'] = [buildVersion.toString()];
+    }
+    const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
+    if (buildsError) {
+        throw new Error(`Error fetching builds: ${JSON.stringify(buildsError, null, 2)}`);
+    }
+    if (!buildsResponse || buildsResponse.data.length === 0) {
+        throw new Error(`No builds found ${JSON.stringify(buildsResponse, null, 2)}`);
+    }
+    return buildsResponse.data[0];
+}
+async function getBetaBuildLocalization(prereleaseVersion, buildVersion) {
+    const build = await getPreReleaseBuild(prereleaseVersion, buildVersion);
+    const betaBuildLocalizationRequest = {
+        query: {
+            'filter[build]': [build.id],
+            limit: 1,
+        }
+    };
+    const { data: betaBuildLocalizationResponse, error: betaBuildLocalizationError } = await appStoreConnectClient.api.betaBuildLocalizationsGetCollection(betaBuildLocalizationRequest);
+    if (betaBuildLocalizationError) {
+        throw new Error(`Error fetching beta build localization: ${JSON.stringify(betaBuildLocalizationError, null, 2)}`);
+    }
+    if (!betaBuildLocalizationResponse || betaBuildLocalizationResponse.data.length === 0) {
+        throw new Error(`No beta build localization found ${JSON.stringify(betaBuildLocalizationResponse, null, 2)}`);
+    }
+    return betaBuildLocalizationResponse.data[0];
+}
+async function UpdateTestDetails(project, buildVersion, whatsNew) {
+    await getOrCreateClient(project);
+    const prereleaseVersion = await getLastPreReleaseVersion(project);
+    const betaBuildLocalization = await getBetaBuildLocalization(prereleaseVersion, buildVersion);
+    const updateBuildLocalization = {
+        data: {
+            id: betaBuildLocalization.id,
+            type: 'betaBuildLocalizations',
+            attributes: {
+                whatsNew: whatsNew
+            }
+        }
+    };
+    const { error: updateError } = await appStoreConnectClient.api.betaBuildLocalizationsUpdateInstance({
+        path: {
+            id: betaBuildLocalization.id
+        },
+        body: updateBuildLocalization
+    });
+    if (updateError) {
+        throw new Error(`Error updating beta build localization: ${JSON.stringify(updateError, null, 2)}`);
     }
 }
 
@@ -54672,13 +54722,14 @@ async function UploadApp(projectRef) {
         'tvOS': 'appletvos',
         'visionOS': 'xros'
     };
+    bundleVersion++;
     const uploadArgs = [
         'altool',
         '--upload-package', projectRef.executablePath,
         '--type', platforms[projectRef.platform],
         '--apple-id', projectRef.credential.appleId,
         '--bundle-id', projectRef.bundleId,
-        '--bundle-version', bundleVersion + 1,
+        '--bundle-version', bundleVersion,
         '--bundle-short-version-string', projectRef.versionString,
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
@@ -54703,6 +54754,31 @@ async function UploadApp(projectRef) {
         throw new Error(`Failed to upload app\n${outputJson}`);
     }
     core.debug(outputJson);
+    await (0, AppStoreConnectClient_1.UpdateTestDetails)(projectRef, bundleVersion, await getWhatsNew());
+}
+async function getWhatsNew() {
+    let whatsNew = core.getInput('whats-new');
+    if (!whatsNew) {
+        const commitSha = await execGit(['rev-parse', '--short', 'HEAD']);
+        const branchName = await execGit(['rev-parse', '--abbrev-ref', 'HEAD']);
+        const commitMessage = await execGit(['log', '-1', '--pretty=%B']);
+        whatsNew = `[${commitSha}]${branchName}\n${commitMessage}`;
+    }
+    return whatsNew;
+}
+async function execGit(args) {
+    let output = '';
+    const exitCode = await (0, exec_1.exec)('git', args, {
+        listeners: {
+            stdout: (data) => {
+                output += data.toString();
+            }
+        }
+    });
+    if (exitCode > 0) {
+        throw new Error(`Error: ${output}`);
+    }
+    return output;
 }
 
 
