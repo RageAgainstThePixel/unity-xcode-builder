@@ -54810,7 +54810,9 @@ async function getWhatsNew() {
     var _a;
     let whatsNew = core.getInput('whats-new');
     if (!whatsNew || whatsNew.length === 0) {
-        const head = process.env.GITHUB_SHA || 'HEAD';
+        const head = process.env.GITHUB_EVENT_NAME === 'pull_request'
+            ? process.env.GITHUB_EVENT_PULL_REQUEST_HEAD_SHA
+            : process.env.GITHUB_SHA || 'HEAD';
         const commitSha = await execGit(['log', head, '-1', '--format=%h']);
         const branchNameDetails = await execGit(['log', head, '-1', '--format=%d']);
         const branchNameMatch = branchNameDetails.match(/->\s(?<branch>\w+)/);

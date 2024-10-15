@@ -604,7 +604,10 @@ async function UploadApp(projectRef: XcodeProject) {
 async function getWhatsNew(): Promise<string> {
     let whatsNew = core.getInput('whats-new');
     if (!whatsNew || whatsNew.length === 0) {
-        const head = process.env.GITHUB_SHA || 'HEAD';
+        // if we are PR use github.event.pull_request.head.sha, else fall back to the github.sha, then HEAD
+        const head = process.env.GITHUB_EVENT_NAME === 'pull_request'
+            ? process.env.GITHUB_EVENT_PULL_REQUEST_HEAD_SHA
+            : process.env.GITHUB_SHA || 'HEAD';
         const commitSha = await execGit(['log', head, '-1', '--format=%h']);
         const branchNameDetails = await execGit(['log', head, '-1', '--format=%d']);
         const branchNameMatch = branchNameDetails.match(/->\s(?<branch>\w+)/);
