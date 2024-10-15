@@ -58,10 +58,10 @@ async function GetLatestBundleVersion(project: XcodeProject): Promise<number> {
     };
     const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
     if (preReleaseError) {
-        throw new Error(`Error fetching pre-release versions: ${JSON.stringify(preReleaseError)}`);
+        throw new Error(`Error fetching pre-release versions: ${JSON.stringify(preReleaseError, null, 2)}`);
     }
     if (!preReleaseResponse || preReleaseResponse.data.length === 0) {
-        throw new Error(`No pre-release versions found ${JSON.stringify(preReleaseResponse)}`);
+        throw new Error(`No pre-release versions found ${JSON.stringify(preReleaseResponse, null, 2)}`);
     }
     const preReleaseId = preReleaseResponse.data[0].id;
     const buildsRequest: BuildsGetCollectionData = {
@@ -74,14 +74,14 @@ async function GetLatestBundleVersion(project: XcodeProject): Promise<number> {
     };
     const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
     if (buildsError) {
-        throw new Error(`Error fetching builds: ${JSON.stringify(buildsError)}`);
+        throw new Error(`Error fetching builds: ${JSON.stringify(buildsError, null, 2)}`);
     }
     if (!buildsResponse || buildsResponse.data.length === 0) {
-        throw new Error(`No builds found ${JSON.stringify(buildsResponse)}`);
+        throw new Error(`No builds found ${JSON.stringify(buildsResponse, null, 2)}`);
     }
     const buildVersion = buildsResponse.data[0].attributes.version;
     if (!buildVersion) {
-        throw new Error(`No build version found ${JSON.stringify(buildsResponse)}`);
+        throw new Error(`No build version found ${JSON.stringify(buildsResponse, null, 2)}`);
     }
     return Number(buildVersion);
 }
