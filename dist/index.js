@@ -43317,7 +43317,7 @@ const glob = __nccwpck_require__(8090);
 const plist = __nccwpck_require__(1933);
 const path = __nccwpck_require__(1017);
 const fs = __nccwpck_require__(7147);
-const semver_1 = __nccwpck_require__(1383);
+const semver = __nccwpck_require__(1383);
 const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
@@ -43634,8 +43634,8 @@ async function getExportOptions(projectRef) {
         else {
             method = exportOption;
         }
-        const xcodeMinVersion = new semver_1.SemVer('15.4', { loose: true });
-        if (projectRef.xcodeVersion >= xcodeMinVersion) {
+        const xcodeMinVersion = semver.coerce('15.4');
+        if (semver.gte(projectRef.xcodeVersion, xcodeMinVersion)) {
             switch (method) {
                 case 'app-store':
                     method = 'app-store-connect';
@@ -45796,7 +45796,7 @@ const core = __nccwpck_require__(2186);
 const exec = __nccwpck_require__(1514);
 const xcode_1 = __nccwpck_require__(9157);
 const AppleCredential_1 = __nccwpck_require__(4199);
-const semver_1 = __nccwpck_require__(1383);
+const semver = __nccwpck_require__(1383);
 const IS_POST = !!core.getState('isPost');
 const main = async () => {
     try {
@@ -45826,7 +45826,7 @@ const main = async () => {
             const credential = await (0, AppleCredential_1.ImportCredentials)();
             let projectRef = await (0, xcode_1.GetProjectDetails)();
             projectRef.credential = credential;
-            projectRef.xcodeVersion = new semver_1.SemVer(xcodeVersionString, { loose: true });
+            projectRef.xcodeVersion = semver.coerce(xcodeVersionString);
             projectRef = await (0, xcode_1.ArchiveXcodeProject)(projectRef);
             projectRef = await (0, xcode_1.ExportXcodeArchive)(projectRef);
             await (0, xcode_1.ValidateApp)(projectRef);

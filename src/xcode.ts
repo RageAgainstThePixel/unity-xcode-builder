@@ -6,7 +6,7 @@ import glob = require('@actions/glob');
 import plist = require('plist');
 import path = require('path');
 import fs = require('fs');
-import { SemVer } from 'semver';
+import semver = require('semver');
 
 const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
@@ -342,8 +342,8 @@ async function getExportOptions(projectRef: XcodeProject): Promise<void> {
         }
         // As of Xcode 15.4, the old export methods 'app-store', 'ad-hoc', and 'development' are now deprecated.
         // The new equivalents are 'app-store-connect', 'release-testing', and 'debugging'.
-        const xcodeMinVersion = new SemVer('15.4', { loose: true });
-        if (projectRef.xcodeVersion >= xcodeMinVersion) {
+        const xcodeMinVersion = semver.coerce('15.4');
+        if (semver.gte(projectRef.xcodeVersion, xcodeMinVersion)) {
             switch (method) {
                 case 'app-store':
                     method = 'app-store-connect';

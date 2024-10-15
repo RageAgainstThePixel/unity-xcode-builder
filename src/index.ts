@@ -11,7 +11,7 @@ import {
     ImportCredentials,
     RemoveCredentials
 } from './AppleCredential';
-import { SemVer } from 'semver';
+import semver = require('semver');
 
 const IS_POST = !!core.getState('isPost');
 
@@ -43,7 +43,7 @@ const main = async () => {
             const credential = await ImportCredentials();
             let projectRef = await GetProjectDetails();
             projectRef.credential = credential;
-            projectRef.xcodeVersion = new SemVer(xcodeVersionString, { loose: true });
+            projectRef.xcodeVersion = semver.coerce(xcodeVersionString);
             projectRef = await ArchiveXcodeProject(projectRef);
             projectRef = await ExportXcodeArchive(projectRef);
             await ValidateApp(projectRef);
