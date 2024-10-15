@@ -34,6 +34,8 @@ jobs:
             build-target: VisionOS
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - run: 'npm install -g openupm-cli'
         # Installs the Unity Editor based on your project version text file
         # sets -> env.UNITY_EDITOR_PATH
