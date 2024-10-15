@@ -7,7 +7,6 @@ import {
     BuildsGetCollectionData,
     PreReleaseVersionsGetCollectionData
 } from '@rage-against-the-pixel/app-store-connect-api/dist/app_store_connect_api';
-import core = require('@actions/core');
 
 let appStoreConnectClient: AppStoreConnectClient | null = null;
 
