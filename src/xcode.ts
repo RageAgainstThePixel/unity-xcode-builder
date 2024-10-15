@@ -429,7 +429,8 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
     const xcBeautifyProcess = spawn('xcbeautify', ['--quiet', '--is-ci', '--disable-logging'], {
         stdio: ['pipe', process.stdout, process.stderr]
     });
-    core.startGroup(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
+    core.startGroup(`${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
+    core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
     let errorOutput = '';
     const exitCode = await exec(xcodebuild, xcodeBuildArgs, {
         listeners: {
