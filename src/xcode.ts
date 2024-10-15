@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import { exec } from '@actions/exec';
 import core = require('@actions/core');
 import glob = require('@actions/glob');
+import github = require('@actions/github');
 import plist = require('plist');
 import path = require('path');
 import fs = require('fs');
@@ -604,10 +605,9 @@ async function UploadApp(projectRef: XcodeProject) {
 async function getWhatsNew(): Promise<string> {
     let whatsNew = core.getInput('whats-new');
     if (!whatsNew || whatsNew.length === 0) {
-        // if we are PR use github.event.pull_request.head.sha, else fall back to the github.sha, then HEAD
-        const head = process.env.GITHUB_EVENT_NAME === 'pull_request'
-            ? JSON.parse(process.env.GITHUB_PULL_REQUEST)?.head?.sha || 'HEAD'
-            : process.env.GITHUB_SHA || 'HEAD';
+        const head = github.context.eventName === 'pull_request'
+            ? github.context.payload.pull_request?.head.sha
+            : github.context.sha || 'HEAD';
         const commitSha = await execGit(['log', head, '-1', '--format=%h']);
         const branchNameDetails = await execGit(['log', head, '-1', '--format=%d']);
         const branchNameMatch = branchNameDetails.match(/->\s(?<branch>\w+)/);
