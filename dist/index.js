@@ -58192,7 +58192,7 @@ function reMapPlatform(project) {
     }
 }
 async function getLastPreReleaseVersionAndBuild(project, buildVersion = null) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c;
     if (!project.appId) {
         project = await GetAppId(project);
     }
@@ -58222,10 +58222,13 @@ async function getLastPreReleaseVersionAndBuild(project, buildVersion = null) {
     if (!preReleaseResponse || !preReleaseResponse.data || preReleaseResponse.data.length === 0) {
         return null;
     }
-    const lastBuildId = (_c = (_b = (_a = preReleaseResponse.data[0].relationships) === null || _a === void 0 ? void 0 : _a.builds) === null || _b === void 0 ? void 0 : _b.data[0]) === null || _c === void 0 ? void 0 : _c.id;
     let lastBuild = null;
-    if (!lastBuildId) {
-        lastBuild = (_d = preReleaseResponse.included) === null || _d === void 0 ? void 0 : _d.find(i => i.type == 'builds' && i.id == lastBuildId);
+    const buildsData = (_b = (_a = preReleaseResponse.data[0].relationships) === null || _a === void 0 ? void 0 : _a.builds) === null || _b === void 0 ? void 0 : _b.data;
+    if (buildsData && buildsData.length > 0) {
+        const lastBuildId = buildsData[0].id;
+        if (!lastBuildId) {
+            lastBuild = (_c = preReleaseResponse.included) === null || _c === void 0 ? void 0 : _c.find(i => i.type == 'builds' && i.id == lastBuildId);
+        }
     }
     return [preReleaseResponse.data[0], lastBuild];
 }
@@ -58247,7 +58250,7 @@ async function getPreReleaseBuild(prereleaseVersion, buildVersion = null) {
         checkAuthError(buildsError);
         throw new Error(`Error fetching builds: ${JSON.stringify(buildsError, null, 2)}`);
     }
-    if (!buildsResponse || buildsResponse.data.length === 0) {
+    if (!buildsResponse || !buildsResponse.data || buildsResponse.data.length === 0) {
         throw new Error(`No builds found! ${responseJson}`);
     }
     core.info(responseJson);

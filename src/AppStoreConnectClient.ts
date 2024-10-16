@@ -123,10 +123,13 @@ async function getLastPreReleaseVersionAndBuild(project: XcodeProject, buildVers
     if (!preReleaseResponse || !preReleaseResponse.data || preReleaseResponse.data.length === 0) {
         return null;
     }
-    const lastBuildId = preReleaseResponse.data[0].relationships?.builds?.data[0]?.id;
     let lastBuild: Build = null;
-    if (!lastBuildId) {
-        lastBuild = preReleaseResponse.included?.find(i => i.type == 'builds' && i.id == lastBuildId) as Build;
+    const buildsData = preReleaseResponse.data[0].relationships?.builds?.data;
+    if (buildsData && buildsData.length > 0) {
+        const lastBuildId = buildsData[0].id;
+        if (!lastBuildId) {
+            lastBuild = preReleaseResponse.included?.find(i => i.type == 'builds' && i.id == lastBuildId) as Build;
+        }
     }
     return [preReleaseResponse.data[0], lastBuild];
 }
@@ -149,7 +152,7 @@ async function getPreReleaseBuild(prereleaseVersion: PrereleaseVersion, buildVer
         checkAuthError(buildsError);
         throw new Error(`Error fetching builds: ${JSON.stringify(buildsError, null, 2)}`);
     }
-    if (!buildsResponse || buildsResponse.data.length === 0) {
+    if (!buildsResponse || !buildsResponse.data || buildsResponse.data.length === 0) {
         throw new Error(`No builds found! ${responseJson}`);
     }
     core.info(responseJson);
