@@ -71,7 +71,7 @@ async function GetLatestBundleVersion(project: XcodeProject): Promise<number> {
     await getOrCreateClient(project);
     let { preReleaseVersion, build } = await getLastPreReleaseVersionAndBuild(project);
     if (!build) {
-        build = await getPreReleaseBuild(preReleaseVersion);
+        build = await getLastPrereleaseBuild(preReleaseVersion);
     }
     const buildVersion = build.attributes.version;
     if (!buildVersion) {
@@ -102,7 +102,6 @@ async function getLastPreReleaseVersionAndBuild(project: XcodeProject, buildVers
             'filter[app]': [project.appId],
             'filter[platform]': [reMapPlatform(project)],
             'filter[version]': [project.versionString],
-            'filter[builds.processingState]': ['VALID'],
             'limit[builds]': 1,
             sort: ['-version'],
             include: ['builds'],
@@ -112,14 +111,14 @@ async function getLastPreReleaseVersionAndBuild(project: XcodeProject, buildVers
     if (buildVersion) {
         preReleaseVersionRequest.query['filter[builds.version]'] = [buildVersion.toString()];
     }
-    core.info(`/preReleaseVersions?${JSON.stringify(preReleaseVersionRequest.query)}`);
+    log(`/preReleaseVersions?${JSON.stringify(preReleaseVersionRequest.query)}`);
     const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
     const responseJson = JSON.stringify(preReleaseResponse, null, 2);
     if (preReleaseError) {
         checkAuthError(preReleaseError);
         throw new Error(`Error fetching pre-release versions: ${responseJson}`);
     }
-    core.info(responseJson);
+    log(responseJson);
     if (!preReleaseResponse || !preReleaseResponse.data || preReleaseResponse.data.length === 0) {
         return new PreReleaseVersionWithBuild({ preReleaseVersion: null, build: null });
     }
@@ -146,18 +145,18 @@ class PreReleaseVersionWithBuild {
     }
 }
 
-async function getPreReleaseBuild(prereleaseVersion: PrereleaseVersion, buildVersion: number | null = null): Promise<Build> {
+async function getLastPrereleaseBuild(prereleaseVersion: PrereleaseVersion, buildVersion: number | null = null): Promise<Build> {
     const buildsRequest: BuildsGetCollectionData = {
         query: {
             'filter[preReleaseVersion]': [prereleaseVersion.id],
             sort: ['-version'],
+            limit: 1
         }
     };
     if (buildVersion) {
         buildsRequest.query['filter[version]'] = [buildVersion.toString()];
-        buildsRequest.query['filter[processingState]'] = ['VALID'];
     }
-    core.info(`/builds?${JSON.stringify(buildsRequest.query)}`);
+    log(`/builds?${JSON.stringify(buildsRequest.query)}`);
     const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
     const responseJson = JSON.stringify(buildsResponse, null, 2);
     if (buildsError) {
@@ -167,7 +166,7 @@ async function getPreReleaseBuild(prereleaseVersion: PrereleaseVersion, buildVer
     if (!buildsResponse || !buildsResponse.data || buildsResponse.data.length === 0) {
         throw new Error(`No builds found! ${responseJson}`);
     }
-    core.info(responseJson);
+    log(responseJson);
     return buildsResponse.data[0];
 }
 
@@ -179,7 +178,7 @@ async function getBetaBuildLocalization(build: Build): Promise<BetaBuildLocaliza
             'fields[betaBuildLocalizations]': ['whatsNew']
         }
     };
-    core.info(`/betaBuildLocalizations?${JSON.stringify(betaBuildLocalizationRequest.query)}`);
+    log(`/betaBuildLocalizations?${JSON.stringify(betaBuildLocalizationRequest.query)}`);
     const { data: betaBuildLocalizationResponse, error: betaBuildLocalizationError } = await appStoreConnectClient.api.betaBuildLocalizationsGetCollection(betaBuildLocalizationRequest);
     const responseJson = JSON.stringify(betaBuildLocalizationResponse, null, 2);
     if (betaBuildLocalizationError) {
@@ -189,7 +188,7 @@ async function getBetaBuildLocalization(build: Build): Promise<BetaBuildLocaliza
     if (!betaBuildLocalizationResponse || betaBuildLocalizationResponse.data.length === 0) {
         return null;
     }
-    core.info(responseJson);
+    log(responseJson);
     return betaBuildLocalizationResponse.data[0];
 }
 
@@ -211,7 +210,7 @@ async function createBetaBuildLocalization(build: Build, whatsNew: string): Prom
             }
         }
     }
-    core.info(`/betaBuildLocalizations\n${JSON.stringify(betaBuildLocalizationRequest, null, 2)}`);
+    log(`/betaBuildLocalizations\n${JSON.stringify(betaBuildLocalizationRequest, null, 2)}`);
     const { data: response, error: responseError } = await appStoreConnectClient.api.betaBuildLocalizationsCreateInstance({
         body: betaBuildLocalizationRequest
     });
@@ -220,7 +219,7 @@ async function createBetaBuildLocalization(build: Build, whatsNew: string): Prom
         checkAuthError(responseError);
         throw new Error(`Error creating beta build localization: ${JSON.stringify(responseError, null, 2)}`);
     }
-    core.info(responseJson);
+    log(responseJson);
     return response.data;
 }
 
@@ -234,7 +233,7 @@ async function updateBetaBuildLocalization(betaBuildLocalization: BetaBuildLocal
             }
         }
     };
-    core.info(`/betaBuildLocalizations/${betaBuildLocalization.id}\n${JSON.stringify(updateBuildLocalization, null, 2)}`);
+    log(`/betaBuildLocalizations/${betaBuildLocalization.id}\n${JSON.stringify(updateBuildLocalization, null, 2)}`);
     const { error: updateError } = await appStoreConnectClient.api.betaBuildLocalizationsUpdateInstance({
         path: { id: betaBuildLocalization.id },
         body: updateBuildLocalization
@@ -244,7 +243,7 @@ async function updateBetaBuildLocalization(betaBuildLocalization: BetaBuildLocal
         checkAuthError(updateError);
         throw new Error(`Error updating beta build localization: ${JSON.stringify(updateError, null, 2)}`);
     }
-    core.info(responseJson);
+    log(responseJson);
     return betaBuildLocalization;
 }
 
@@ -259,7 +258,7 @@ async function pollForValidBuild(project: XcodeProject, buildVersion: number, wh
                 continue;
             }
             if (!build) {
-                build = await getPreReleaseBuild(preReleaseVersion, buildVersion);
+                build = await getLastPrereleaseBuild(preReleaseVersion, buildVersion);
             }
             if (build.attributes?.processingState !== 'VALID') {
                 core.warning(`Build ${buildVersion} is not valid yet!`);
@@ -285,6 +284,13 @@ async function pollForValidBuild(project: XcodeProject, buildVersion: number, wh
 async function UpdateTestDetails(project: XcodeProject, buildVersion: number, whatsNew: string): Promise<void> {
     await getOrCreateClient(project);
     await pollForValidBuild(project, buildVersion, whatsNew);
+}
+
+function log(message: string) {
+    const lines = message.split('\n');
+    for (const line of lines) {
+        core.info(line);
+    }
 }
 
 export {
