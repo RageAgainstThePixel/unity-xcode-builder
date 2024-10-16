@@ -58777,6 +58777,9 @@ async function ArchiveXcodeProject(projectRef) {
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
     }
+    else {
+        archiveArgs.push('-verbose');
+    }
     await execWithXcBeautify(archiveArgs);
     projectRef.archivePath = archivePath;
     return projectRef;
@@ -58798,6 +58801,9 @@ async function ExportXcodeArchive(projectRef) {
     ];
     if (!core.isDebug()) {
         exportArgs.push('-quiet');
+    }
+    else {
+        exportArgs.push('-verbose');
     }
     await execWithXcBeautify(exportArgs);
     if (projectRef.platform === 'macOS') {

@@ -222,6 +222,8 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
     }
     if (!core.isDebug()) {
         archiveArgs.push('-quiet');
+    } else {
+        archiveArgs.push('-verbose');
     }
     await execWithXcBeautify(archiveArgs);
     projectRef.archivePath = archivePath
@@ -245,6 +247,8 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     ];
     if (!core.isDebug()) {
         exportArgs.push('-quiet');
+    } else {
+        exportArgs.push('-verbose');
     }
     await execWithXcBeautify(exportArgs);
     if (projectRef.platform === 'macOS') {
