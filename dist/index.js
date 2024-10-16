@@ -58221,7 +58221,6 @@ async function getPreReleaseBuild(prereleaseVersion, buildVersion = null) {
         query: {
             'filter[preReleaseVersion]': [prereleaseVersion.id],
             'fields[betaBuildLocalizations]': ['whatsNew'],
-            include: ['preReleaseVersion', 'betaBuildLocalizations'],
             sort: ['-version'],
         }
     };

@@ -123,7 +123,6 @@ async function getPreReleaseBuild(prereleaseVersion: PrereleaseVersion, buildVer
         query: {
             'filter[preReleaseVersion]': [prereleaseVersion.id],
             'fields[betaBuildLocalizations]': ['whatsNew'],
-            include: ['preReleaseVersion', 'betaBuildLocalizations'],
             sort: ['-version'],
         }
     };
