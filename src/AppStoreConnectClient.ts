@@ -95,7 +95,7 @@ function reMapPlatform(project: XcodeProject): ('IOS' | 'MAC_OS' | 'TV_OS' | 'VI
     }
 }
 
-async function getLastPreReleaseVersionAndBuild(project: XcodeProject/* , buildVersion: number | null = null */): Promise<PreReleaseVersionWithBuild> {
+async function getLastPreReleaseVersionAndBuild(project: XcodeProject): Promise<PreReleaseVersionWithBuild> {
     if (!project.appId) { project = await GetAppId(project); }
     const preReleaseVersionRequest: PreReleaseVersionsGetCollectionData = {
         query: {
@@ -108,9 +108,6 @@ async function getLastPreReleaseVersionAndBuild(project: XcodeProject/* , buildV
             limit: 1,
         }
     };
-    // if (buildVersion) {
-    //     preReleaseVersionRequest.query['filter[builds.version]'] = [buildVersion.toString()];
-    // }
     log(`/preReleaseVersions?${JSON.stringify(preReleaseVersionRequest.query)}`);
     const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
     const responseJson = JSON.stringify(preReleaseResponse, null, 2);
@@ -145,7 +142,7 @@ class PreReleaseVersionWithBuild {
     }
 }
 
-async function getLastPrereleaseBuild(prereleaseVersion: PrereleaseVersion/* , buildVersion: number | null = null */): Promise<Build> {
+async function getLastPrereleaseBuild(prereleaseVersion: PrereleaseVersion): Promise<Build> {
     const buildsRequest: BuildsGetCollectionData = {
         query: {
             'filter[preReleaseVersion]': [prereleaseVersion.id],
@@ -153,9 +150,6 @@ async function getLastPrereleaseBuild(prereleaseVersion: PrereleaseVersion/* , b
             limit: 1
         }
     };
-    // if (buildVersion) {
-    //     buildsRequest.query['filter[version]'] = [buildVersion.toString()];
-    // }
     log(`/builds?${JSON.stringify(buildsRequest.query)}`);
     const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
     const responseJson = JSON.stringify(buildsResponse, null, 2);
@@ -250,14 +244,16 @@ async function updateBetaBuildLocalization(betaBuildLocalization: BetaBuildLocal
 async function pollForValidBuild(project: XcodeProject, buildVersion: number, whatsNew: string, maxRetries: number = 60, interval: number = 30): Promise<BetaBuildLocalization> {
     let retries = 0;
     while (retries < maxRetries) {
-        core.notice(`Polling for build... Attempt ${++retries}/${maxRetries}`);
+        if (core.isDebug()) {
+            core.startGroup(`Polling for build... Attempt ${++retries}/${maxRetries}`);
+        }
         try {
-            let { preReleaseVersion, build } = await getLastPreReleaseVersionAndBuild(project/* , buildVersion */);
+            let { preReleaseVersion, build } = await getLastPreReleaseVersionAndBuild(project);
             if (!preReleaseVersion) {
                 throw new Error('No pre-release version found!');
             }
             if (!build) {
-                build = await getLastPrereleaseBuild(preReleaseVersion/* , buildVersion */);
+                build = await getLastPrereleaseBuild(preReleaseVersion);
             }
             if (build.attributes?.version !== buildVersion.toString()) {
                 throw new Error(`Build version ${build.attributes?.version} does not match expected version ${buildVersion}`);
@@ -271,11 +267,16 @@ async function pollForValidBuild(project: XcodeProject, buildVersion: number, wh
                     return await createBetaBuildLocalization(build, whatsNew);
                 }
             } catch (error) {
-                core.warning(`${error.message}\n${error.stack}`);
+                log(`${error.message}\n${error.stack}`, 'warning');
             }
             return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         } catch (error) {
-            core.warning(`${error.message}\n${error.stack}`);
+            log(`${error.message}\n${error.stack}`, 'error');
+        }
+        finally {
+            if (core.isDebug()) {
+                core.endGroup();
+            }
         }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }
@@ -287,10 +288,27 @@ async function UpdateTestDetails(project: XcodeProject, buildVersion: number, wh
     await pollForValidBuild(project, buildVersion, whatsNew);
 }
 
-function log(message: string) {
+function log(message: string, type: 'info' | 'warning' | 'error' = 'info') {
+    if (!core.isDebug()) { return; }
     const lines = message.split('\n');
+    let first = true;
     for (const line of lines) {
-        core.info(line);
+        if (first) {
+            first = false;
+            switch (type) {
+                case 'info':
+                    core.info(line);
+                    break;
+                case 'warning':
+                    core.warning(line);
+                    break;
+                case 'error':
+                    core.error(line);
+                    break;
+            }
+        } else {
+            core.info(line);
+        }
     }
 }
 

@@ -58336,7 +58336,9 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 6
     var _a, _b, _c;
     let retries = 0;
     while (retries < maxRetries) {
-        core.notice(`Polling for build... Attempt ${++retries}/${maxRetries}`);
+        if (core.isDebug()) {
+            core.startGroup(`Polling for build... Attempt ${++retries}/${maxRetries}`);
+        }
         try {
             let { preReleaseVersion, build } = await getLastPreReleaseVersionAndBuild(project);
             if (!preReleaseVersion) {
@@ -58358,12 +58360,17 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 6
                 }
             }
             catch (error) {
-                core.warning(`${error.message}\n${error.stack}`);
+                log(`${error.message}\n${error.stack}`, 'warning');
             }
             return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         }
         catch (error) {
-            core.warning(`${error.message}\n${error.stack}`);
+            log(`${error.message}\n${error.stack}`, 'error');
+        }
+        finally {
+            if (core.isDebug()) {
+                core.endGroup();
+            }
         }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }
@@ -58373,10 +58380,30 @@ async function UpdateTestDetails(project, buildVersion, whatsNew) {
     await getOrCreateClient(project);
     await pollForValidBuild(project, buildVersion, whatsNew);
 }
-function log(message) {
+function log(message, type = 'info') {
+    if (!core.isDebug()) {
+        return;
+    }
     const lines = message.split('\n');
+    let first = true;
     for (const line of lines) {
-        core.info(line);
+        if (first) {
+            first = false;
+            switch (type) {
+                case 'info':
+                    core.info(line);
+                    break;
+                case 'warning':
+                    core.warning(line);
+                    break;
+                case 'error':
+                    core.error(line);
+                    break;
+            }
+        }
+        else {
+            core.info(line);
+        }
     }
 }
 
