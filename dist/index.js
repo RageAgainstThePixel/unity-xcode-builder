@@ -59060,11 +59060,13 @@ async function ValidateApp(projectRef) {
         '--type', platforms[projectRef.platform],
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
-        '--verbose',
         '--output-format', 'json'
     ];
     if (!core.isDebug()) {
         core.info(`[command]${xcrun} ${validateArgs.join(' ')}`);
+    }
+    else {
+        validateArgs.push('--verbose');
     }
     let output = '';
     const exitCode = await (0, exec_1.exec)(xcrun, validateArgs, {
@@ -59148,11 +59150,13 @@ async function UploadApp(projectRef) {
         '--bundle-short-version-string', projectRef.versionString,
         '--apiKey', projectRef.credential.appStoreConnectKeyId,
         '--apiIssuer', projectRef.credential.appStoreConnectIssuerId,
-        '--verbose',
         '--output-format', 'json'
     ];
     if (!core.isDebug()) {
         core.info(`[command]${xcrun} ${uploadArgs.join(' ')}`);
+    }
+    else {
+        uploadArgs.push('--verbose');
     }
     let output = '';
     const exitCode = await (0, exec_1.exec)(xcrun, uploadArgs, {
