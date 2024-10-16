@@ -253,11 +253,11 @@ async function pollForValidBuild(project: XcodeProject, buildVersion: number, wh
                     return await createBetaBuildLocalization(build, whatsNew);
                 }
             } catch (error) {
-                core.warning(error);
+                core.warning(`${error.message}\n${error.stack}`);
             }
             return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         } catch (error) {
-            core.error(error);
+            core.error(`${error.message}\n${error.stack}`);
         }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }

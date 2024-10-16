@@ -58351,12 +58351,12 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 1
                 }
             }
             catch (error) {
-                core.warning(error);
+                core.warning(`${error.message}\n${error.stack}`);
             }
             return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         }
         catch (error) {
-            core.error(error);
+            core.error(`${error.message}\n${error.stack}`);
         }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }
