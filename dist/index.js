@@ -58340,19 +58340,16 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 1
         try {
             let { preReleaseVersion, build } = await getLastPreReleaseVersionAndBuild(project);
             if (!preReleaseVersion) {
-                core.warning('No pre-release version found!');
-                continue;
+                throw new Error('No pre-release version found!');
             }
             if (!build) {
                 build = await getLastPrereleaseBuild(preReleaseVersion);
             }
             if (((_a = build.attributes) === null || _a === void 0 ? void 0 : _a.version) !== buildVersion.toString()) {
-                core.warning(`Build version ${(_b = build.attributes) === null || _b === void 0 ? void 0 : _b.version} does not match expected version ${buildVersion}`);
-                continue;
+                throw new Error(`Build version ${(_b = build.attributes) === null || _b === void 0 ? void 0 : _b.version} does not match expected version ${buildVersion}`);
             }
             if (((_c = build.attributes) === null || _c === void 0 ? void 0 : _c.processingState) !== 'VALID') {
-                core.warning(`Build ${buildVersion} is not valid yet!`);
-                continue;
+                throw new Error(`Build ${buildVersion} is not valid yet!`);
             }
             const betaBuildLocalization = await getBetaBuildLocalization(build);
             try {

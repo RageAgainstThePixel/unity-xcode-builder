@@ -254,19 +254,16 @@ async function pollForValidBuild(project: XcodeProject, buildVersion: number, wh
         try {
             let { preReleaseVersion, build } = await getLastPreReleaseVersionAndBuild(project/* , buildVersion */);
             if (!preReleaseVersion) {
-                core.warning('No pre-release version found!');
-                continue;
+                throw new Error('No pre-release version found!');
             }
             if (!build) {
                 build = await getLastPrereleaseBuild(preReleaseVersion/* , buildVersion */);
             }
             if (build.attributes?.version !== buildVersion.toString()) {
-                core.warning(`Build version ${build.attributes?.version} does not match expected version ${buildVersion}`);
-                continue;
+                throw new Error(`Build version ${build.attributes?.version} does not match expected version ${buildVersion}`);
             }
             if (build.attributes?.processingState !== 'VALID') {
-                core.warning(`Build ${buildVersion} is not valid yet!`);
-                continue;
+                throw new Error(`Build ${buildVersion} is not valid yet!`);
             }
             const betaBuildLocalization = await getBetaBuildLocalization(build);
             try {
