@@ -230,11 +230,14 @@ async function pollForValidBuild(project: XcodeProject, buildVersion: number, wh
             const build = await getPreReleaseBuild(prereleaseVersion, buildVersion);
             if (!build || build.attributes?.processingState !== 'VALID') { continue; }
             const betaBuildLocalization = await getBetaBuildLocalization(build);
-            if (!betaBuildLocalization) {
-                return await createBetaBuildLocalization(build, whatsNew);
-            } else {
-                return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
+            try {
+                if (!betaBuildLocalization) {
+                    return await createBetaBuildLocalization(build, whatsNew);
+                }
+            } catch (error) {
+                core.warning(error.message);
             }
+            return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         } catch (error) {
             core.warning(error.message);
         }

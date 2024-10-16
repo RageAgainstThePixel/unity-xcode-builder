@@ -58326,12 +58326,15 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 1
                 continue;
             }
             const betaBuildLocalization = await getBetaBuildLocalization(build);
-            if (!betaBuildLocalization) {
-                return await createBetaBuildLocalization(build, whatsNew);
+            try {
+                if (!betaBuildLocalization) {
+                    return await createBetaBuildLocalization(build, whatsNew);
+                }
             }
-            else {
-                return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
+            catch (error) {
+                core.warning(error.message);
             }
+            return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         }
         catch (error) {
             core.warning(error.message);
