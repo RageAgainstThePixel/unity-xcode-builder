@@ -58191,7 +58191,7 @@ function reMapPlatform(project) {
             throw new Error(`Unsupported platform: ${project.platform}`);
     }
 }
-async function getLastPreReleaseVersionAndBuild(project, buildVersion = null) {
+async function getLastPreReleaseVersionAndBuild(project) {
     var _a, _b, _c;
     if (!project.appId) {
         project = await GetAppId(project);
@@ -58207,9 +58207,6 @@ async function getLastPreReleaseVersionAndBuild(project, buildVersion = null) {
             limit: 1,
         }
     };
-    if (buildVersion) {
-        preReleaseVersionRequest.query['filter[builds.version]'] = [buildVersion.toString()];
-    }
     log(`/preReleaseVersions?${JSON.stringify(preReleaseVersionRequest.query)}`);
     const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
     const responseJson = JSON.stringify(preReleaseResponse, null, 2);
@@ -58240,7 +58237,7 @@ class PreReleaseVersionWithBuild {
         this.build = build;
     }
 }
-async function getLastPrereleaseBuild(prereleaseVersion, buildVersion = null) {
+async function getLastPrereleaseBuild(prereleaseVersion) {
     const buildsRequest = {
         query: {
             'filter[preReleaseVersion]': [prereleaseVersion.id],
@@ -58248,9 +58245,6 @@ async function getLastPrereleaseBuild(prereleaseVersion, buildVersion = null) {
             limit: 1
         }
     };
-    if (buildVersion) {
-        buildsRequest.query['filter[version]'] = [buildVersion.toString()];
-    }
     log(`/builds?${JSON.stringify(buildsRequest.query)}`);
     const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
     const responseJson = JSON.stringify(buildsResponse, null, 2);
@@ -58339,20 +58333,24 @@ async function updateBetaBuildLocalization(betaBuildLocalization, whatsNew) {
     return betaBuildLocalization;
 }
 async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 10, interval = 30) {
-    var _a;
+    var _a, _b, _c;
     let retries = 0;
     while (retries < maxRetries) {
         core.notice(`Polling for build... Attempt ${++retries}/${maxRetries}`);
         try {
-            let { preReleaseVersion, build } = await getLastPreReleaseVersionAndBuild(project, buildVersion);
+            let { preReleaseVersion, build } = await getLastPreReleaseVersionAndBuild(project);
             if (!preReleaseVersion) {
                 core.warning('No pre-release version found!');
                 continue;
             }
             if (!build) {
-                build = await getLastPrereleaseBuild(preReleaseVersion, buildVersion);
+                build = await getLastPrereleaseBuild(preReleaseVersion);
             }
-            if (((_a = build.attributes) === null || _a === void 0 ? void 0 : _a.processingState) !== 'VALID') {
+            if (((_a = build.attributes) === null || _a === void 0 ? void 0 : _a.version) !== buildVersion.toString()) {
+                core.warning(`Build version ${(_b = build.attributes) === null || _b === void 0 ? void 0 : _b.version} does not match expected version ${buildVersion}`);
+                continue;
+            }
+            if (((_c = build.attributes) === null || _c === void 0 ? void 0 : _c.processingState) !== 'VALID') {
                 core.warning(`Build ${buildVersion} is not valid yet!`);
                 continue;
             }
