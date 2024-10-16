@@ -247,7 +247,7 @@ async function updateBetaBuildLocalization(betaBuildLocalization: BetaBuildLocal
     return betaBuildLocalization;
 }
 
-async function pollForValidBuild(project: XcodeProject, buildVersion: number, whatsNew: string, maxRetries: number = 10, interval: number = 30): Promise<BetaBuildLocalization> {
+async function pollForValidBuild(project: XcodeProject, buildVersion: number, whatsNew: string, maxRetries: number = 60, interval: number = 30): Promise<BetaBuildLocalization> {
     let retries = 0;
     while (retries < maxRetries) {
         core.notice(`Polling for build... Attempt ${++retries}/${maxRetries}`);
@@ -275,7 +275,7 @@ async function pollForValidBuild(project: XcodeProject, buildVersion: number, wh
             }
             return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         } catch (error) {
-            core.error(`${error.message}\n${error.stack}`);
+            core.warning(`${error.message}\n${error.stack}`);
         }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }

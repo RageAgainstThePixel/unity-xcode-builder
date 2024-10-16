@@ -58332,7 +58332,7 @@ async function updateBetaBuildLocalization(betaBuildLocalization, whatsNew) {
     log(responseJson);
     return betaBuildLocalization;
 }
-async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 10, interval = 30) {
+async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 60, interval = 30) {
     var _a, _b, _c;
     let retries = 0;
     while (retries < maxRetries) {
@@ -58363,7 +58363,7 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 1
             return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         }
         catch (error) {
-            core.error(`${error.message}\n${error.stack}`);
+            core.warning(`${error.message}\n${error.stack}`);
         }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }
