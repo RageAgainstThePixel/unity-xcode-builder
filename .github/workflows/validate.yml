@@ -83,9 +83,17 @@ jobs:
         with:
           log-name: 'create-test-project'
           args: '-quit -nographics -batchmode -createProject "${{ github.workspace }}/UnityProject" -cloneFromTemplate "${{ env.TEMPLATE_PATH }}"'
-      - run: 'openupm add com.utilities.buildpipeline'
+      - run: |
+          openupm add com.utilities.buildpipeline
+          $buildTarget = $env:BUILD_TARGET
+          if ($buildTarget -eq 'VisionOS') {
+            com.unity.xr.visionos
+            com.unity.polyspatial.visionos
+            com.unity.polyspatial.xr
+          }
         name: Add Build Pipeline Package
         working-directory: ${{ github.workspace }}/UnityProject
+        shell: bash
       - uses: RageAgainstThePixel/unity-action@v1
         name: '${{ matrix.build-target }}-Validate'
         with:

@@ -123,7 +123,6 @@ async function getPreReleaseBuild(prereleaseVersion: PrereleaseVersion, buildVer
     const buildsRequest: BuildsGetCollectionData = {
         query: {
             'filter[preReleaseVersion]': [prereleaseVersion.id],
-            'fields[betaBuildLocalizations]': ['whatsNew'],
             sort: ['-version'],
         }
     };
@@ -161,7 +160,7 @@ async function getBetaBuildLocalization(build: Build): Promise<BetaBuildLocaliza
         throw new Error(`Error fetching beta build localization: ${JSON.stringify(betaBuildLocalizationError, null, 2)}`);
     }
     if (!betaBuildLocalizationResponse || betaBuildLocalizationResponse.data.length === 0) {
-        throw new Error(`No beta build localization found\n${responseJson}`);
+        return null;
     }
     core.info(responseJson);
     return betaBuildLocalizationResponse.data[0];
@@ -198,57 +197,55 @@ async function createBetaBuildLocalization(build: Build, whatsNew: string): Prom
     return response.data;
 }
 
-async function pollForBuildLocalization(preReleaseVersion: PrereleaseVersion, buildVersion: number, maxRetries: number = 10, interval: number = 30): Promise<BetaBuildLocalization> {
+async function updateBetaBuildLocalization(betaBuildLocalization: BetaBuildLocalization, whatsNew: string): Promise<BetaBuildLocalization> {
+    const updateBuildLocalization: BetaBuildLocalizationUpdateRequest = {
+        data: {
+            id: betaBuildLocalization.id,
+            type: 'betaBuildLocalizations',
+            attributes: {
+                whatsNew: whatsNew
+            }
+        }
+    };
+    core.info(`/betaBuildLocalizations/${betaBuildLocalization.id}\n${JSON.stringify(updateBuildLocalization, null, 2)}`);
+    const { error: updateError } = await appStoreConnectClient.api.betaBuildLocalizationsUpdateInstance({
+        path: { id: betaBuildLocalization.id },
+        body: updateBuildLocalization
+    });
+    const responseJson = JSON.stringify(updateBuildLocalization, null, 2);
+    if (updateError) {
+        checkAuthError(updateError);
+        throw new Error(`Error updating beta build localization: ${JSON.stringify(updateError, null, 2)}`);
+    }
+    core.info(responseJson);
+    return betaBuildLocalization;
+}
+
+async function pollForValidBuild(project: XcodeProject, buildVersion: number, whatsNew: string, maxRetries: number = 10, interval: number = 30): Promise<BetaBuildLocalization> {
     let retries = 0;
     while (retries < maxRetries) {
-        core.info(`Polling for build localization... Attempt ${++retries}/${maxRetries}`);
+        core.info(`Polling for build... Attempt ${++retries}/${maxRetries}`);
         try {
-            const build = await getPreReleaseBuild(preReleaseVersion, buildVersion);
-            if (build.attributes.processingState === 'VALID') {
-                throw new Error('Build is valid but no localization found!');
-            }
-            else {
-                const betaBuildLocalization = await getBetaBuildLocalization(build);
-                if (betaBuildLocalization) { return betaBuildLocalization; }
+            const prereleaseVersion = await getLastPreReleaseVersion(project);
+            const build = await getPreReleaseBuild(prereleaseVersion, buildVersion);
+            if (!build || build.attributes?.processingState !== 'VALID') { continue; }
+            const betaBuildLocalization = await getBetaBuildLocalization(build);
+            if (!betaBuildLocalization) {
+                return await createBetaBuildLocalization(build, whatsNew);
+            } else {
+                return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
             }
         } catch (error) {
             core.warning(error.message);
         }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }
-    throw new Error('Timed out waiting for build localization!');
+    throw new Error('Timed out waiting for valid build!');
 }
 
 async function UpdateTestDetails(project: XcodeProject, buildVersion: number, whatsNew: string): Promise<void> {
     await getOrCreateClient(project);
-    const prereleaseVersion = await getLastPreReleaseVersion(project);
-    try {
-        const betaBuildLocalization = await pollForBuildLocalization(prereleaseVersion, buildVersion);
-        const updateBuildLocalization: BetaBuildLocalizationUpdateRequest = {
-            data: {
-                id: betaBuildLocalization.id,
-                type: 'betaBuildLocalizations',
-                attributes: {
-                    whatsNew: whatsNew
-                }
-            }
-        };
-        core.info(`/betaBuildLocalizations/${betaBuildLocalization.id}\n${JSON.stringify(updateBuildLocalization, null, 2)}`);
-        const { error: updateError } = await appStoreConnectClient.api.betaBuildLocalizationsUpdateInstance({
-            path: { id: betaBuildLocalization.id },
-            body: updateBuildLocalization
-        });
-        const responseJson = JSON.stringify(updateBuildLocalization, null, 2);
-        if (updateError) {
-            checkAuthError(updateError);
-            throw new Error(`Error updating beta build localization: ${JSON.stringify(updateError, null, 2)}`);
-        }
-        core.info(responseJson);
-    } catch (error) {
-        core.warning(error.message);
-        const build = await getPreReleaseBuild(prereleaseVersion, buildVersion);
-        await createBetaBuildLocalization(build, whatsNew);
-    }
+    await pollForValidBuild(project, buildVersion, whatsNew);
 }
 
 export {
