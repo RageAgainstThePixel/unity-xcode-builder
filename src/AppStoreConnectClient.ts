@@ -13,6 +13,7 @@ import {
     PreReleaseVersionsGetCollectionData,
     BetaBuildLocalizationCreateRequest,
 } from '@rage-against-the-pixel/app-store-connect-api/dist/app_store_connect_api';
+import { log } from './utilities';
 import core = require('@actions/core');
 
 let appStoreConnectClient: AppStoreConnectClient | null = null;
@@ -286,30 +287,6 @@ async function pollForValidBuild(project: XcodeProject, buildVersion: number, wh
 async function UpdateTestDetails(project: XcodeProject, buildVersion: number, whatsNew: string): Promise<void> {
     await getOrCreateClient(project);
     await pollForValidBuild(project, buildVersion, whatsNew);
-}
-
-function log(message: string, type: 'info' | 'warning' | 'error' = 'info') {
-    if (!core.isDebug()) { return; }
-    const lines = message.split('\n');
-    let first = true;
-    for (const line of lines) {
-        if (first) {
-            first = false;
-            switch (type) {
-                case 'info':
-                    core.info(line);
-                    break;
-                case 'warning':
-                    core.warning(line);
-                    break;
-                case 'error':
-                    core.error(line);
-                    break;
-            }
-        } else {
-            core.info(line);
-        }
-    }
 }
 
 export {

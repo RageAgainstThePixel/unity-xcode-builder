@@ -58112,6 +58112,7 @@ exports.GetAppId = GetAppId;
 exports.GetLatestBundleVersion = GetLatestBundleVersion;
 exports.UpdateTestDetails = UpdateTestDetails;
 const app_store_connect_api_1 = __nccwpck_require__(9073);
+const utilities_1 = __nccwpck_require__(739);
 const core = __nccwpck_require__(2186);
 let appStoreConnectClient = null;
 class UnauthorizedError extends Error {
@@ -58207,14 +58208,14 @@ async function getLastPreReleaseVersionAndBuild(project) {
             limit: 1,
         }
     };
-    log(`/preReleaseVersions?${JSON.stringify(preReleaseVersionRequest.query)}`);
+    (0, utilities_1.log)(`/preReleaseVersions?${JSON.stringify(preReleaseVersionRequest.query)}`);
     const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
     const responseJson = JSON.stringify(preReleaseResponse, null, 2);
     if (preReleaseError) {
         checkAuthError(preReleaseError);
         throw new Error(`Error fetching pre-release versions: ${responseJson}`);
     }
-    log(responseJson);
+    (0, utilities_1.log)(responseJson);
     if (!preReleaseResponse || !preReleaseResponse.data || preReleaseResponse.data.length === 0) {
         return new PreReleaseVersionWithBuild({ preReleaseVersion: null, build: null });
     }
@@ -58245,7 +58246,7 @@ async function getLastPrereleaseBuild(prereleaseVersion) {
             limit: 1
         }
     };
-    log(`/builds?${JSON.stringify(buildsRequest.query)}`);
+    (0, utilities_1.log)(`/builds?${JSON.stringify(buildsRequest.query)}`);
     const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
     const responseJson = JSON.stringify(buildsResponse, null, 2);
     if (buildsError) {
@@ -58255,7 +58256,7 @@ async function getLastPrereleaseBuild(prereleaseVersion) {
     if (!buildsResponse || !buildsResponse.data || buildsResponse.data.length === 0) {
         throw new Error(`No builds found! ${responseJson}`);
     }
-    log(responseJson);
+    (0, utilities_1.log)(responseJson);
     return buildsResponse.data[0];
 }
 async function getBetaBuildLocalization(build) {
@@ -58266,7 +58267,7 @@ async function getBetaBuildLocalization(build) {
             'fields[betaBuildLocalizations]': ['whatsNew']
         }
     };
-    log(`/betaBuildLocalizations?${JSON.stringify(betaBuildLocalizationRequest.query)}`);
+    (0, utilities_1.log)(`/betaBuildLocalizations?${JSON.stringify(betaBuildLocalizationRequest.query)}`);
     const { data: betaBuildLocalizationResponse, error: betaBuildLocalizationError } = await appStoreConnectClient.api.betaBuildLocalizationsGetCollection(betaBuildLocalizationRequest);
     const responseJson = JSON.stringify(betaBuildLocalizationResponse, null, 2);
     if (betaBuildLocalizationError) {
@@ -58276,7 +58277,7 @@ async function getBetaBuildLocalization(build) {
     if (!betaBuildLocalizationResponse || betaBuildLocalizationResponse.data.length === 0) {
         return null;
     }
-    log(responseJson);
+    (0, utilities_1.log)(responseJson);
     return betaBuildLocalizationResponse.data[0];
 }
 async function createBetaBuildLocalization(build, whatsNew) {
@@ -58297,7 +58298,7 @@ async function createBetaBuildLocalization(build, whatsNew) {
             }
         }
     };
-    log(`/betaBuildLocalizations\n${JSON.stringify(betaBuildLocalizationRequest, null, 2)}`);
+    (0, utilities_1.log)(`/betaBuildLocalizations\n${JSON.stringify(betaBuildLocalizationRequest, null, 2)}`);
     const { data: response, error: responseError } = await appStoreConnectClient.api.betaBuildLocalizationsCreateInstance({
         body: betaBuildLocalizationRequest
     });
@@ -58306,7 +58307,7 @@ async function createBetaBuildLocalization(build, whatsNew) {
         checkAuthError(responseError);
         throw new Error(`Error creating beta build localization: ${JSON.stringify(responseError, null, 2)}`);
     }
-    log(responseJson);
+    (0, utilities_1.log)(responseJson);
     return response.data;
 }
 async function updateBetaBuildLocalization(betaBuildLocalization, whatsNew) {
@@ -58319,7 +58320,7 @@ async function updateBetaBuildLocalization(betaBuildLocalization, whatsNew) {
             }
         }
     };
-    log(`/betaBuildLocalizations/${betaBuildLocalization.id}\n${JSON.stringify(updateBuildLocalization, null, 2)}`);
+    (0, utilities_1.log)(`/betaBuildLocalizations/${betaBuildLocalization.id}\n${JSON.stringify(updateBuildLocalization, null, 2)}`);
     const { error: updateError } = await appStoreConnectClient.api.betaBuildLocalizationsUpdateInstance({
         path: { id: betaBuildLocalization.id },
         body: updateBuildLocalization
@@ -58329,7 +58330,7 @@ async function updateBetaBuildLocalization(betaBuildLocalization, whatsNew) {
         checkAuthError(updateError);
         throw new Error(`Error updating beta build localization: ${JSON.stringify(updateError, null, 2)}`);
     }
-    log(responseJson);
+    (0, utilities_1.log)(responseJson);
     return betaBuildLocalization;
 }
 async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 60, interval = 30) {
@@ -58360,12 +58361,12 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 6
                 }
             }
             catch (error) {
-                log(`${error.message}\n${error.stack}`, 'warning');
+                (0, utilities_1.log)(`${error.message}\n${error.stack}`, 'warning');
             }
             return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         }
         catch (error) {
-            log(`${error.message}\n${error.stack}`, 'error');
+            (0, utilities_1.log)(`${error.message}\n${error.stack}`, 'error');
         }
         finally {
             if (core.isDebug()) {
@@ -58379,32 +58380,6 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 6
 async function UpdateTestDetails(project, buildVersion, whatsNew) {
     await getOrCreateClient(project);
     await pollForValidBuild(project, buildVersion, whatsNew);
-}
-function log(message, type = 'info') {
-    if (!core.isDebug()) {
-        return;
-    }
-    const lines = message.split('\n');
-    let first = true;
-    for (const line of lines) {
-        if (first) {
-            first = false;
-            switch (type) {
-                case 'info':
-                    core.info(line);
-                    break;
-                case 'warning':
-                    core.warning(line);
-                    break;
-                case 'error':
-                    core.error(line);
-                    break;
-            }
-        }
-        else {
-            core.info(line);
-        }
-    }
 }
 
 
@@ -58600,6 +58575,44 @@ exports.XcodeProject = XcodeProject;
 
 /***/ }),
 
+/***/ 739:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.log = log;
+const core = __nccwpck_require__(2186);
+function log(message, type = 'info') {
+    if (!core.isDebug()) {
+        return;
+    }
+    const lines = message.split('\n');
+    let first = true;
+    for (const line of lines) {
+        if (first) {
+            first = false;
+            switch (type) {
+                case 'info':
+                    core.info(line);
+                    break;
+                case 'warning':
+                    core.warning(line);
+                    break;
+                case 'error':
+                    core.error(line);
+                    break;
+            }
+        }
+        else {
+            core.info(line);
+        }
+    }
+}
+
+
+/***/ }),
+
 /***/ 9157:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -58614,7 +58627,6 @@ exports.UploadApp = UploadApp;
 const XcodeProject_1 = __nccwpck_require__(1981);
 const child_process_1 = __nccwpck_require__(2081);
 const exec_1 = __nccwpck_require__(1514);
-const core = __nccwpck_require__(2186);
 const glob = __nccwpck_require__(8090);
 const github = __nccwpck_require__(5438);
 const plist = __nccwpck_require__(1933);
@@ -58622,6 +58634,8 @@ const path = __nccwpck_require__(1017);
 const fs = __nccwpck_require__(7147);
 const semver = __nccwpck_require__(1383);
 const AppStoreConnectClient_1 = __nccwpck_require__(7486);
+const utilities_1 = __nccwpck_require__(739);
+const core = __nccwpck_require__(2186);
 const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
@@ -59060,7 +59074,8 @@ async function execWithXcBeautify(xcodeBuildArgs) {
         });
     });
     if (exitCode !== 0) {
-        throw new Error(`xcodebuild exited with code ${exitCode}\n${errorOutput}`);
+        (0, utilities_1.log)(errorOutput, 'error');
+        throw new Error(`xcodebuild exited with code: ${exitCode}`);
     }
 }
 async function ValidateApp(projectRef) {
@@ -59131,7 +59146,8 @@ async function getAppId(projectRef) {
     const response = JSON.parse(output);
     const outputJson = JSON.stringify(response, null, 2);
     if (exitCode > 0) {
-        throw new Error(`Failed to list providers\n${outputJson}`);
+        (0, utilities_1.log)(outputJson, 'error');
+        throw new Error(`Failed to list providers`);
     }
     const app = response.applications.find((app) => app.ExistingBundleIdentifier === projectRef.bundleId);
     if (!app) {
@@ -59194,14 +59210,15 @@ async function UploadApp(projectRef) {
     });
     const outputJson = JSON.stringify(JSON.parse(output), null, 2);
     if (exitCode > 0) {
-        throw new Error(`Failed to upload app\n${outputJson}`);
+        (0, utilities_1.log)(outputJson, 'error');
+        throw new Error(`Failed to upload app!`);
     }
     core.debug(outputJson);
     try {
         await (0, AppStoreConnectClient_1.UpdateTestDetails)(projectRef, bundleVersion, await getWhatsNew());
     }
     catch (error) {
-        core.error(`Failed to update test details!\n${error.message}`);
+        (0, utilities_1.log)(`Failed to update test details!\n${JSON.stringify(error)}`, 'error');
     }
 }
 async function getWhatsNew() {
@@ -59236,7 +59253,8 @@ async function execGit(args) {
         }
     });
     if (exitCode > 0) {
-        throw new Error(`Error: ${output}`);
+        (0, utilities_1.log)(output, 'error');
+        throw new Error(`Git failed with exit code: ${exitCode}`);
     }
     return output;
 }

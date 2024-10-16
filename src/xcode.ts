@@ -1,7 +1,6 @@
 import { XcodeProject } from './XcodeProject';
 import { spawn } from 'child_process';
 import { exec } from '@actions/exec';
-import core = require('@actions/core');
 import glob = require('@actions/glob');
 import github = require('@actions/github');
 import plist = require('plist');
@@ -13,6 +12,8 @@ import {
     UpdateTestDetails,
     UnauthorizedError
 } from './AppStoreConnectClient';
+import { log } from './utilities';
+import core = require('@actions/core');
 
 const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
@@ -466,7 +467,8 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
         });
     });
     if (exitCode !== 0) {
-        throw new Error(`xcodebuild exited with code ${exitCode}\n${errorOutput}`);
+        log(errorOutput, 'error');
+        throw new Error(`xcodebuild exited with code: ${exitCode}`);
     }
 }
 
@@ -537,7 +539,8 @@ async function getAppId(projectRef: XcodeProject): Promise<XcodeProject> {
     const response = JSON.parse(output);
     const outputJson = JSON.stringify(response, null, 2);
     if (exitCode > 0) {
-        throw new Error(`Failed to list providers\n${outputJson}`);
+        log(outputJson, 'error');
+        throw new Error(`Failed to list providers`);
     }
     const app = response.applications.find((app: any) => app.ExistingBundleIdentifier === projectRef.bundleId);
     if (!app) {
@@ -598,13 +601,14 @@ async function UploadApp(projectRef: XcodeProject) {
     });
     const outputJson = JSON.stringify(JSON.parse(output), null, 2);
     if (exitCode > 0) {
-        throw new Error(`Failed to upload app\n${outputJson}`);
+        log(outputJson, 'error');
+        throw new Error(`Failed to upload app!`);
     }
     core.debug(outputJson);
     try {
         await UpdateTestDetails(projectRef, bundleVersion, await getWhatsNew());
     } catch (error) {
-        core.error(`Failed to update test details!\n${error.message}`);
+        log(`Failed to update test details!\n${JSON.stringify(error)}`, 'error');
     }
 }
 
@@ -640,7 +644,8 @@ async function execGit(args: string[]): Promise<string> {
         }
     });
     if (exitCode > 0) {
-        throw new Error(`Error: ${output}`);
+        log(output, 'error');
+        throw new Error(`Git failed with exit code: ${exitCode}`);
     }
     return output;
 }
