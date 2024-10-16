@@ -58219,11 +58219,14 @@ async function getLastPreReleaseVersionAndBuild(project, buildVersion = null) {
         throw new Error(`Error fetching pre-release versions: ${responseJson}`);
     }
     core.info(responseJson);
-    if (!preReleaseResponse || preReleaseResponse.data.length === 0) {
+    if (!preReleaseResponse || !preReleaseResponse.data || preReleaseResponse.data.length === 0) {
         return null;
     }
     const lastBuildId = (_c = (_b = (_a = preReleaseResponse.data[0].relationships) === null || _a === void 0 ? void 0 : _a.builds) === null || _b === void 0 ? void 0 : _b.data[0]) === null || _c === void 0 ? void 0 : _c.id;
-    const lastBuild = (_d = preReleaseResponse.included) === null || _d === void 0 ? void 0 : _d.find(i => i.type == 'builds' && i.id == lastBuildId);
+    let lastBuild = null;
+    if (!lastBuildId) {
+        lastBuild = (_d = preReleaseResponse.included) === null || _d === void 0 ? void 0 : _d.find(i => i.type == 'builds' && i.id == lastBuildId);
+    }
     return [preReleaseResponse.data[0], lastBuild];
 }
 async function getPreReleaseBuild(prereleaseVersion, buildVersion = null) {
@@ -58348,12 +58351,12 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 1
                 }
             }
             catch (error) {
-                core.warning(error.message);
+                core.warning(error);
             }
             return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         }
         catch (error) {
-            core.warning(error.message);
+            core.error(error);
         }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }
@@ -59052,7 +59055,6 @@ async function ValidateApp(projectRef) {
     if (exitCode > 0) {
         throw new Error(`Failed to validate app: ${outputJson}`);
     }
-    core.debug(`Validation results: ${outputJson}`);
 }
 async function getAppId(projectRef) {
     const providersArgs = [
@@ -59080,7 +59082,6 @@ async function getAppId(projectRef) {
     if (exitCode > 0) {
         throw new Error(`Failed to list providers\n${outputJson}`);
     }
-    core.debug(`Apps: ${outputJson}`);
     const app = response.applications.find((app) => app.ExistingBundleIdentifier === projectRef.bundleId);
     if (!app) {
         throw new Error(`App not found with bundleId: ${projectRef.bundleId}`);

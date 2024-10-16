@@ -120,11 +120,14 @@ async function getLastPreReleaseVersionAndBuild(project: XcodeProject, buildVers
         throw new Error(`Error fetching pre-release versions: ${responseJson}`);
     }
     core.info(responseJson);
-    if (!preReleaseResponse || preReleaseResponse.data.length === 0) {
+    if (!preReleaseResponse || !preReleaseResponse.data || preReleaseResponse.data.length === 0) {
         return null;
     }
     const lastBuildId = preReleaseResponse.data[0].relationships?.builds?.data[0]?.id;
-    const lastBuild = preReleaseResponse.included?.find(i => i.type == 'builds' && i.id == lastBuildId) as Build;
+    let lastBuild: Build = null;
+    if (!lastBuildId) {
+        lastBuild = preReleaseResponse.included?.find(i => i.type == 'builds' && i.id == lastBuildId) as Build;
+    }
     return [preReleaseResponse.data[0], lastBuild];
 }
 
@@ -250,11 +253,11 @@ async function pollForValidBuild(project: XcodeProject, buildVersion: number, wh
                     return await createBetaBuildLocalization(build, whatsNew);
                 }
             } catch (error) {
-                core.warning(error.message);
+                core.warning(error);
             }
             return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         } catch (error) {
-            core.warning(error.message);
+            core.error(error);
         }
         await new Promise(resolve => setTimeout(resolve, interval * 1000));
     }

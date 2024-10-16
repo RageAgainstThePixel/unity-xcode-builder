@@ -504,7 +504,6 @@ async function ValidateApp(projectRef: XcodeProject) {
     if (exitCode > 0) {
         throw new Error(`Failed to validate app: ${outputJson}`);
     }
-    core.debug(`Validation results: ${outputJson}`);
 }
 
 async function getAppId(projectRef: XcodeProject): Promise<XcodeProject> {
@@ -533,7 +532,6 @@ async function getAppId(projectRef: XcodeProject): Promise<XcodeProject> {
     if (exitCode > 0) {
         throw new Error(`Failed to list providers\n${outputJson}`);
     }
-    core.debug(`Apps: ${outputJson}`);
     const app = response.applications.find((app: any) => app.ExistingBundleIdentifier === projectRef.bundleId);
     if (!app) {
         throw new Error(`App not found with bundleId: ${projectRef.bundleId}`);
