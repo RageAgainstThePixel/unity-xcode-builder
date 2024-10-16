@@ -145,8 +145,7 @@ async function getPreReleaseBuild(prereleaseVersion: PrereleaseVersion, buildVer
     return buildsResponse.data[0];
 }
 
-async function getBetaBuildLocalization(preReleaseVersion: PrereleaseVersion, buildVersion: number): Promise<BetaBuildLocalization> {
-    const build = await getPreReleaseBuild(preReleaseVersion, buildVersion);
+async function getBetaBuildLocalization(build: Build): Promise<BetaBuildLocalization> {
     const betaBuildLocalizationRequest: BetaBuildLocalizationsGetCollectionData = {
         query: {
             'filter[build]': [build.id],
@@ -204,8 +203,14 @@ async function pollForBuildLocalization(preReleaseVersion: PrereleaseVersion, bu
     while (retries < maxRetries) {
         core.info(`Polling for build localization... Attempt ${++retries}/${maxRetries}`);
         try {
-            const betaBuildLocalization = await getBetaBuildLocalization(preReleaseVersion, buildVersion);
-            if (betaBuildLocalization) { return betaBuildLocalization; }
+            const build = await getPreReleaseBuild(preReleaseVersion, buildVersion);
+            if (build.attributes.processingState === 'VALID') {
+                throw new Error('Build is valid but no localization found!');
+            }
+            else {
+                const betaBuildLocalization = await getBetaBuildLocalization(build);
+                if (betaBuildLocalization) { return betaBuildLocalization; }
+            }
         } catch (error) {
             core.warning(error.message);
         }
