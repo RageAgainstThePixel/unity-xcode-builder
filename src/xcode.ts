@@ -258,6 +258,8 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
             core.debug(`Notarize? ${notarize}`);
             if (notarize) {
                 projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
+            } else {
+                projectRef.executablePath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.app`);
             }
         }
         else {

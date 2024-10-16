@@ -58817,6 +58817,9 @@ async function ExportXcodeArchive(projectRef) {
             if (notarize) {
                 projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
             }
+            else {
+                projectRef.executablePath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.app`);
+            }
         }
         else {
             projectRef.executablePath = await getFileAtGlobPath(`${projectRef.exportPath}/**/*.pkg`);
