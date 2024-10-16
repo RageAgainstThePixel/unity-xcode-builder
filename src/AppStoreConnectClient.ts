@@ -69,8 +69,10 @@ async function GetAppId(project: XcodeProject): Promise<XcodeProject> {
 
 async function GetLatestBundleVersion(project: XcodeProject): Promise<number> {
     await getOrCreateClient(project);
-    const prereleaseVersion = await getLastPreReleaseVersion(project);
-    const build = await getPreReleaseBuild(prereleaseVersion);
+    let [prereleaseVersion, build] = await getLastPreReleaseVersionAndBuild(project);
+    if (!build) {
+        build = await getPreReleaseBuild(prereleaseVersion);
+    }
     const buildVersion = build.attributes.version;
     if (!buildVersion) {
         throw new Error(`No build version found!\n${JSON.stringify(build, null, 2)}`);
@@ -93,18 +95,23 @@ function reMapPlatform(project: XcodeProject): ('IOS' | 'MAC_OS' | 'TV_OS' | 'VI
     }
 }
 
-async function getLastPreReleaseVersion(project: XcodeProject): Promise<PrereleaseVersion> {
+async function getLastPreReleaseVersionAndBuild(project: XcodeProject, buildVersion: number | null = null): Promise<[PrereleaseVersion, Build]> {
     if (!project.appId) { project = await GetAppId(project); }
     const preReleaseVersionRequest: PreReleaseVersionsGetCollectionData = {
         query: {
             'filter[app]': [project.appId],
             'filter[platform]': [reMapPlatform(project)],
             'filter[version]': [project.versionString],
+            'filter[builds.processingState]': ['VALID'],
             include: ['builds'],
+            'limit[builds]': 1,
             sort: ['-version'],
             limit: 1,
         }
     };
+    if (buildVersion) {
+        preReleaseVersionRequest.query['filter[builds.version]'] = [buildVersion.toString()];
+    }
     core.info(`/preReleaseVersions?${JSON.stringify(preReleaseVersionRequest.query)}`);
     const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
     const responseJson = JSON.stringify(preReleaseResponse, null, 2);
@@ -116,7 +123,9 @@ async function getLastPreReleaseVersion(project: XcodeProject): Promise<Prerelea
     if (!preReleaseResponse || preReleaseResponse.data.length === 0) {
         return null;
     }
-    return preReleaseResponse.data[0];
+    const lastBuildId = preReleaseResponse.data[0].relationships?.builds?.data[0]?.id;
+    const lastBuild = preReleaseResponse.included?.find(i => i.type == 'builds' && i.id == lastBuildId) as Build;
+    return [preReleaseResponse.data[0], lastBuild];
 }
 
 async function getPreReleaseBuild(prereleaseVersion: PrereleaseVersion, buildVersion: number | null = null): Promise<Build> {
@@ -224,11 +233,17 @@ async function updateBetaBuildLocalization(betaBuildLocalization: BetaBuildLocal
 async function pollForValidBuild(project: XcodeProject, buildVersion: number, whatsNew: string, maxRetries: number = 10, interval: number = 30): Promise<BetaBuildLocalization> {
     let retries = 0;
     while (retries < maxRetries) {
-        core.info(`Polling for build... Attempt ${++retries}/${maxRetries}`);
+        core.notice(`Polling for build... Attempt ${++retries}/${maxRetries}`);
         try {
-            const prereleaseVersion = await getLastPreReleaseVersion(project);
-            const build = await getPreReleaseBuild(prereleaseVersion, buildVersion);
-            if (!build || build.attributes?.processingState !== 'VALID') { continue; }
+            let [prereleaseVersion, build] = await getLastPreReleaseVersionAndBuild(project, buildVersion);
+            if (!prereleaseVersion) { continue; }
+            if (!build) {
+                build = await getPreReleaseBuild(prereleaseVersion, buildVersion);
+            }
+            if (build.attributes?.processingState !== 'VALID') {
+                core.warning(`Build ${buildVersion} is not valid yet!`);
+                continue;
+            }
             const betaBuildLocalization = await getBetaBuildLocalization(build);
             try {
                 if (!betaBuildLocalization) {

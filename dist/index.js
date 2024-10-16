@@ -58167,8 +58167,10 @@ async function GetAppId(project) {
 }
 async function GetLatestBundleVersion(project) {
     await getOrCreateClient(project);
-    const prereleaseVersion = await getLastPreReleaseVersion(project);
-    const build = await getPreReleaseBuild(prereleaseVersion);
+    let [prereleaseVersion, build] = await getLastPreReleaseVersionAndBuild(project);
+    if (!build) {
+        build = await getPreReleaseBuild(prereleaseVersion);
+    }
     const buildVersion = build.attributes.version;
     if (!buildVersion) {
         throw new Error(`No build version found!\n${JSON.stringify(build, null, 2)}`);
@@ -58189,7 +58191,8 @@ function reMapPlatform(project) {
             throw new Error(`Unsupported platform: ${project.platform}`);
     }
 }
-async function getLastPreReleaseVersion(project) {
+async function getLastPreReleaseVersionAndBuild(project, buildVersion = null) {
+    var _a, _b, _c, _d;
     if (!project.appId) {
         project = await GetAppId(project);
     }
@@ -58198,11 +58201,16 @@ async function getLastPreReleaseVersion(project) {
             'filter[app]': [project.appId],
             'filter[platform]': [reMapPlatform(project)],
             'filter[version]': [project.versionString],
+            'filter[builds.processingState]': ['VALID'],
             include: ['builds'],
+            'limit[builds]': 1,
             sort: ['-version'],
             limit: 1,
         }
     };
+    if (buildVersion) {
+        preReleaseVersionRequest.query['filter[builds.version]'] = [buildVersion.toString()];
+    }
     core.info(`/preReleaseVersions?${JSON.stringify(preReleaseVersionRequest.query)}`);
     const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
     const responseJson = JSON.stringify(preReleaseResponse, null, 2);
@@ -58214,7 +58222,9 @@ async function getLastPreReleaseVersion(project) {
     if (!preReleaseResponse || preReleaseResponse.data.length === 0) {
         return null;
     }
-    return preReleaseResponse.data[0];
+    const lastBuildId = (_c = (_b = (_a = preReleaseResponse.data[0].relationships) === null || _a === void 0 ? void 0 : _a.builds) === null || _b === void 0 ? void 0 : _b.data[0]) === null || _c === void 0 ? void 0 : _c.id;
+    const lastBuild = (_d = preReleaseResponse.included) === null || _d === void 0 ? void 0 : _d.find(i => i.type == 'builds' && i.id == lastBuildId);
+    return [preReleaseResponse.data[0], lastBuild];
 }
 async function getPreReleaseBuild(prereleaseVersion, buildVersion = null) {
     const buildsRequest = {
@@ -58318,11 +58328,17 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 1
     var _a;
     let retries = 0;
     while (retries < maxRetries) {
-        core.info(`Polling for build... Attempt ${++retries}/${maxRetries}`);
+        core.notice(`Polling for build... Attempt ${++retries}/${maxRetries}`);
         try {
-            const prereleaseVersion = await getLastPreReleaseVersion(project);
-            const build = await getPreReleaseBuild(prereleaseVersion, buildVersion);
-            if (!build || ((_a = build.attributes) === null || _a === void 0 ? void 0 : _a.processingState) !== 'VALID') {
+            let [prereleaseVersion, build] = await getLastPreReleaseVersionAndBuild(project, buildVersion);
+            if (!prereleaseVersion) {
+                continue;
+            }
+            if (!build) {
+                build = await getPreReleaseBuild(prereleaseVersion, buildVersion);
+            }
+            if (((_a = build.attributes) === null || _a === void 0 ? void 0 : _a.processingState) !== 'VALID') {
+                core.warning(`Build ${buildVersion} is not valid yet!`);
                 continue;
             }
             const betaBuildLocalization = await getBetaBuildLocalization(build);
