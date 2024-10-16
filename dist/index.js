@@ -58167,9 +58167,9 @@ async function GetAppId(project) {
 }
 async function GetLatestBundleVersion(project) {
     await getOrCreateClient(project);
-    let [prereleaseVersion, build] = await getLastPreReleaseVersionAndBuild(project);
+    let { preReleaseVersion, build } = await getLastPreReleaseVersionAndBuild(project);
     if (!build) {
-        build = await getPreReleaseBuild(prereleaseVersion);
+        build = await getPreReleaseBuild(preReleaseVersion);
     }
     const buildVersion = build.attributes.version;
     if (!buildVersion) {
@@ -58202,9 +58202,9 @@ async function getLastPreReleaseVersionAndBuild(project, buildVersion = null) {
             'filter[platform]': [reMapPlatform(project)],
             'filter[version]': [project.versionString],
             'filter[builds.processingState]': ['VALID'],
-            include: ['builds'],
             'limit[builds]': 1,
             sort: ['-version'],
+            include: ['builds'],
             limit: 1,
         }
     };
@@ -58220,7 +58220,7 @@ async function getLastPreReleaseVersionAndBuild(project, buildVersion = null) {
     }
     core.info(responseJson);
     if (!preReleaseResponse || !preReleaseResponse.data || preReleaseResponse.data.length === 0) {
-        return null;
+        return new PreReleaseVersionWithBuild({ preReleaseVersion: null, build: null });
     }
     let lastBuild = null;
     const buildsData = (_b = (_a = preReleaseResponse.data[0].relationships) === null || _a === void 0 ? void 0 : _a.builds) === null || _b === void 0 ? void 0 : _b.data;
@@ -58230,7 +58230,16 @@ async function getLastPreReleaseVersionAndBuild(project, buildVersion = null) {
             lastBuild = (_c = preReleaseResponse.included) === null || _c === void 0 ? void 0 : _c.find(i => i.type == 'builds' && i.id == lastBuildId);
         }
     }
-    return [preReleaseResponse.data[0], lastBuild];
+    return new PreReleaseVersionWithBuild({
+        preReleaseVersion: preReleaseResponse.data[0],
+        build: lastBuild
+    });
+}
+class PreReleaseVersionWithBuild {
+    constructor({ preReleaseVersion, build }) {
+        this.preReleaseVersion = preReleaseVersion;
+        this.build = build;
+    }
 }
 async function getPreReleaseBuild(prereleaseVersion, buildVersion = null) {
     const buildsRequest = {
@@ -58336,12 +58345,13 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 1
     while (retries < maxRetries) {
         core.notice(`Polling for build... Attempt ${++retries}/${maxRetries}`);
         try {
-            let [prereleaseVersion, build] = await getLastPreReleaseVersionAndBuild(project, buildVersion);
-            if (!prereleaseVersion) {
+            let { preReleaseVersion, build } = await getLastPreReleaseVersionAndBuild(project, buildVersion);
+            if (!preReleaseVersion) {
+                core.warning('No pre-release version found!');
                 continue;
             }
             if (!build) {
-                build = await getPreReleaseBuild(prereleaseVersion, buildVersion);
+                build = await getPreReleaseBuild(preReleaseVersion, buildVersion);
             }
             if (((_a = build.attributes) === null || _a === void 0 ? void 0 : _a.processingState) !== 'VALID') {
                 core.warning(`Build ${buildVersion} is not valid yet!`);
