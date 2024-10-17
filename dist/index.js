@@ -59049,7 +59049,8 @@ async function execWithXcBeautify(xcodeBuildArgs) {
         core.debug('Installing xcbeautify...');
         await (0, exec_1.exec)('brew', ['install', 'xcbeautify']);
     }
-    const xcBeautifyProcess = (0, child_process_1.spawn)('xcbeautify', ['--quiet', '--is-ci', '--disable-logging'], {
+    const beautifyArgs = ['--is-ci', '--disable-logging'];
+    const xcBeautifyProcess = (0, child_process_1.spawn)('xcbeautify', beautifyArgs, {
         stdio: ['pipe', process.stdout, process.stderr]
     });
     core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
