@@ -58839,7 +58839,7 @@ async function ArchiveXcodeProject(projectRef) {
     else {
         archiveArgs.push('-verbose');
     }
-    await execWithXcBeautify(archiveArgs);
+    await execXcodeBuild(archiveArgs);
     projectRef.archivePath = archivePath;
     return projectRef;
 }
@@ -58864,7 +58864,7 @@ async function ExportXcodeArchive(projectRef) {
     else {
         exportArgs.push('-verbose');
     }
-    await execWithXcBeautify(exportArgs);
+    await execXcodeBuild(exportArgs);
     if (projectRef.platform === 'macOS') {
         if (!projectRef.isAppStoreUpload()) {
             const notarizeInput = core.getInput('notarize') || 'true';
@@ -59040,6 +59040,21 @@ async function getDefaultEntitlementsMacOS(projectRef) {
             break;
     }
     await fs.promises.writeFile(entitlementsPath, plist.build(defaultEntitlements));
+}
+async function execXcodeBuild(xcodeBuildArgs) {
+    let output = '';
+    const exitCode = await (0, exec_1.exec)(xcodebuild, xcodeBuildArgs, {
+        listeners: {
+            stderr: (data) => {
+                output += data.toString();
+            }
+        },
+        ignoreReturnCode: true
+    });
+    if (exitCode !== 0) {
+        await parseXcodeBuildErrorOutput(output);
+        throw new Error(`xcodebuild exited with code: ${exitCode}`);
+    }
 }
 async function execWithXcBeautify(xcodeBuildArgs) {
     try {
