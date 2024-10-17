@@ -471,8 +471,22 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
         });
     });
     if (exitCode !== 0) {
-        log(errorOutput, 'error');
+        log(`xcodebuild error: ${errorOutput}`, 'error');
+        await parseXcodeBuildErrorOutput(errorOutput);
         throw new Error(`xcodebuild exited with code: ${exitCode}`);
+    }
+}
+
+async function parseXcodeBuildErrorOutput(errorOutput: string) {
+    const logFilePathMatch = errorOutput.match(/_createLoggingBundleAtPath:.*Created bundle at path "([^"]+)"/);
+    if (!logFilePathMatch) { return; }
+    const logFilePath = logFilePathMatch[1];
+    log(`Log file path: ${logFilePath}`, 'info');
+    try {
+        const logFileContents = await fs.promises.readFile(logFilePath, 'utf8');
+        log(`${logFilePath}:\n${logFileContents}`, 'error');
+    } catch (error) {
+        log(`Error reading log file: ${error.message}`, 'error');
     }
 }
 

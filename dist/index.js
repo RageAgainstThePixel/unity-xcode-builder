@@ -59081,8 +59081,24 @@ async function execWithXcBeautify(xcodeBuildArgs) {
         });
     });
     if (exitCode !== 0) {
-        (0, utilities_1.log)(errorOutput, 'error');
+        (0, utilities_1.log)(`xcodebuild error: ${errorOutput}`, 'error');
+        await parseXcodeBuildErrorOutput(errorOutput);
         throw new Error(`xcodebuild exited with code: ${exitCode}`);
+    }
+}
+async function parseXcodeBuildErrorOutput(errorOutput) {
+    const logFilePathMatch = errorOutput.match(/_createLoggingBundleAtPath:.*Created bundle at path "([^"]+)"/);
+    if (!logFilePathMatch) {
+        return;
+    }
+    const logFilePath = logFilePathMatch[1];
+    (0, utilities_1.log)(`Log file path: ${logFilePath}`, 'info');
+    try {
+        const logFileContents = await fs.promises.readFile(logFilePath, 'utf8');
+        (0, utilities_1.log)(`${logFilePath}:\n${logFileContents}`, 'error');
+    }
+    catch (error) {
+        (0, utilities_1.log)(`Error reading log file: ${error.message}`, 'error');
     }
 }
 async function ValidateApp(projectRef) {
