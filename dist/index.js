@@ -58584,7 +58584,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.log = log;
 const core = __nccwpck_require__(2186);
 function log(message, type = 'info') {
-    if (!core.isDebug()) {
+    if (type == 'info' && !core.isDebug()) {
         return;
     }
     const lines = message.split('\n');

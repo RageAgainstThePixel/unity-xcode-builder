@@ -2,7 +2,7 @@
 import core = require('@actions/core');
 
 export function log(message: string, type: 'info' | 'warning' | 'error' = 'info') {
-    if (!core.isDebug()) { return; }
+    if (type == 'info' && !core.isDebug()) { return; }
     const lines = message.split('\n');
     let first = true;
     for (const line of lines) {
