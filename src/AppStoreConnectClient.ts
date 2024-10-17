@@ -123,7 +123,7 @@ async function getLastPreReleaseVersionAndBuild(project: XcodeProject): Promise<
     let lastBuild: Build = null;
     const buildsData = preReleaseResponse.data[0].relationships?.builds?.data;
     if (buildsData && buildsData.length > 0) {
-        const lastBuildId = buildsData[0].id;
+        const lastBuildId = buildsData[0]?.id;
         if (!lastBuildId) {
             lastBuild = preReleaseResponse.included?.find(i => i.type == 'builds' && i.id == lastBuildId) as Build;
         }
@@ -268,11 +268,11 @@ async function pollForValidBuild(project: XcodeProject, buildVersion: number, wh
                     return await createBetaBuildLocalization(build, whatsNew);
                 }
             } catch (error) {
-                log(`${error.message}\n${error.stack}`, 'warning');
+                log(error, core.isDebug() ? 'warning' : 'info');
             }
             return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         } catch (error) {
-            log(`${error.message}\n${error.stack}`, 'error');
+            log(error, core.isDebug() ? 'error' : 'info');
         }
         finally {
             if (core.isDebug()) {

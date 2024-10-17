@@ -58193,7 +58193,7 @@ function reMapPlatform(project) {
     }
 }
 async function getLastPreReleaseVersionAndBuild(project) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     if (!project.appId) {
         project = await GetAppId(project);
     }
@@ -58222,9 +58222,9 @@ async function getLastPreReleaseVersionAndBuild(project) {
     let lastBuild = null;
     const buildsData = (_b = (_a = preReleaseResponse.data[0].relationships) === null || _a === void 0 ? void 0 : _a.builds) === null || _b === void 0 ? void 0 : _b.data;
     if (buildsData && buildsData.length > 0) {
-        const lastBuildId = buildsData[0].id;
+        const lastBuildId = (_c = buildsData[0]) === null || _c === void 0 ? void 0 : _c.id;
         if (!lastBuildId) {
-            lastBuild = (_c = preReleaseResponse.included) === null || _c === void 0 ? void 0 : _c.find(i => i.type == 'builds' && i.id == lastBuildId);
+            lastBuild = (_d = preReleaseResponse.included) === null || _d === void 0 ? void 0 : _d.find(i => i.type == 'builds' && i.id == lastBuildId);
         }
     }
     return new PreReleaseVersionWithBuild({
@@ -58361,12 +58361,12 @@ async function pollForValidBuild(project, buildVersion, whatsNew, maxRetries = 6
                 }
             }
             catch (error) {
-                (0, utilities_1.log)(`${error.message}\n${error.stack}`, 'warning');
+                (0, utilities_1.log)(error, core.isDebug() ? 'warning' : 'info');
             }
             return await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
         }
         catch (error) {
-            (0, utilities_1.log)(`${error.message}\n${error.stack}`, 'error');
+            (0, utilities_1.log)(error, core.isDebug() ? 'error' : 'info');
         }
         finally {
             if (core.isDebug()) {
@@ -58588,8 +58588,10 @@ function log(message, type = 'info') {
         return;
     }
     const lines = message.split('\n');
+    const filteredLines = lines.filter((line) => line.trim() !== '');
+    const uniqueLines = Array.from(new Set(filteredLines));
     let first = true;
-    for (const line of lines) {
+    for (const line of uniqueLines) {
         if (first) {
             first = false;
             switch (type) {
@@ -58754,6 +58756,9 @@ async function getProjectScheme(projectPath) {
     if (!scheme) {
         if (schemes.includes('Unity-iPhone')) {
             scheme = 'Unity-iPhone';
+        }
+        else if (schemes.includes('Unity-VisionOS')) {
+            scheme = 'Unity-VisionOS';
         }
         else {
             const excludedSchemes = ['GameAssembly', 'UnityFramework', 'Pods'];
@@ -59064,13 +59069,15 @@ async function execWithXcBeautify(xcodeBuildArgs) {
     });
     xcBeautifyProcess.stdin.end();
     await new Promise((resolve, reject) => {
-        xcBeautifyProcess.on('close', (code) => {
-            if (code !== 0) {
-                reject(new Error(`xcbeautify exited with code ${code}`));
-            }
-            else {
-                resolve();
-            }
+        xcBeautifyProcess.stdin.on('finish', () => {
+            xcBeautifyProcess.on('close', (code) => {
+                if (code !== 0) {
+                    reject(new Error(`xcbeautify exited with code ${code}`));
+                }
+                else {
+                    resolve();
+                }
+            });
         });
     });
     if (exitCode !== 0) {
@@ -59222,7 +59229,7 @@ async function UploadApp(projectRef) {
     }
 }
 async function getWhatsNew() {
-    var _a, _b, _c;
+    var _a;
     let whatsNew = core.getInput('whats-new');
     if (!whatsNew || whatsNew.length === 0) {
         const head = github.context.eventName === 'pull_request'
@@ -59233,7 +59240,15 @@ async function getWhatsNew() {
         const branchNameMatch = branchNameDetails.match(/\((?<branch>.+)\)/);
         let branchName = '';
         if (branchNameMatch) {
-            branchName = (_c = (_b = branchNameMatch.groups) === null || _b === void 0 ? void 0 : _b.branch) === null || _c === void 0 ? void 0 : _c.replace('origin/', '');
+            if (branchName.includes(' -> ')) {
+                branchName = branchName.split(' -> ')[1];
+            }
+            if (branchName.includes(',')) {
+                branchName = branchName.split(',')[1];
+            }
+            if (branchName.includes('origin/')) {
+                branchName = branchName.split('origin/')[1];
+            }
         }
         const commitMessage = await execGit(['log', head, '-1', '--format=%s']);
         whatsNew = `[${commitSha.trim()}]${branchName.trim()}\n${commitMessage.trim()}`;

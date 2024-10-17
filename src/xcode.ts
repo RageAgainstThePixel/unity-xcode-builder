@@ -141,6 +141,8 @@ async function getProjectScheme(projectPath: string): Promise<string> {
     if (!scheme) {
         if (schemes.includes('Unity-iPhone')) {
             scheme = 'Unity-iPhone';
+        } else if (schemes.includes('Unity-VisionOS')) {
+            scheme = 'Unity-VisionOS';
         } else {
             const excludedSchemes = ['GameAssembly', 'UnityFramework', 'Pods'];
             scheme = schemes.find(s => !excludedSchemes.includes(s) && !s.includes('Test'));
@@ -458,12 +460,14 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
     });
     xcBeautifyProcess.stdin.end();
     await new Promise<void>((resolve, reject) => {
-        xcBeautifyProcess.on('close', (code) => {
-            if (code !== 0) {
-                reject(new Error(`xcbeautify exited with code ${code}`));
-            } else {
-                resolve();
-            }
+        xcBeautifyProcess.stdin.on('finish', () => {
+            xcBeautifyProcess.on('close', (code) => {
+                if (code !== 0) {
+                    reject(new Error(`xcbeautify exited with code ${code}`));
+                } else {
+                    resolve();
+                }
+            });
         });
     });
     if (exitCode !== 0) {
@@ -623,7 +627,15 @@ async function getWhatsNew(): Promise<string> {
         const branchNameMatch = branchNameDetails.match(/\((?<branch>.+)\)/);
         let branchName = '';
         if (branchNameMatch) {
-            branchName = branchNameMatch.groups?.branch?.replace('origin/', '');
+            if (branchName.includes(' -> ')) {
+                branchName = branchName.split(' -> ')[1];
+            }
+            if (branchName.includes(',')) {
+                branchName = branchName.split(',')[1];
+            }
+            if (branchName.includes('origin/')) {
+                branchName = branchName.split('origin/')[1];
+            }
         }
         const commitMessage = await execGit(['log', head, '-1', '--format=%s']);
         whatsNew = `[${commitSha.trim()}]${branchName.trim()}\n${commitMessage.trim()}`;
