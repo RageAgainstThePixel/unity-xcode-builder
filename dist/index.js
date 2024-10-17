@@ -58627,7 +58627,6 @@ exports.ExportXcodeArchive = ExportXcodeArchive;
 exports.ValidateApp = ValidateApp;
 exports.UploadApp = UploadApp;
 const XcodeProject_1 = __nccwpck_require__(1981);
-const child_process_1 = __nccwpck_require__(2081);
 const exec_1 = __nccwpck_require__(1514);
 const glob = __nccwpck_require__(8090);
 const github = __nccwpck_require__(5438);
@@ -59045,6 +59044,9 @@ async function execXcodeBuild(xcodeBuildArgs) {
     let output = '';
     const exitCode = await (0, exec_1.exec)(xcodebuild, xcodeBuildArgs, {
         listeners: {
+            stdout: (data) => {
+                output += data.toString();
+            },
             stderr: (data) => {
                 output += data.toString();
             }
@@ -59053,52 +59055,6 @@ async function execXcodeBuild(xcodeBuildArgs) {
     });
     if (exitCode !== 0) {
         await parseXcodeBuildErrorOutput(output);
-        throw new Error(`xcodebuild exited with code: ${exitCode}`);
-    }
-}
-async function execWithXcBeautify(xcodeBuildArgs) {
-    try {
-        await (0, exec_1.exec)('xcbeautify', ['--version'], { silent: true });
-    }
-    catch (error) {
-        core.debug('Installing xcbeautify...');
-        await (0, exec_1.exec)('brew', ['install', 'xcbeautify']);
-    }
-    const beautifyArgs = ['--is-ci', '--disable-logging'];
-    const xcBeautifyProcess = (0, child_process_1.spawn)('xcbeautify', beautifyArgs, {
-        stdio: ['pipe', process.stdout, process.stderr]
-    });
-    core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
-    let errorOutput = '';
-    const exitCode = await (0, exec_1.exec)(xcodebuild, xcodeBuildArgs, {
-        listeners: {
-            stdout: (data) => {
-                xcBeautifyProcess.stdin.write(data);
-            },
-            stderr: (data) => {
-                xcBeautifyProcess.stdin.write(data);
-                errorOutput += data.toString();
-            }
-        },
-        silent: true,
-        ignoreReturnCode: true
-    });
-    xcBeautifyProcess.stdin.end();
-    await new Promise((resolve, reject) => {
-        xcBeautifyProcess.stdin.on('finish', () => {
-            xcBeautifyProcess.on('close', (code) => {
-                if (code !== 0) {
-                    reject(new Error(`xcbeautify exited with code ${code}`));
-                }
-                else {
-                    resolve();
-                }
-            });
-        });
-    });
-    if (exitCode !== 0) {
-        (0, utilities_1.log)(`xcodebuild error: ${errorOutput}`, 'error');
-        await parseXcodeBuildErrorOutput(errorOutput);
         throw new Error(`xcodebuild exited with code: ${exitCode}`);
     }
 }
