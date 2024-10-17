@@ -58112,7 +58112,7 @@ exports.GetAppId = GetAppId;
 exports.GetLatestBundleVersion = GetLatestBundleVersion;
 exports.UpdateTestDetails = UpdateTestDetails;
 const app_store_connect_api_1 = __nccwpck_require__(9073);
-const utilities_1 = __nccwpck_require__(739);
+const utilities_1 = __nccwpck_require__(5739);
 const core = __nccwpck_require__(2186);
 let appStoreConnectClient = null;
 class UnauthorizedError extends Error {
@@ -58575,7 +58575,7 @@ exports.XcodeProject = XcodeProject;
 
 /***/ }),
 
-/***/ 739:
+/***/ 5739:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
@@ -58635,7 +58635,7 @@ const path = __nccwpck_require__(1017);
 const fs = __nccwpck_require__(7147);
 const semver = __nccwpck_require__(1383);
 const AppStoreConnectClient_1 = __nccwpck_require__(7486);
-const utilities_1 = __nccwpck_require__(739);
+const utilities_1 = __nccwpck_require__(5739);
 const core = __nccwpck_require__(2186);
 const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
@@ -59053,12 +59053,12 @@ async function execXcodeBuild(xcodeBuildArgs) {
         },
         ignoreReturnCode: true
     });
+    await parseBundleLog(output);
     if (exitCode !== 0) {
-        await parseXcodeBuildErrorOutput(output);
         throw new Error(`xcodebuild exited with code: ${exitCode}`);
     }
 }
-async function parseXcodeBuildErrorOutput(errorOutput) {
+async function parseBundleLog(errorOutput) {
     const logFilePathMatch = errorOutput.match(/_createLoggingBundleAtPath:.*Created bundle at path "([^"]+)"/);
     if (!logFilePathMatch) {
         return;

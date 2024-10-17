@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15]
-        unity-version: [2021.x, 2022.x, 6000.x]
+        unity-version: [2021.3.x, 2022.3.50f1 (c3db7f8bf9b1), 6000.x]
         build-target:
           - iOS
           - StandaloneOSX
@@ -45,6 +45,7 @@ jobs:
           version-file: 'None'
           build-targets: ${{ matrix.build-target }}
           unity-version: ${{ matrix.unity-version }}
+          architecture: 'arm64'
       - name: Find Unity Template Path and Version
         run: |
           $rootPath = $env:UNITY_EDITOR_PATH -replace "Editor.*", ""
@@ -83,7 +84,7 @@ jobs:
         with:
           log-name: 'create-test-project'
           args: '-quit -nographics -batchmode -createProject "${{ github.workspace }}/UnityProject" -cloneFromTemplate "${{ env.TEMPLATE_PATH }}"'
-      - run: openupm add com.utilities.buildpipeline
+      - run: openupm add com.utilities.buildpipeline@1.5.3
         name: Add Build Pipeline Package
         working-directory: ${{ github.workspace }}/UnityProject
       - uses: RageAgainstThePixel/unity-action@v1

@@ -450,9 +450,9 @@ async function execXcodeBuild(xcodeBuildArgs: string[]) {
         // silent: !core.isDebug(),
         ignoreReturnCode: true
     });
+    await parseBundleLog(output);
     if (exitCode !== 0) {
         // log(`xcodebuild error: ${output}`, 'error');
-        await parseXcodeBuildErrorOutput(output);
         throw new Error(`xcodebuild exited with code: ${exitCode}`);
     }
 }
@@ -505,7 +505,7 @@ async function execXcodeBuild(xcodeBuildArgs: string[]) {
 //     }
 // }
 
-async function parseXcodeBuildErrorOutput(errorOutput: string) {
+async function parseBundleLog(errorOutput: string) {
     const logFilePathMatch = errorOutput.match(/_createLoggingBundleAtPath:.*Created bundle at path "([^"]+)"/);
     if (!logFilePathMatch) { return; }
     const logFilePath = logFilePathMatch[1];
