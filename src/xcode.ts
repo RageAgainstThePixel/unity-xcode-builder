@@ -228,7 +228,11 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
     } else {
         archiveArgs.push('-verbose');
     }
-    await execXcodeBuild(archiveArgs);
+    if (core.isDebug()) {
+        await execXcodeBuild(archiveArgs);
+    } else {
+        await execWithXcBeautify(archiveArgs);
+    }
     projectRef.archivePath = archivePath
     return projectRef;
 }
@@ -253,7 +257,11 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
     } else {
         exportArgs.push('-verbose');
     }
-    await execXcodeBuild(exportArgs);
+    if (core.isDebug()) {
+        await execXcodeBuild(exportArgs);
+    } else {
+        await execWithXcBeautify(exportArgs);
+    }
     if (projectRef.platform === 'macOS') {
         if (!projectRef.isAppStoreUpload()) {
             const notarizeInput = core.getInput('notarize') || 'true'
@@ -434,9 +442,6 @@ async function getDefaultEntitlementsMacOS(projectRef: XcodeProject): Promise<vo
 }
 
 async function execXcodeBuild(xcodeBuildArgs: string[]) {
-    // if (!core.isDebug()) {
-    //     core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
-    // }
     let output = '';
     const exitCode = await exec(xcodebuild, xcodeBuildArgs, {
         listeners: {
@@ -447,63 +452,58 @@ async function execXcodeBuild(xcodeBuildArgs: string[]) {
                 output += data.toString();
             }
         },
-        // silent: !core.isDebug(),
         ignoreReturnCode: true
     });
     await parseBundleLog(output);
     if (exitCode !== 0) {
-        // log(`xcodebuild error: ${output}`, 'error');
         throw new Error(`xcodebuild exited with code: ${exitCode}`);
     }
 }
 
-// async function execWithXcBeautify(xcodeBuildArgs: string[]) {
-//     try {
-//         await exec('xcbeautify', ['--version'], { silent: true });
-//     } catch (error) {
-//         core.debug('Installing xcbeautify...');
-//         await exec('brew', ['install', 'xcbeautify']);
-//     }
-//     const beautifyArgs = ['--is-ci', '--disable-logging'];
-//     // if (!core.isDebug()) {
-//     //     beautifyArgs.push('--quiet');
-//     // }
-//     const xcBeautifyProcess = spawn('xcbeautify', beautifyArgs, {
-//         stdio: ['pipe', process.stdout, process.stderr]
-//     });
-//     core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
-//     let errorOutput = '';
-//     const exitCode = await exec(xcodebuild, xcodeBuildArgs, {
-//         listeners: {
-//             stdout: (data: Buffer) => {
-//                 xcBeautifyProcess.stdin.write(data);
-//             },
-//             stderr: (data: Buffer) => {
-//                 xcBeautifyProcess.stdin.write(data);
-//                 errorOutput += data.toString();
-//             }
-//         },
-//         silent: true,
-//         ignoreReturnCode: true
-//     });
-//     xcBeautifyProcess.stdin.end();
-//     await new Promise<void>((resolve, reject) => {
-//         xcBeautifyProcess.stdin.on('finish', () => {
-//             xcBeautifyProcess.on('close', (code) => {
-//                 if (code !== 0) {
-//                     reject(new Error(`xcbeautify exited with code ${code}`));
-//                 } else {
-//                     resolve();
-//                 }
-//             });
-//         });
-//     });
-//     if (exitCode !== 0) {
-//         log(`xcodebuild error: ${errorOutput}`, 'error');
-//         await parseXcodeBuildErrorOutput(errorOutput);
-//         throw new Error(`xcodebuild exited with code: ${exitCode}`);
-//     }
-// }
+async function execWithXcBeautify(xcodeBuildArgs: string[]) {
+    try {
+        await exec('xcbeautify', ['--version'], { silent: true });
+    } catch (error) {
+        core.debug('Installing xcbeautify...');
+        await exec('brew', ['install', 'xcbeautify']);
+    }
+    const beautifyArgs = ['--quiet', '--is-ci', '--disable-logging'];
+    const xcBeautifyProcess = spawn('xcbeautify', beautifyArgs, {
+        stdio: ['pipe', process.stdout, process.stderr]
+    });
+    core.info(`[command]${xcodebuild} ${xcodeBuildArgs.join(' ')}`);
+    let errorOutput = '';
+    const exitCode = await exec(xcodebuild, xcodeBuildArgs, {
+        listeners: {
+            stdout: (data: Buffer) => {
+                xcBeautifyProcess.stdin.write(data);
+            },
+            stderr: (data: Buffer) => {
+                xcBeautifyProcess.stdin.write(data);
+                errorOutput += data.toString();
+            }
+        },
+        silent: true,
+        ignoreReturnCode: true
+    });
+    xcBeautifyProcess.stdin.end();
+    await new Promise<void>((resolve, reject) => {
+        xcBeautifyProcess.stdin.on('finish', () => {
+            xcBeautifyProcess.on('close', (code) => {
+                if (code !== 0) {
+                    reject(new Error(`xcbeautify exited with code ${code}`));
+                } else {
+                    resolve();
+                }
+            });
+        });
+    });
+    if (exitCode !== 0) {
+        log(`xcodebuild error: ${errorOutput}`, 'error');
+        await parseBundleLog(errorOutput);
+        throw new Error(`xcodebuild exited with code: ${exitCode}`);
+    }
+}
 
 async function parseBundleLog(errorOutput: string) {
     const logFilePathMatch = errorOutput.match(/_createLoggingBundleAtPath:.*Created bundle at path "([^"]+)"/);
