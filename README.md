@@ -1,13 +1,15 @@
 # unity-xcode-builder
 
-A GitHub Action to build and archive Unity exported xcode projects.
+A GitHub Action to take Unity exported Xcode projects and automate the process of building, signing, archiving, notarizing, and uploading to Apple App Store Connect or Steam.
 
 > [!NOTE]
-> The main goal of this action to to take what is provided from Unity, archive, sign, notarize and package it to be directly uploaded to the Apple app store, test flight, or steam.
+> Steam uploads require an additional action step: [`upload-steam`](https://github.com/RageAgainstThePixel/upload-steam)
 
 ## How to use
 
 ### workflow
+
+To archive, export, and upload directly to Apple App Store Connect, use the following workflow configuration:
 
 ```yaml
 steps:

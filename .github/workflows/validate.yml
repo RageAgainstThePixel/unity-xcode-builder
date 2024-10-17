@@ -108,7 +108,7 @@ jobs:
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           team-id: ${{ secrets.APPLE_TEAM_ID }}
           export-option: app-store
-          upload: ${{ matrix.unity-version == '2022.x' }}
+          upload: ${{ matrix.unity-version == '6000.x' }}
       - name: print outputs
         if: always()
         run: |
