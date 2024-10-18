@@ -685,7 +685,7 @@ async function getWhatsNew(): Promise<string> {
                 branchName = branchName.split('/')[1];
             }
         }
-        const commitMessage = await execGit(['log', head, '-1', '--format=%s']);
+        const commitMessage = await execGit(['log', head, '-1', '--format=%B']);
         whatsNew = `[${commitSha.trim()}]${branchName.trim()}\n${commitMessage.trim()}`;
     }
     if (whatsNew.length === 0) {
