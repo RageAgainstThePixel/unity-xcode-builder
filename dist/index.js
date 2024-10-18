@@ -58683,6 +58683,8 @@ async function GetProjectDetails() {
     let infoPlistContent = plist.parse(fs.readFileSync(infoPlistPath, 'utf8'));
     const versionString = infoPlistContent['CFBundleShortVersionString'];
     core.info(`Version string: ${versionString}`);
+    const buildString = infoPlistContent['CFBundleVersion'];
+    core.info(`Build string: ${buildString}`);
     return new XcodeProject_1.XcodeProject(projectPath, projectName, platform, bundleId, projectDirectory, versionString, scheme);
 }
 async function parseBuildSettings(projectPath, scheme) {
@@ -59286,15 +59288,16 @@ async function getWhatsNew() {
         const branchNameDetails = await execGit(['log', head, '-1', '--format=%d']);
         const branchNameMatch = branchNameDetails.match(/\((?<branch>.+)\)/);
         let branchName = '';
-        if (branchNameMatch) {
+        if (branchNameMatch && branchNameMatch.groups) {
+            branchName = branchNameMatch.groups.branch;
             if (branchName.includes(' -> ')) {
                 branchName = branchName.split(' -> ')[1];
             }
             if (branchName.includes(',')) {
                 branchName = branchName.split(',')[1];
             }
-            if (branchName.includes('origin/')) {
-                branchName = branchName.split('origin/')[1];
+            if (branchName.includes('/')) {
+                branchName = branchName.split('/')[1];
             }
         }
         const commitMessage = await execGit(['log', head, '-1', '--format=%s']);
