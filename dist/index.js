@@ -57682,6 +57682,7 @@ async function ImportCredentials() {
         const appStoreConnectKeyPath = `${appStoreConnectKeyDir}/AuthKey_${authenticationKeyID}.p8`;
         const appStoreConnectKey = Buffer.from(appStoreConnectKeyBase64, 'base64').toString('utf8');
         core.setSecret(appStoreConnectKey);
+        core.info(`Saving app store connect key: ${appStoreConnectKeyPath}`);
         await fs.promises.writeFile(appStoreConnectKeyPath, appStoreConnectKey, 'utf8');
         const keychainPath = `${temp}/${tempCredential}.keychain-db`;
         await exec.exec(security, ['create-keychain', '-p', tempCredential, keychainPath]);
