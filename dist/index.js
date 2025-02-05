@@ -58051,8 +58051,10 @@ async function ArchiveXcodeProject(projectRef) {
         '-archivePath', archivePath,
         `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
         `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
-        `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId,
     ];
+    if (projectRef.credential.appStoreConnectIssuerId) {
+        archiveArgs.push(`-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId);
+    }
     const { teamId, signingIdentity, provisioningProfileUUID, keychainPath } = projectRef.credential;
     if (teamId) {
         archiveArgs.push(`DEVELOPMENT_TEAM=${teamId}`);
@@ -58115,9 +58117,11 @@ async function ExportXcodeArchive(projectRef) {
         '-exportOptionsPlist', exportOptionsPath,
         '-allowProvisioningUpdates',
         `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
-        `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
-        `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId
+        `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath
     ];
+    if (projectRef.credential.appStoreConnectIssuerId) {
+        exportArgs.push(`-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId);
+    }
     if (!core.isDebug()) {
         exportArgs.push('-quiet');
     }
