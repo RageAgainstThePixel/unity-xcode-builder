@@ -18,7 +18,7 @@ inputs:
     required: true
   app-store-connect-issuer-id:
     description: The issuer ID of the App Store Connect API key.
-    required: true
+    required: false
   certificate:
     description: Exported signing certificate.p12 encoded as base64 string. Overrides the automatic signing in Xcode.
     required: false

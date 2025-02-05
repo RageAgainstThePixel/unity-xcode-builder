@@ -1,6 +1,5 @@
 import {
-    AppStoreConnectClient,
-    AppStoreConnectOptions
+    AppStoreConnectClient
 } from '@rage-against-the-pixel/app-store-connect-api';
 import { XcodeProject } from './XcodeProject';
 import {
@@ -18,7 +17,7 @@ import core = require('@actions/core');
 
 let appStoreConnectClient: AppStoreConnectClient | null = null;
 
-class UnauthorizedError extends Error {
+export class UnauthorizedError extends Error {
     constructor(message: string) {
         super(message);
         this.name = 'UnauthorizedError';
@@ -30,12 +29,11 @@ async function getOrCreateClient(project: XcodeProject) {
     if (!project.credential) {
         throw new UnauthorizedError('Missing AppleCredential!');
     }
-    const options: AppStoreConnectOptions = {
+    appStoreConnectClient = new AppStoreConnectClient({
         issuerId: project.credential.appStoreConnectIssuerId,
         privateKeyId: project.credential.appStoreConnectKeyId,
         privateKey: project.credential.appStoreConnectKey,
-    };
-    appStoreConnectClient = new AppStoreConnectClient(options);
+    });
 }
 
 function checkAuthError(error: any) {
@@ -48,10 +46,10 @@ function checkAuthError(error: any) {
     }
 }
 
-async function GetAppId(project: XcodeProject): Promise<XcodeProject> {
+export async function GetAppId(project: XcodeProject): Promise<XcodeProject> {
     if (project.appId) { return project; }
     await getOrCreateClient(project);
-    const { data: response, error } = await appStoreConnectClient.api.appsGetCollection({
+    const { data: response, error } = await appStoreConnectClient.api.AppsService.appsGetCollection({
         query: { 'filter[bundleId]': [project.bundleId] }
     });
     if (error) {
@@ -68,7 +66,7 @@ async function GetAppId(project: XcodeProject): Promise<XcodeProject> {
     return project;
 }
 
-async function GetLatestBundleVersion(project: XcodeProject): Promise<number> {
+export async function GetLatestBundleVersion(project: XcodeProject): Promise<number> {
     await getOrCreateClient(project);
     let { preReleaseVersion, build } = await getLastPreReleaseVersionAndBuild(project);
     if (!build) {
@@ -110,7 +108,7 @@ async function getLastPreReleaseVersionAndBuild(project: XcodeProject): Promise<
         }
     };
     log(`/preReleaseVersions?${JSON.stringify(preReleaseVersionRequest.query)}`);
-    const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.preReleaseVersionsGetCollection(preReleaseVersionRequest);
+    const { data: preReleaseResponse, error: preReleaseError } = await appStoreConnectClient.api.PreReleaseVersionsService.preReleaseVersionsGetCollection(preReleaseVersionRequest);
     const responseJson = JSON.stringify(preReleaseResponse, null, 2);
     if (preReleaseError) {
         checkAuthError(preReleaseError);
@@ -134,7 +132,7 @@ async function getLastPreReleaseVersionAndBuild(project: XcodeProject): Promise<
     });
 }
 
-class PreReleaseVersionWithBuild {
+export class PreReleaseVersionWithBuild {
     preReleaseVersion?: PrereleaseVersion;
     build?: Build;
     constructor({ preReleaseVersion, build }: { preReleaseVersion: PrereleaseVersion, build: Build }) {
@@ -152,7 +150,7 @@ async function getLastPrereleaseBuild(prereleaseVersion: PrereleaseVersion): Pro
         }
     };
     log(`/builds?${JSON.stringify(buildsRequest.query)}`);
-    const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.buildsGetCollection(buildsRequest);
+    const { data: buildsResponse, error: buildsError } = await appStoreConnectClient.api.BuildsService.buildsGetCollection(buildsRequest);
     const responseJson = JSON.stringify(buildsResponse, null, 2);
     if (buildsError) {
         checkAuthError(buildsError);
@@ -174,7 +172,7 @@ async function getBetaBuildLocalization(build: Build): Promise<BetaBuildLocaliza
         }
     };
     log(`/betaBuildLocalizations?${JSON.stringify(betaBuildLocalizationRequest.query)}`);
-    const { data: betaBuildLocalizationResponse, error: betaBuildLocalizationError } = await appStoreConnectClient.api.betaBuildLocalizationsGetCollection(betaBuildLocalizationRequest);
+    const { data: betaBuildLocalizationResponse, error: betaBuildLocalizationError } = await appStoreConnectClient.api.BetaBuildLocalizationsService.betaBuildLocalizationsGetCollection(betaBuildLocalizationRequest);
     const responseJson = JSON.stringify(betaBuildLocalizationResponse, null, 2);
     if (betaBuildLocalizationError) {
         checkAuthError(betaBuildLocalizationError);
@@ -206,7 +204,7 @@ async function createBetaBuildLocalization(build: Build, whatsNew: string): Prom
         }
     }
     log(`/betaBuildLocalizations\n${JSON.stringify(betaBuildLocalizationRequest, null, 2)}`);
-    const { data: response, error: responseError } = await appStoreConnectClient.api.betaBuildLocalizationsCreateInstance({
+    const { data: response, error: responseError } = await appStoreConnectClient.api.BetaBuildLocalizationsService.betaBuildLocalizationsCreateInstance({
         body: betaBuildLocalizationRequest
     });
     const responseJson = JSON.stringify(betaBuildLocalizationRequest, null, 2);
@@ -229,7 +227,7 @@ async function updateBetaBuildLocalization(betaBuildLocalization: BetaBuildLocal
         }
     };
     log(`/betaBuildLocalizations/${betaBuildLocalization.id}\n${JSON.stringify(updateBuildLocalization, null, 2)}`);
-    const { error: updateError } = await appStoreConnectClient.api.betaBuildLocalizationsUpdateInstance({
+    const { error: updateError } = await appStoreConnectClient.api.BetaBuildLocalizationsService.betaBuildLocalizationsUpdateInstance({
         path: { id: betaBuildLocalization.id },
         body: updateBuildLocalization
     });
@@ -284,14 +282,7 @@ async function pollForValidBuild(project: XcodeProject, buildVersion: number, wh
     throw new Error('Timed out waiting for valid build!');
 }
 
-async function UpdateTestDetails(project: XcodeProject, buildVersion: number, whatsNew: string): Promise<void> {
+export async function UpdateTestDetails(project: XcodeProject, buildVersion: number, whatsNew: string): Promise<void> {
     await getOrCreateClient(project);
     await pollForValidBuild(project, buildVersion, whatsNew);
-}
-
-export {
-    GetAppId,
-    GetLatestBundleVersion,
-    UpdateTestDetails,
-    UnauthorizedError
 }

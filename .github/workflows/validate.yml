@@ -22,14 +22,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15]
+        os: [macos-latest]
         unity-version: [2021.x, 2022.3.x, 6000.x]
-        build-target:
-          - iOS
-          - StandaloneOSX
-          - VisionOS
+        build-target: [iOS, StandaloneOSX, VisionOS]
         exclude:
-          - os: macos-15
+          - os: macos-latest
             unity-version: 2021.x
             build-target: VisionOS
     steps:
@@ -95,9 +92,8 @@ jobs:
         id: xcode-build
         with:
           project-path: ${{ env.UNITY_PROJECT_PATH }}/Builds/${{ matrix.build-target }}/**/*.xcodeproj
-          app-store-connect-key: ${{ secrets.APP_STORE_CONNECT_KEY }}
-          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          app-store-connect-key: ${{ secrets.APP_STORE_CONNECT_KEY_INDIVIDUAL }}
+          app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID_INDIVIDUAL }}
           team-id: ${{ secrets.APPLE_TEAM_ID }}
           export-option: app-store
           upload: ${{ matrix.unity-version == '6000.x' }}

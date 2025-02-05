@@ -19,7 +19,7 @@ const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
-async function GetProjectDetails(): Promise<XcodeProject> {
+export async function GetProjectDetails(): Promise<XcodeProject> {
     const projectPathInput = core.getInput('project-path') || `${WORKSPACE}/**/*.xcodeproj`;
     core.debug(`Project path input: ${projectPathInput}`);
     let projectPath = undefined;
@@ -158,7 +158,7 @@ async function getProjectScheme(projectPath: string): Promise<string> {
     return scheme;
 }
 
-async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {
+export async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {
     const { projectPath, projectName, projectDirectory } = projectRef;
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.debug(`Archive path: ${archivePath}`);
@@ -182,8 +182,10 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
         '-archivePath', archivePath,
         `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
         `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
-        `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId,
     ];
+    if (projectRef.credential.appStoreConnectIssuerId) {
+        archiveArgs.push(`-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId);
+    }
     const { teamId, signingIdentity, provisioningProfileUUID, keychainPath } = projectRef.credential;
     if (teamId) {
         archiveArgs.push(`DEVELOPMENT_TEAM=${teamId}`);
@@ -240,7 +242,7 @@ async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProje
     return projectRef;
 }
 
-async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProject> {
+export async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProject> {
     const { projectName, projectDirectory, archivePath, exportOptionsPath } = projectRef;
     projectRef.exportPath = `${projectDirectory}/${projectName}`;
     core.debug(`Export path: ${projectRef.exportPath}`);
@@ -252,9 +254,11 @@ async function ExportXcodeArchive(projectRef: XcodeProject): Promise<XcodeProjec
         '-exportOptionsPlist', exportOptionsPath,
         '-allowProvisioningUpdates',
         `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
-        `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath,
-        `-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId
+        `-authenticationKeyPath`, projectRef.credential.appStoreConnectKeyPath
     ];
+    if (projectRef.credential.appStoreConnectIssuerId) {
+        exportArgs.push(`-authenticationKeyIssuerID`, projectRef.credential.appStoreConnectIssuerId);
+    }
     if (!core.isDebug()) {
         exportArgs.push('-quiet');
     } else {
@@ -521,7 +525,7 @@ async function parseBundleLog(errorOutput: string) {
     }
 }
 
-async function ValidateApp(projectRef: XcodeProject) {
+export async function ValidateApp(projectRef: XcodeProject) {
     const platforms = {
         'iOS': 'ios',
         'macOS': 'macos',
@@ -602,7 +606,7 @@ async function getAppId(projectRef: XcodeProject): Promise<XcodeProject> {
     return projectRef;
 }
 
-async function UploadApp(projectRef: XcodeProject) {
+export async function UploadApp(projectRef: XcodeProject) {
     projectRef = await getAppId(projectRef);
     let bundleVersion = -1;
     try {
@@ -711,12 +715,4 @@ async function execGit(args: string[]): Promise<string> {
         throw new Error(`Git failed with exit code: ${exitCode}`);
     }
     return output;
-}
-
-export {
-    GetProjectDetails,
-    ArchiveXcodeProject,
-    ExportXcodeArchive,
-    ValidateApp,
-    UploadApp
 }
