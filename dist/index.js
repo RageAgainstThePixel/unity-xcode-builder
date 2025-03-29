@@ -60679,8 +60679,13 @@ const main = async () => {
             core.saveState('isPost', true);
             let xcodeVersionString = core.getInput('xcode-version');
             if (xcodeVersionString) {
-                core.info(`Setting xcode version to ${xcodeVersionString}`);
-                await exec.exec('xcodes', ['select', xcodeVersionString]);
+                if (xcodeVersionString.includes('latest')) {
+                    await exec.exec('xcodes', ['install', '--latest', '--select']);
+                }
+                else {
+                    core.info(`Setting xcode version to ${xcodeVersionString}`);
+                    await exec.exec('xcodes', ['select', xcodeVersionString]);
+                }
             }
             let xcodeVersionOutput = '';
             await exec.exec('xcodebuild', ['-version'], {
