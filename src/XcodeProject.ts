@@ -9,7 +9,10 @@ export class XcodeProject {
         bundleId: string,
         projectDirectory: string,
         versionString: string,
+        bundleVersion: number,
         scheme: string,
+        credential: AppleCredential,
+        xcodeVersion: SemVer
     ) {
         this.projectPath = projectPath;
         this.projectName = projectName;
@@ -17,7 +20,10 @@ export class XcodeProject {
         this.bundleId = bundleId;
         this.projectDirectory = projectDirectory;
         this.versionString = versionString;
+        this.bundleVersion = bundleVersion;
         this.scheme = scheme;
+        this.credential = credential
+        this.xcodeVersion = xcodeVersion;
     }
     projectPath: string;
     projectName: string;
@@ -33,6 +39,7 @@ export class XcodeProject {
     entitlementsPath: string;
     appId: string;
     versionString: string;
+    bundleVersion: number;
     scheme: string;
     xcodeVersion: SemVer;
     isAppStoreUpload(): boolean {
