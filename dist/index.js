@@ -58334,24 +58334,7 @@ async function createMacOSInstallerPkg(projectRef) {
     return pkgPath;
 }
 async function downloadPlatformSdkIfMissing(platform) {
-    await (0, exec_1.exec)(xcodebuild, ['-runFirstLaunch']);
-    let output = '';
-    if (!core.isDebug()) {
-        core.info(`[command]${xcrun} simctl list`);
-    }
-    await (0, exec_1.exec)(xcrun, ['simctl', 'list'], {
-        listeners: {
-            stdout: (data) => {
-                output += data.toString();
-            }
-        },
-        silent: !core.isDebug()
-    });
-    if (output.includes(platform)) {
-        return;
-    }
     await (0, exec_1.exec)(xcodebuild, ['-downloadPlatform', platform]);
-    await (0, exec_1.exec)(xcodebuild, ['-runFirstLaunch']);
 }
 async function getExportOptions(projectRef) {
     const exportOptionPlistInput = core.getInput('export-option-plist');
