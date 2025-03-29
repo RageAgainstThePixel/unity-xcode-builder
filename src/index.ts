@@ -21,10 +21,12 @@ const main = async () => {
             core.saveState('isPost', true);
             let xcodeVersionString = core.getInput('xcode-version');
             if (xcodeVersionString) {
+                core.info(`Setting xcode version to ${xcodeVersionString}`);
                 if (xcodeVersionString.includes('latest')) {
                     await exec.exec('xcodes', ['install', '--latest', '--select']);
+                    await exec.exec('xcodebuild', ['-license accept']);
+                    await exec.exec('xcodebuild', ['-runFirstLaunch']);
                 } else {
-                    core.info(`Setting xcode version to ${xcodeVersionString}`);
                     await exec.exec('xcodes', ['select', xcodeVersionString]);
                 }
             }
