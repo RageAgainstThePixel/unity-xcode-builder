@@ -58178,12 +58178,12 @@ async function getProjectScheme(projectPath) {
     return scheme;
 }
 async function downloadPlatformSdkIfMissing(platform, version) {
-    const args = ['-downloadPlatform', platform];
     if (version) {
-        args.push(version);
+        await (0, exec_1.exec)('xcodes', ['runtimes', 'install', `"${platform} ${version}"`]);
     }
-    await (0, exec_1.exec)(xcodebuild, args);
-    await (0, exec_1.exec)(xcodebuild, ['-runFirstLaunch']);
+    else {
+        await (0, exec_1.exec)('xcodes', ['runtimes', 'install', platform]);
+    }
 }
 async function ArchiveXcodeProject(projectRef) {
     const { projectPath, projectName, projectDirectory } = projectRef;

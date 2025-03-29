@@ -210,12 +210,12 @@ async function getProjectScheme(projectPath: string): Promise<string> {
 }
 
 async function downloadPlatformSdkIfMissing(platform: string, version: string | null) {
-    const args = ['-downloadPlatform', platform];
     if (version) {
-        args.push(version);
+        await exec('xcodes', ['runtimes', 'install', `"${platform} ${version}"`]);
     }
-    await exec(xcodebuild, args);
-    await exec(xcodebuild, ['-runFirstLaunch']);
+    else {
+        await exec('xcodes', ['runtimes', 'install', platform]);
+    }
 }
 
 export async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {
