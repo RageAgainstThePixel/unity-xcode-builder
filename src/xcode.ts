@@ -215,6 +215,7 @@ async function downloadPlatformSdkIfMissing(platform: string, version: string | 
         args.push(version);
     }
     await exec(xcodebuild, args);
+    await exec(xcodebuild, ['-runFirstLaunch']);
 }
 
 export async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {

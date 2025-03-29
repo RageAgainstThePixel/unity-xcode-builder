@@ -58183,6 +58183,7 @@ async function downloadPlatformSdkIfMissing(platform, version) {
         args.push(version);
     }
     await (0, exec_1.exec)(xcodebuild, args);
+    await (0, exec_1.exec)(xcodebuild, ['-runFirstLaunch']);
 }
 async function ArchiveXcodeProject(projectRef) {
     const { projectPath, projectName, projectDirectory } = projectRef;
