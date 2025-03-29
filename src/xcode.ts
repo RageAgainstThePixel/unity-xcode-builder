@@ -209,6 +209,14 @@ async function getProjectScheme(projectPath: string): Promise<string> {
     return scheme;
 }
 
+async function downloadPlatformSdkIfMissing(platform: string, version: string | null) {
+    const args = ['-downloadPlatform', platform];
+    if (version) {
+        args.push(version);
+    }
+    await exec(xcodebuild, args);
+}
+
 export async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<XcodeProject> {
     const { projectPath, projectName, projectDirectory } = projectRef;
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
@@ -369,16 +377,6 @@ async function createMacOSInstallerPkg(projectRef: XcodeProject): Promise<string
         throw new Error(`Failed to create the pkg at: ${pkgPath}!`);
     }
     return pkgPath;
-}
-
-async function downloadPlatformSdkIfMissing(platform: string, version: string | null) {
-    const args = ['-downloadPlatform'];
-    if (version) {
-        args.push(`'${platform} ${version}'`);
-    } else {
-        args.push(platform);
-    }
-    await exec(xcodebuild, args);
 }
 
 async function getExportOptions(projectRef: XcodeProject): Promise<void> {

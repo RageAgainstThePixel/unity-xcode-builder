@@ -58177,6 +58177,13 @@ async function getProjectScheme(projectPath) {
     core.debug(`Using scheme: ${scheme}`);
     return scheme;
 }
+async function downloadPlatformSdkIfMissing(platform, version) {
+    const args = ['-downloadPlatform', platform];
+    if (version) {
+        args.push(version);
+    }
+    await (0, exec_1.exec)(xcodebuild, args);
+}
 async function ArchiveXcodeProject(projectRef) {
     const { projectPath, projectName, projectDirectory } = projectRef;
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
@@ -58336,16 +58343,6 @@ async function createMacOSInstallerPkg(projectRef) {
         throw new Error(`Failed to create the pkg at: ${pkgPath}!`);
     }
     return pkgPath;
-}
-async function downloadPlatformSdkIfMissing(platform, version) {
-    const args = ['-downloadPlatform'];
-    if (version) {
-        args.push(`'${platform} ${version}'`);
-    }
-    else {
-        args.push(platform);
-    }
-    await (0, exec_1.exec)(xcodebuild, args);
 }
 async function getExportOptions(projectRef) {
     const exportOptionPlistInput = core.getInput('export-option-plist');
