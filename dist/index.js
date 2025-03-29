@@ -58089,7 +58089,7 @@ async function GetProjectDetails(credential, xcodeVersion) {
 }
 async function parseBuildSettings(projectPath, scheme) {
     let buildSettingsOutput = '';
-    let platformSdkVersion = null;
+    let platformSdkVersion = core.getInput('platform-sdk-version') || null;
     const projectSettingsArgs = [
         'build',
         '-project', projectPath,
@@ -58115,7 +58115,9 @@ async function parseBuildSettings(projectPath, scheme) {
     if (!bundleId || bundleId === 'NO') {
         throw new Error('Unable to determine the bundle ID from the build settings');
     }
-    platformSdkVersion = matchRegexPattern(buildSettingsOutput, /\s+SDK_VERSION = (?<sdkVersion>[\d.]+)/, 'sdkVersion') || null;
+    if (!platformSdkVersion) {
+        platformSdkVersion = matchRegexPattern(buildSettingsOutput, /\s+SDK_VERSION = (?<sdkVersion>[\d.]+)/, 'sdkVersion') || null;
+    }
     const platforms = {
         'iphoneos': 'iOS',
         'macosx': 'macOS',

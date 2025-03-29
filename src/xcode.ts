@@ -121,7 +121,7 @@ export async function GetProjectDetails(credential: AppleCredential, xcodeVersio
 
 async function parseBuildSettings(projectPath: string, scheme: string): Promise<[string, string]> {
     let buildSettingsOutput = '';
-    let platformSdkVersion: string = null;
+    let platformSdkVersion = core.getInput('platform-sdk-version') || null;
     const projectSettingsArgs = [
         'build',
         '-project', projectPath,
@@ -147,7 +147,9 @@ async function parseBuildSettings(projectPath: string, scheme: string): Promise<
     if (!bundleId || bundleId === 'NO') {
         throw new Error('Unable to determine the bundle ID from the build settings');
     }
-    platformSdkVersion = matchRegexPattern(buildSettingsOutput, /\s+SDK_VERSION = (?<sdkVersion>[\d.]+)/, 'sdkVersion') || null;
+    if (!platformSdkVersion) {
+        platformSdkVersion = matchRegexPattern(buildSettingsOutput, /\s+SDK_VERSION = (?<sdkVersion>[\d.]+)/, 'sdkVersion') || null;
+    }
     const platforms = {
         'iphoneos': 'iOS',
         'macosx': 'macOS',
