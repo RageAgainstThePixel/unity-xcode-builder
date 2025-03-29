@@ -58089,6 +58089,7 @@ async function GetProjectDetails(credential, xcodeVersion) {
 }
 async function parseBuildSettings(projectPath, scheme) {
     let buildSettingsOutput = '';
+    let platformSdkVersion = null;
     const projectSettingsArgs = [
         'build',
         '-project', projectPath,
@@ -58114,6 +58115,7 @@ async function parseBuildSettings(projectPath, scheme) {
     if (!bundleId || bundleId === 'NO') {
         throw new Error('Unable to determine the bundle ID from the build settings');
     }
+    platformSdkVersion = matchRegexPattern(buildSettingsOutput, /\s+SDK_VERSION = (?<sdkVersion>[\d.]+)/, 'sdkVersion') || null;
     const platforms = {
         'iphoneos': 'iOS',
         'macosx': 'macOS',
@@ -58122,7 +58124,7 @@ async function parseBuildSettings(projectPath, scheme) {
         'xros': 'visionOS'
     };
     if (platforms[platformName] !== 'macOS') {
-        await downloadPlatformSdkIfMissing(platforms[platformName]);
+        await downloadPlatformSdkIfMissing(platforms[platformName], platformSdkVersion);
     }
     return [platforms[platformName], bundleId];
 }
@@ -58333,8 +58335,15 @@ async function createMacOSInstallerPkg(projectRef) {
     }
     return pkgPath;
 }
-async function downloadPlatformSdkIfMissing(platform) {
-    await (0, exec_1.exec)(xcodebuild, ['-downloadPlatform', platform]);
+async function downloadPlatformSdkIfMissing(platform, version) {
+    const args = ['-downloadPlatform'];
+    if (version) {
+        args.push(`'${platform} ${version}'`);
+    }
+    else {
+        args.push(platform);
+    }
+    await (0, exec_1.exec)(xcodebuild, args);
 }
 async function getExportOptions(projectRef) {
     const exportOptionPlistInput = core.getInput('export-option-plist');
