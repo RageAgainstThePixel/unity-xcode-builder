@@ -58182,7 +58182,7 @@ async function downloadPlatformSdkIfMissing(platform, version) {
         await (0, exec_1.exec)('xcodes', ['runtimes', 'install', `"${platform} ${version}"`]);
     }
     else {
-        await (0, exec_1.exec)('xcodes', ['runtimes', 'install', platform]);
+        await (0, exec_1.exec)(xcodebuild, ['-downloadPlatform', platform]);
     }
 }
 async function ArchiveXcodeProject(projectRef) {

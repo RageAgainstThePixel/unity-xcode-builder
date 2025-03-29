@@ -214,7 +214,7 @@ async function downloadPlatformSdkIfMissing(platform: string, version: string | 
         await exec('xcodes', ['runtimes', 'install', `"${platform} ${version}"`]);
     }
     else {
-        await exec('xcodes', ['runtimes', 'install', platform]);
+        await exec(xcodebuild, ['-downloadPlatform', platform]);
     }
 }
 
