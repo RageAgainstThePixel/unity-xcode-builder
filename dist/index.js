@@ -58180,7 +58180,7 @@ async function getProjectScheme(projectPath) {
 async function downloadPlatformSdkIfMissing(platform, version) {
     await (0, exec_1.exec)('xcodes', ['runtimes']);
     if (version) {
-        await (0, exec_1.exec)('xcodes', [`runtimes install "${platform} ${version}"`]);
+        await (0, exec_1.exec)('xcodes', ['runtimes', `install "${platform} ${version}"`]);
     }
     else {
         await (0, exec_1.exec)(xcodebuild, ['-downloadPlatform', platform]);
