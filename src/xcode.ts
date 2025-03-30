@@ -154,7 +154,7 @@ async function getSupportedPlatform(projectPath: string): Promise<string> {
     core.debug(`.pbxproj file path: ${projectFilePath}`);
     await fs.promises.access(projectFilePath, fs.constants.R_OK);
     const content = await fs.promises.readFile(projectFilePath, 'utf8');
-    const platform = core.getInput('platform') || matchRegexPattern(content, /\s+SUPPORTED_PLATFORMS = (?<platform>\w+)/, 'platform');
+    const platform = core.getInput('platform') || matchRegexPattern(content, /\s+SDKROOT = (?<platform>\w+)/, 'platform');
     if (!platform) {
         throw new Error('Unable to determine the platform name from the build settings');
     }
@@ -595,13 +595,7 @@ async function parseBundleLog(errorOutput: string) {
             log(`Log file is a directory. Files: ${files.join(', ')}`, 'info');
             return;
         }
-        let logFileContent: string;
-        const logFileHandle = await fs.promises.open(logFilePath, fs.constants.O_RDONLY);
-        try {
-            logFileContent = await fs.promises.readFile(logFileHandle, 'utf8');
-        } finally {
-            await logFileHandle.close();
-        }
+        const logFileContent = await fs.promises.readFile(logFilePath, 'utf8');
         log(`----- Log content: -----\n${logFileContent}\n-----------------------------------`, 'info');
     } catch (error) {
         log(`Error reading log file: ${error.message}`, 'error');
