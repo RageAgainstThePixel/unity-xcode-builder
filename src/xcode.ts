@@ -210,6 +210,7 @@ async function getProjectScheme(projectPath: string): Promise<string> {
 }
 
 async function downloadPlatformSdkIfMissing(platform: string, version: string | null) {
+    await exec('xcodes', ['runtimes']);
     if (version) {
         await exec('xcodes', ['runtimes', 'install', `"${platform} ${version}"`]);
     }
