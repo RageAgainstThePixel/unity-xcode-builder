@@ -48,11 +48,15 @@ export async function GetProjectDetails(credential: AppleCredential, xcodeVersio
     core.info(`Project directory: ${projectDirectory}`);
     const projectName = path.basename(projectPath, '.xcodeproj');
     const scheme = await getProjectScheme(projectPath);
-    const [platform, bundleId] = await parseBuildSettings(projectPath);
+    const platform = await getSupportedPlatform(projectPath);
     core.info(`Platform: ${platform}`);
     if (!platform) {
         throw new Error('Unable to determine the platform to build for.');
     }
+    await checkSimulatorsAvailable(platform);
+    const destination = core.getInput('destination') || `generic/platform=${platform}`;
+    core.debug(`Using destination: ${destination}`);
+    const bundleId = await getBuildSettings(projectPath, scheme, platform, destination);
     core.info(`Bundle ID: ${bundleId}`);
     if (!bundleId) {
         throw new Error('Unable to determine the bundle ID');
@@ -78,6 +82,7 @@ export async function GetProjectDetails(credential: AppleCredential, xcodeVersio
         projectPath,
         projectName,
         platform,
+        destination,
         bundleId,
         projectDirectory,
         cFBundleShortVersionString,
@@ -119,34 +124,82 @@ export async function GetProjectDetails(credential: AppleCredential, xcodeVersio
     return projectRef;
 }
 
-async function parseBuildSettings(projectPath: string): Promise<[string, string]> {
+async function checkSimulatorsAvailable(platform: string): Promise<void> {
+    const destinationArgs = ['simctl', 'list', 'devices', '--json'];
+    let output = '';
+    if (!core.isDebug()) {
+        core.info(`[command]${xcrun} ${destinationArgs.join(' ')}`);
+    }
+    await exec(xcrun, destinationArgs, {
+        listeners: {
+            stdout: (data: Buffer) => {
+                output += data.toString();
+            }
+        },
+        silent: !core.isDebug()
+    });
+    const response = JSON.parse(output);
+    const devices = response.devices;
+    const platformDevices = Object.keys(devices)
+        .filter(key => key.toLowerCase().includes(platform.toLowerCase()))
+        .flatMap(key => devices[key]);
+    if (platformDevices.length > 0) {
+        return;
+    }
+    await exec(xcodebuild, ['-downloadPlatform', platform]);
+}
+
+async function getSupportedPlatform(projectPath: string): Promise<string> {
     const projectFilePath = `${projectPath}/project.pbxproj`;
     core.debug(`.pbxproj file path: ${projectFilePath}`);
     await fs.promises.access(projectFilePath, fs.constants.R_OK);
     const content = await fs.promises.readFile(projectFilePath, 'utf8');
-    const platformName = core.getInput('platform') || matchRegexPattern(content, /\s+PLATFORM_NAME = (?<platformName>\w+)/, 'platformName');
-    if (!platformName) {
+    const platform = core.getInput('platform') || matchRegexPattern(content, /\s+SUPPORTED_PLATFORMS = (?<platform>\w+)/, 'platform');
+    if (!platform) {
         throw new Error('Unable to determine the platform name from the build settings');
     }
-    const bundleId = core.getInput('bundle-id') || matchRegexPattern(content, /\s+PRODUCT_BUNDLE_IDENTIFIER = (?<bundleId>[\w.-]+)/, 'bundleId');
-    if (!bundleId || bundleId === 'NO') {
-        throw new Error('Unable to determine the bundle ID from the build settings');
-    }
-    let platformSdkVersion = core.getInput('platform-sdk-version') || null;
-    if (!platformSdkVersion) {
-        platformSdkVersion = matchRegexPattern(content, /\s+SDK_VERSION = (?<sdkVersion>[\d.]+)/, 'sdkVersion') || null;
-    }
-    const platforms = {
+    const platformMap = {
         'iphoneos': 'iOS',
         'macosx': 'macOS',
         'appletvos': 'tvOS',
         'watchos': 'watchOS',
         'xros': 'visionOS'
     };
-    if (platforms[platformName] !== 'macOS') {
-        await downloadPlatformSdkIfMissing(platforms[platformName], platformSdkVersion);
+    return platformMap[platform];
+}
+
+async function getBuildSettings(projectPath: string, scheme: string, platform: string, destination: string): Promise<string> {
+    let buildSettingsOutput = '';
+    const projectSettingsArgs = [
+        'build',
+        '-project', projectPath,
+        '-scheme', scheme,
+        '-destination', destination,
+        '-showBuildSettings'
+    ];
+    if (!core.isDebug()) {
+        core.info(`[command]${xcodebuild} ${projectSettingsArgs.join(' ')}`);
     }
-    return [platforms[platformName], bundleId];
+    await exec(xcodebuild, projectSettingsArgs, {
+        listeners: {
+            stdout: (data: Buffer) => {
+                buildSettingsOutput += data.toString();
+            }
+        },
+        silent: !core.isDebug()
+    });
+    let platformSdkVersion = core.getInput('platform-sdk-version') || null;
+    if (!platformSdkVersion) {
+        platformSdkVersion = matchRegexPattern(buildSettingsOutput, /\s+SDK_VERSION = (?<sdkVersion>[\d.]+)/, 'sdkVersion') || null;
+    }
+    if (platform !== 'macOS') {
+        await downloadPlatformSdkIfMissing(platform, platformSdkVersion);
+    }
+    const bundleId = core.getInput('bundle-id') || matchRegexPattern(buildSettingsOutput, /\s+PRODUCT_BUNDLE_IDENTIFIER = (?<bundleId>[\w.-]+)/, 'bundleId');
+    if (!bundleId || bundleId === 'NO') {
+        throw new Error('Unable to determine the bundle ID from the build settings');
+    }
+    return bundleId;
 }
 
 function matchRegexPattern(string: string, pattern: RegExp, group: string | null): string {
@@ -196,12 +249,11 @@ async function getProjectScheme(projectPath: string): Promise<string> {
 }
 
 async function downloadPlatformSdkIfMissing(platform: string, version: string | null) {
-    await exec('xcodes', ['runtimes']);
+    if (core.isDebug()) {
+        await exec('xcodes', ['runtimes']);
+    }
     if (version) {
         await exec('xcodes', ['runtimes', 'install', `${platform} ${version}`]);
-    }
-    else {
-        await exec(xcodebuild, ['-downloadPlatform', platform]);
     }
 }
 
@@ -209,8 +261,6 @@ export async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<Xco
     const { projectPath, projectName, projectDirectory } = projectRef;
     const archivePath = `${projectDirectory}/${projectName}.xcarchive`;
     core.debug(`Archive path: ${archivePath}`);
-    let destination = core.getInput('destination') || `generic/platform=${projectRef.platform}`;
-    core.debug(`Using destination: ${destination}`);
     const configuration = core.getInput('configuration') || 'Release';
     core.debug(`Configuration: ${configuration}`);
     let entitlementsPath = core.getInput('entitlements-plist');
@@ -223,7 +273,7 @@ export async function ArchiveXcodeProject(projectRef: XcodeProject): Promise<Xco
         'archive',
         '-project', projectPath,
         '-scheme', projectRef.scheme,
-        '-destination', destination,
+        '-destination', projectRef.destination,
         '-configuration', configuration,
         '-archivePath', archivePath,
         `-authenticationKeyID`, projectRef.credential.appStoreConnectKeyId,
