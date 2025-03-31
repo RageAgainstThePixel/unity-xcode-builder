@@ -57,17 +57,20 @@ jobs:
           echo "TEMPLATE_PATH=$templatePath" >> $env:GITHUB_ENV
           $projectPath = "${{ github.workspace }}/UnityProject"
           echo "UNITY_PROJECT_PATH=$projectPath" >> $env:GITHUB_ENV
-          $version = $(git tag --sort=-v:refname) | Select-Object -First 1
-          $version = $version.Substring(1)
+
+          # Read version from package.json instead of git tags
+          $packageJsonPath = "${{ github.workspace }}/package.json"
+          $packageJson = Get-Content -Raw -Path $packageJsonPath | ConvertFrom-Json
+          $version = $packageJson.version
+
           if ($version -match '^\d+\.\d+\.\d+$') {
-              Write-Host "Version: $version"
+              Write-Host "Version from package.json: $version"
             } else {
               Write-Host "Version: $version is not a valid version string"
               exit 1
             }
           echo "VERSION=$version" >> $env:GITHUB_ENV
         shell: pwsh
-        # Activates the installation with the provided credentials
       - uses: RageAgainstThePixel/activate-unity-license@v1
         with:
           license: 'Personal'
