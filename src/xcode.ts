@@ -156,8 +156,8 @@ async function getSupportedPlatform(projectPath: string): Promise<string> {
     core.debug(`.pbxproj file path: ${projectFilePath}`);
     await fs.promises.access(projectFilePath, fs.constants.R_OK);
     const content = await fs.promises.readFile(projectFilePath, 'utf8');
-    const platform = core.getInput('platform') || matchRegexPattern(content, /\s+SDKROOT = (?<platform>\w+)/, 'platform');
-    if (!platform) {
+    const platformName = core.getInput('platform') || matchRegexPattern(content, /\s+SDKROOT = (?<platform>\w+)/, 'platform');
+    if (!platformName) {
         throw new Error('Unable to determine the platform name from the build settings');
     }
     const platformMap = {
@@ -167,7 +167,7 @@ async function getSupportedPlatform(projectPath: string): Promise<string> {
         'watchos': 'watchOS',
         'xros': 'visionOS'
     };
-    return platformMap[platform];
+    return platformMap[platformName];
 }
 
 async function getBuildSettings(projectPath: string, scheme: string, platform: string, destination: string): Promise<string> {
