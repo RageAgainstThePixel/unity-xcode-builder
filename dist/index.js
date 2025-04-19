@@ -58061,7 +58061,7 @@ async function GetProjectDetails(credential, xcodeVersion) {
     const projectRef = new XcodeProject_1.XcodeProject(projectPath, projectName, platform, destination, bundleId, projectDirectory, cFBundleShortVersionString, cFBundleVersion, scheme, credential, xcodeVersion);
     await getExportOptions(projectRef);
     if (projectRef.isAppStoreUpload() && core.getInput('auto-increment-build-number') === 'true') {
-        projectRef.credential.appleId = await (0, AppStoreConnectClient_1.GetAppId)(projectRef);
+        projectRef.appId = await (0, AppStoreConnectClient_1.GetAppId)(projectRef);
         let bundleVersion = -1;
         try {
             bundleVersion = await (0, AppStoreConnectClient_1.GetLatestBundleVersion)(projectRef);
@@ -58620,7 +58620,7 @@ async function UploadApp(projectRef) {
         'altool',
         '--upload-package', projectRef.executablePath,
         '--type', platforms[projectRef.platform],
-        '--apple-id', projectRef.credential.appleId,
+        '--apple-id', projectRef.appId,
         '--bundle-id', projectRef.bundleId,
         '--bundle-version', projectRef.bundleVersion,
         '--bundle-short-version-string', projectRef.versionString,

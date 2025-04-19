@@ -40,7 +40,7 @@ export class XcodeProject {
     exportOption: string;
     exportOptionsPath: string;
     entitlementsPath: string;
-    appId: string;
+    appId: string | null;
     versionString: string;
     bundleVersion: number;
     scheme: string;
