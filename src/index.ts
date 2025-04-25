@@ -59,6 +59,7 @@ const main = async () => {
                             throw new Error(`Failed to install Xcode version ${xcodeVersionString}!`);
                         }
                     } else {
+                        core.info(`Selecting installed Xcode version ${xcodeVersionString}...`);
                         const selectExitCode = await exec.exec('xcodes', ['select', xcodeVersionString]);
                         if (selectExitCode !== 0) {
                             throw new Error(`Failed to select Xcode version ${xcodeVersionString}!`);
@@ -66,10 +67,10 @@ const main = async () => {
                     }
                 } else {
                     core.info(`Selecting latest installed Xcode version ${xcodeVersionString}...`);
-                    const latestXcodeVersion = installedXcodeVersions[installedXcodeVersions.length - 1];
-                    const selectExitCode = await exec.exec('xcodes', ['select', latestXcodeVersion]);
+                    xcodeVersionString = installedXcodeVersions[installedXcodeVersions.length - 1];
+                    const selectExitCode = await exec.exec('xcodes', ['select', xcodeVersionString]);
                     if (selectExitCode !== 0) {
-                        throw new Error(`Failed to select Xcode version ${latestXcodeVersion}!`);
+                        throw new Error(`Failed to select Xcode version ${xcodeVersionString}!`);
                     }
                 }
             }
@@ -85,9 +86,12 @@ const main = async () => {
             if (!xcodeVersionMatch) {
                 throw new Error('Failed to get Xcode version!');
             }
-            xcodeVersionString = xcodeVersionMatch.groups.version;
-            if (!xcodeVersionString) {
+            const selectedXcodeVersionString = xcodeVersionMatch.groups.version;
+            if (!selectedXcodeVersionString) {
                 throw new Error('Failed to parse Xcode version!');
+            }
+            if (xcodeVersionString !== selectedXcodeVersionString) {
+                throw new Error(`Selected Xcode version ${selectedXcodeVersionString} does not match requested version ${xcodeVersionString}!`);
             }
             let projectRef = await GetProjectDetails(credential, semver.coerce(xcodeVersionString));
             projectRef = await ArchiveXcodeProject(projectRef);
