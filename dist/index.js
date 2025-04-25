@@ -58007,6 +58007,7 @@ async function GetProjectDetails(credential, xcodeVersion) {
     if (!files || files.length === 0) {
         throw new Error(`No project found at: ${projectPathInput}`);
     }
+    core.debug(`Files found during search: ${files.join(', ')}`);
     const excludedProjects = ['GameAssembly', 'UnityFramework', 'Pods'];
     for (const file of files) {
         if (file.endsWith('.xcodeproj')) {
@@ -58020,7 +58021,7 @@ async function GetProjectDetails(credential, xcodeVersion) {
         }
     }
     if (!projectPath) {
-        throw new Error(`Invalid project-path! Unable to find .xcodeproj in ${projectPathInput}\n${files}`);
+        throw new Error(`Invalid project-path! Unable to find .xcodeproj in ${projectPathInput}. ${files.length} files were found but none matched.\n${files.join(', ')}`);
     }
     core.debug(`Resolved Project path: ${projectPath}`);
     await fs.promises.access(projectPath, fs.constants.R_OK);
