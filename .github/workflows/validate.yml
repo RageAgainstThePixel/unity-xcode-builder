@@ -25,15 +25,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest]
-        unity-version: [2021.x, 2022.3.x, 6000.x]
+        unity-version: [6000]
         build-target:
           - iOS
           - StandaloneOSX
           - VisionOS
-        exclude:
-          - os: macos-latest
-            unity-version: 2021.x
-            build-target: VisionOS
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,28 +45,27 @@ jobs:
           unity-version: ${{ matrix.unity-version }}
           architecture: 'arm64'
       - name: Find Unity Template Path and Version
+        shell: bash
         run: |
-          $rootPath = $env:UNITY_EDITOR_PATH -replace "Editor.*", ""
-          Write-Host "ROOT_PATH=$rootPath"
-          $templatePath = Get-ChildItem -Recurse -Filter "com.unity.template.3d*.tgz" -Path $rootPath | Select-Object -First 1 | Select-Object -ExpandProperty FullName
-          Write-Host "TEMPLATE_PATH=$templatePath"
-          echo "TEMPLATE_PATH=$templatePath" >> $env:GITHUB_ENV
-          $projectPath = "${{ github.workspace }}/UnityProject"
-          echo "UNITY_PROJECT_PATH=$projectPath" >> $env:GITHUB_ENV
+          rootPath=${UNITY_EDITOR_PATH/Editor*/}
+          echo "ROOT_PATH=$rootPath"
+          templatePath=$(find "$rootPath" -type f -name "com.unity.template.3d*.tgz" | head -n 1)
+          echo "TEMPLATE_PATH=$templatePath"
+          echo "TEMPLATE_PATH=$templatePath" >> $GITHUB_ENV
+          projectPath="${{ github.workspace }}/UnityProject"
+          echo "UNITY_PROJECT_PATH=$projectPath" >> $GITHUB_ENV
 
           # Read version from package.json instead of git tags
-          $packageJsonPath = "${{ github.workspace }}/package.json"
-          $packageJson = Get-Content -Raw -Path $packageJsonPath | ConvertFrom-Json
-          $version = $packageJson.version
+          packageJsonPath="${{ github.workspace }}/package.json"
+          version=$(jq -r '.version' "$packageJsonPath")
 
-          if ($version -match '^\d+\.\d+\.\d+$') {
-              Write-Host "Version from package.json: $version"
-            } else {
-              Write-Host "Version: $version is not a valid version string"
-              exit 1
-            }
-          echo "VERSION=$version" >> $env:GITHUB_ENV
-        shell: pwsh
+          if [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version from package.json: $version"
+          else
+            echo "Version: $version is not a valid version string"
+            exit 1
+          fi
+          echo "VERSION=$version" >> $GITHUB_ENV
       - uses: RageAgainstThePixel/activate-unity-license@v1
         with:
           license: 'Personal'
@@ -99,14 +94,12 @@ jobs:
       - uses: ./ # RageAgainstThePixel/unity-xcode-builder
         id: xcode-build
         with:
-          xcode-version: '16.2'
           project-path: ${{ env.UNITY_PROJECT_PATH }}/Builds/${{ matrix.build-target }}/**/*.xcodeproj
           app-store-connect-key: ${{ secrets.APP_STORE_CONNECT_KEY }}
           app-store-connect-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           team-id: ${{ secrets.APPLE_TEAM_ID }}
           export-option: app-store
-          upload: ${{ matrix.unity-version == '6000.x' }}
       - name: print outputs
         if: always()
         run: |
