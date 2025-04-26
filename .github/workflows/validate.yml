@@ -25,8 +25,15 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest]
-        unity-version: [6000]
+        unity-version: [2021.x, 2022.3.x, 6000.x]
         build-target: [iOS, StandaloneOSX, VisionOS]
+        exclude:
+          - os: macos-latest
+            unity-version: 2021.x
+            build-target: VisionOS
+          - os: macos-latest
+            unity-version: 2022.3.x
+            build-target: VisionOS
     steps:
       - uses: actions/checkout@v4
         with:
@@ -97,6 +104,7 @@ jobs:
           app-store-connect-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           team-id: ${{ secrets.APPLE_TEAM_ID }}
           export-option: app-store
+          upload: ${{ matrix.unity-version == '6000.x' }}
       - name: print outputs
         if: always()
         run: |
