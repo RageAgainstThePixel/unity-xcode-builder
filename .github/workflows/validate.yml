@@ -26,10 +26,7 @@ jobs:
       matrix:
         os: [macos-latest]
         unity-version: [6000]
-        build-target:
-          - iOS
-          - StandaloneOSX
-          - VisionOS
+        build-target: [iOS, StandaloneOSX, VisionOS]
     steps:
       - uses: actions/checkout@v4
         with:
