@@ -10,7 +10,7 @@ export class XcodeProject {
         bundleId: string,
         projectDirectory: string,
         versionString: string,
-        bundleVersion: number,
+        bundleVersion: string,
         scheme: string,
         credential: AppleCredential,
         xcodeVersion: SemVer
@@ -26,6 +26,7 @@ export class XcodeProject {
         this.scheme = scheme;
         this.credential = credential
         this.xcodeVersion = xcodeVersion;
+        this.isSteamBuild = false;
     }
     projectPath: string;
     projectName: string;
@@ -42,9 +43,13 @@ export class XcodeProject {
     exportOptionsPath: string;
     entitlementsPath: string;
     versionString: string;
-    bundleVersion: number;
+    bundleVersion: string;
     scheme: string;
     xcodeVersion: SemVer;
+    autoIncrementBuildNumber: boolean;
+    isSteamBuild: boolean;
+    archiveType: string;
+    notarize: boolean;
     isAppStoreUpload(): boolean {
         return this.exportOption === 'app-store' || this.exportOption === 'app-store-connect';
     }
