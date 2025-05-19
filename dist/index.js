@@ -57640,7 +57640,9 @@ async function GetAppId(project) {
     var _a, _b;
     await getOrCreateClient(project);
     const { data: response, error } = await appStoreConnectClient.api.AppsService.appsGetCollection({
-        query: { 'filter[bundleId]': [project.bundleId] }
+        query: {
+            'filter[bundleId]': [project.bundleId]
+        }
     });
     if (error) {
         checkAuthError(error);
@@ -57883,12 +57885,11 @@ async function UpdateTestDetails(project, whatsNew) {
         await updateBetaBuildLocalization(betaBuildLocalization, whatsNew);
     }
     const testGroups = core.getInput('test-groups');
-    core.info(`Adding Beta groups: ${testGroups}`);
-    if (!testGroups) {
-        return;
+    if (testGroups) {
+        core.info(`Adding Beta groups: ${testGroups}`);
+        const testGroupNames = testGroups.split(',').map(group => group.trim());
+        await AddBuildToTestGroups(project, build, testGroupNames);
     }
-    const testGroupNames = testGroups.split(',').map(group => group.trim());
-    await AddBuildToTestGroups(project, build, testGroupNames);
     const submitForReview = core.getInput('submit-for-review');
     if (submitForReview) {
         core.info(`Submitting for review...`);
