@@ -58506,46 +58506,44 @@ const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 async function GetOrSetXcodeVersion() {
-    let xcodeVersionString = core.getInput('xcode-version');
-    if (xcodeVersionString) {
-        core.info(`Setting xcode version to ${xcodeVersionString}`);
-        let xcodeVersionOutput = '';
-        const installedExitCode = await (0, exec_1.exec)('xcodes', ['installed'], {
-            listeners: {
-                stdout: (data) => {
-                    xcodeVersionOutput += data.toString();
-                }
-            }
-        });
-        if (installedExitCode !== 0) {
-            throw new Error('Failed to get installed Xcode versions!');
-        }
-        const installedXcodeVersions = xcodeVersionOutput.split('\n').map(line => {
-            const match = line.match(/(\d+\.\d+(\s\w+)?)/);
-            return match ? match[1] : null;
-        }).filter(Boolean);
-        core.info(`Installed Xcode versions:`);
-        installedXcodeVersions.forEach(version => core.info(`  > ${version}`));
-        if (installedXcodeVersions.length === 0 || !xcodeVersionString.includes('latest')) {
-            if (installedXcodeVersions.length === 0 || !installedXcodeVersions.includes(xcodeVersionString)) {
-                throw new Error(`Xcode version ${xcodeVersionString} is not installed! You will need to install this is a step before this one.`);
+    let xcodeVersionString = core.getInput('xcode-version', { required: true });
+    core.info(`Setting xcode version to ${xcodeVersionString}`);
+    let xcodeVersionOutput = '';
+    const installedExitCode = await (0, exec_1.exec)('xcodes', ['installed'], {
+        listeners: {
+            stdout: (data) => {
+                xcodeVersionOutput += data.toString();
             }
         }
-        else {
-            const nonBetaVersions = installedXcodeVersions.filter(v => !/Beta/i.test(v));
-            if (nonBetaVersions.length === 0) {
-                throw new Error('No Xcode versions installed!');
-            }
-            xcodeVersionString = nonBetaVersions[nonBetaVersions.length - 1];
-        }
-        core.info(`Selecting latest installed Xcode version ${xcodeVersionString}...`);
-        const selectExitCode = await (0, exec_1.exec)('xcodes', ['select', xcodeVersionString]);
-        if (selectExitCode !== 0) {
-            throw new Error(`Failed to select Xcode version ${xcodeVersionString}!`);
+    });
+    if (installedExitCode !== 0) {
+        throw new Error('Failed to get installed Xcode versions!');
+    }
+    const installedXcodeVersions = xcodeVersionOutput.split('\n').map(line => {
+        const match = line.match(/(\d+\.\d+(\s\w+)?)/);
+        return match ? match[1] : null;
+    }).filter(Boolean);
+    core.info(`Installed Xcode versions:`);
+    installedXcodeVersions.forEach(version => core.info(`  > ${version}`));
+    if (installedXcodeVersions.length === 0 || !xcodeVersionString.includes('latest')) {
+        if (installedXcodeVersions.length === 0 || !installedXcodeVersions.includes(xcodeVersionString)) {
+            throw new Error(`Xcode version ${xcodeVersionString} is not installed! You will need to install this in a step before this one.`);
         }
     }
+    else {
+        const nonBetaVersions = installedXcodeVersions.filter(v => !/Beta/i.test(v));
+        if (nonBetaVersions.length === 0) {
+            throw new Error('No Xcode versions installed!');
+        }
+        xcodeVersionString = nonBetaVersions[nonBetaVersions.length - 1];
+    }
+    core.info(`Selecting latest installed Xcode version ${xcodeVersionString}...`);
+    const selectExitCode = await (0, exec_1.exec)('xcodes', ['select', xcodeVersionString]);
+    if (selectExitCode !== 0) {
+        throw new Error(`Failed to select Xcode version ${xcodeVersionString}!`);
+    }
     await (0, exec_1.exec)('xcodes', ['installed']);
-    let xcodeVersionOutput = '';
+    xcodeVersionOutput = '';
     await (0, exec_1.exec)('xcodebuild', ['-version'], {
         listeners: {
             stdout: (data) => {
