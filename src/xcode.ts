@@ -31,7 +31,7 @@ const xcrun = '/usr/bin/xcrun';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 
 export async function GetOrSetXcodeVersion(): Promise<SemVer> {
-    let xcodeVersionString = core.getInput('xcode-version', { required: true });
+    let xcodeVersionString = core.getInput('xcode-version') || 'latest';
 
     core.info(`Setting xcode version to ${xcodeVersionString}`);
     let xcodeVersionOutput = '';

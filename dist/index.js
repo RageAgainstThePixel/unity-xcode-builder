@@ -58506,7 +58506,7 @@ const xcodebuild = '/usr/bin/xcodebuild';
 const xcrun = '/usr/bin/xcrun';
 const WORKSPACE = process.env.GITHUB_WORKSPACE || process.cwd();
 async function GetOrSetXcodeVersion() {
-    let xcodeVersionString = core.getInput('xcode-version', { required: true });
+    let xcodeVersionString = core.getInput('xcode-version') || 'latest';
     core.info(`Setting xcode version to ${xcodeVersionString}`);
     let xcodeVersionOutput = '';
     const installedExitCode = await (0, exec_1.exec)('xcodes', ['installed'], {
