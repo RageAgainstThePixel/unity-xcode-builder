@@ -80,7 +80,7 @@ jobs:
         with:
           project-name: UnityProject
           template-name: com.unity.template.3d(-cross-platform)?
-      - run: openupm add com.virtualmaker.buildalon
+      - run: openupm add com.utilities.buildpipeline
         name: Add Build Pipeline Package
         working-directory:  ${{ env.UNITY_PROJECT_PATH }}
       - uses: RageAgainstThePixel/unity-action@v2
