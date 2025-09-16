@@ -94,7 +94,7 @@ jobs:
         with:
           build-target: ${{ matrix.build-target }}
           log-name: '${{ matrix.build-target }}-Build'
-          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -sceneList Assets/Scenes/SampleScene.unity -export -enableAppleAutomaticSigning -bundleIdentifier com.test.buildalon.xcode -versionName ${{ env.VERSION }} -buildOutputDirectory ${{ env.BUILD_DIRECTORY }}'
+          args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -sceneList Assets/Scenes/SampleScene.unity -export -enableAppleAutomaticSigning -bundleIdentifier com.rageagainstthepixel.xcode -versionName ${{ env.VERSION }} -buildOutputDirectory ${{ env.BUILD_DIRECTORY }}'
       - name: Update Info.Plist with encryption compliance
         shell: bash
         run: |
@@ -107,13 +107,13 @@ jobs:
           fi
 
           # recursively list build output files
-          echo "::group::Build Output Directory: ${BUILD_DIRECTORY}/com.test.buildalon.xcode"
-          ls -alR "${BUILD_DIRECTORY}/com.test.buildalon.xcode"
+          echo "::group::Build Output Directory: ${BUILD_DIRECTORY}/com.rageagainstthepixel.xcode"
+          ls -alR "${BUILD_DIRECTORY}/com.rageagainstthepixel.xcode"
           echo "::endgroup::"
 
           # find the Info.plist file in the build directory
-          # MacOSStandalone Info.plist path: /Users/runner/work/unity-xcode-builder/unity-xcode-builder/UnityProject/Builds/StandaloneOSX/com.test.buildalon.xcode/UnityProject/UnityProject/Info.plist
-          # all others: /Users/runner/work/unity-xcode-builder/unity-xcode-builder/UnityProject/Builds/iOS/com.test.buildalon.xcode/Info.plist
+          # MacOSStandalone Info.plist path: /Users/runner/work/unity-xcode-builder/unity-xcode-builder/UnityProject/Builds/StandaloneOSX/com.rageagainstthepixel.xcode/UnityProject/UnityProject/Info.plist
+          # all others: /Users/runner/work/unity-xcode-builder/unity-xcode-builder/UnityProject/Builds/iOS/com.rageagainstthepixel.xcode/Info.plist
           EXPORT_OPTION="${{ env.EXPORT_OPTION }}"
 
           if [ "$EXPORT_OPTION" != "app-store-connect" ]; then
@@ -122,10 +122,10 @@ jobs:
 
           TARGET_PLATFORM="${{ matrix.build-target }}"
 
-          INFO_PLIST_PATH="${BUILD_DIRECTORY}/com.test.buildalon.xcode/UnityProject/UnityProject/Info.plist"
+          INFO_PLIST_PATH="${BUILD_DIRECTORY}/com.rageagainstthepixel.xcode/UnityProject/UnityProject/Info.plist"
 
           if [ ! -f "$INFO_PLIST_PATH" ]; then
-            INFO_PLIST_PATH="${BUILD_DIRECTORY}/com.test.buildalon.xcode/Info.plist"
+            INFO_PLIST_PATH="${BUILD_DIRECTORY}/com.rageagainstthepixel.xcode/Info.plist"
           fi
 
           # test path exists
@@ -139,7 +139,7 @@ jobs:
           then
               echo "PlistBuddy could not be found"
               # list build output files recursively
-              ls -alR "${BUILD_DIRECTORY}/com.test.buildalon.xcode"
+              ls -alR "${BUILD_DIRECTORY}/com.rageagainstthepixel.xcode"
               exit 1
           fi
 
