@@ -27,7 +27,7 @@ jobs:
       BUILD_DIRECTORY: ''
       UNITY_PROJECT_PATH: ${{ github.workspace }}/UnityProject
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: 'npm install -g openupm-cli'
       - uses: RageAgainstThePixel/unity-setup@main
         with:
