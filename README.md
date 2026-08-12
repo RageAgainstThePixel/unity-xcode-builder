@@ -13,7 +13,7 @@ To archive, export, and upload directly to Apple App Store Connect, use the foll
 
 ```yaml
 steps:
-  - uses: buildalon/unity-xcode-builder@v1
+  - uses: RageAgainstThePixel/unity-xcode-builder@v1
     id: xcode-build
     with:
       project-path: '/path/to/your/build/output/directory'
@@ -80,3 +80,4 @@ This action requires several secrets that need to be setup in the repository or 
 
 - `executable`: Path to the exported archive executable.
 - `output-directory`: The path to the export output directory.
+
