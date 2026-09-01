@@ -349,27 +349,30 @@ export async function GetProjectDetails(credential: AppleCredential, xcodeVersio
                 projectRef.isSteamBuild ||
                 projectRef.archiveType === 'pkg' ||
                 projectRef.archiveType === 'dmg';
-            let output = '';
 
-            await exec('security', [
-                'find-identity',
-                '-v', projectRef.credential.keychainPath
-            ], {
-                listeners: {
-                    stdout: (data: Buffer) => {
-                        output += data.toString();
+            if (projectRef.notarize) {
+                let output = '';
+
+                await exec('security', [
+                    'find-identity',
+                    '-v', projectRef.credential.keychainPath
+                ], {
+                    listeners: {
+                        stdout: (data: Buffer) => {
+                            output += data.toString();
+                        }
+                    },
+                    silent: true
+                });
+
+                if (!output.includes('Developer ID Application')) {
+                    throw new Error('Developer ID Application not found! developer-id-application-certificate input is required for notarization.');
+                }
+
+                if (projectRef.archiveType === 'pkg' || projectRef.archiveType === 'dmg') {
+                    if (!output.includes('Developer ID Installer')) {
+                        throw new Error('Developer ID Installer not found! developer-id-installer-certificate input is required for notarization.');
                     }
-                },
-                silent: true
-            });
-
-            if (!output.includes('Developer ID Application')) {
-                throw new Error('Developer ID Application not found! developer-id-application-certificate input is required for notarization.');
-            }
-
-            if (projectRef.archiveType === 'pkg' || projectRef.archiveType === 'dmg') {
-                if (!output.includes('Developer ID Installer')) {
-                    throw new Error('Developer ID Installer not found! developer-id-installer-certificate input is required for notarization.');
                 }
             }
         }
