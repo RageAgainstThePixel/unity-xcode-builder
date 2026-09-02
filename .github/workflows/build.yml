@@ -27,13 +27,15 @@ jobs:
       BUILD_DIRECTORY: ''
       UNITY_PROJECT_PATH: ${{ github.workspace }}/UnityProject
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: 'npm install -g openupm-cli'
-      - uses: RageAgainstThePixel/unity-setup@v1
+      - uses: RageAgainstThePixel/unity-setup@v2
         with:
           version-file: 'None'
           build-targets: ${{ matrix.build-target }}
           unity-version: ${{ matrix.unity-version }}
+          # Hub 3.20+ installs outside the path currently probed by unity-setup.
+          hub-version: '3.14.3'
       - name: Set Build Args
         shell: bash
         run: |
@@ -70,12 +72,12 @@ jobs:
           echo "Creating build directory at $build_directory"
           mkdir -p "$build_directory"
           echo "BUILD_DIRECTORY=$build_directory" >> "$GITHUB_ENV"
-      - uses: RageAgainstThePixel/activate-unity-license@v1
+      - uses: RageAgainstThePixel/activate-unity-license@v2
         with:
-          license: 'Personal'
+          license: personal
           username: ${{ secrets.UNITY_USERNAME }}
           password: ${{ secrets.UNITY_PASSWORD }}
-      - uses: RageAgainstThePixel/create-unity-project@v1
+      - uses: RageAgainstThePixel/create-unity-project@v2
         name: Create Test Project
         with:
           project-name: UnityProject
@@ -83,13 +85,13 @@ jobs:
       - run: openupm add com.utilities.buildpipeline
         name: Add Build Pipeline Package
         working-directory:  ${{ env.UNITY_PROJECT_PATH }}
-      - uses: RageAgainstThePixel/unity-action@v2
+      - uses: RageAgainstThePixel/unity-action@v3
         name: '${{ matrix.build-target }}-Validate'
         with:
           build-target: ${{ matrix.build-target }}
           log-name: '${{ matrix.build-target }}-Validate'
           args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.ValidateProject -importTMProEssentialsAsset'
-      - uses: RageAgainstThePixel/unity-action@v2
+      - uses: RageAgainstThePixel/unity-action@v3
         name: '${{ matrix.build-target }}-Build'
         with:
           build-target: ${{ matrix.build-target }}
