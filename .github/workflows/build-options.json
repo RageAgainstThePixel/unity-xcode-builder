@@ -1,5 +1,6 @@
 {
   "os": [
+    "macos-15",
     "macos-latest"
   ],
   "unity-version": [
@@ -15,10 +16,18 @@
     "VisionOS"
   ],
   "xcode-version": [
-    "16.3",
-    ""
+    "16.4",
+    "latest"
   ],
   "exclude": [
+    {
+      "os": "macos-15",
+      "xcode-version": "latest"
+    },
+    {
+      "os": "macos-latest",
+      "xcode-version": "16.4"
+    },
     {
       "unity-version": "2021.x",
       "build-target": "VisionOS"
