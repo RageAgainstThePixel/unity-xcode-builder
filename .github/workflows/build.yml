@@ -27,9 +27,9 @@ jobs:
       BUILD_DIRECTORY: ''
       UNITY_PROJECT_PATH: ${{ github.workspace }}/UnityProject
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: 'npm install -g openupm-cli'
-      - uses: RageAgainstThePixel/unity-setup@v1
+      - uses: RageAgainstThePixel/unity-setup@main
         with:
           version-file: 'None'
           build-targets: ${{ matrix.build-target }}
@@ -70,12 +70,12 @@ jobs:
           echo "Creating build directory at $build_directory"
           mkdir -p "$build_directory"
           echo "BUILD_DIRECTORY=$build_directory" >> "$GITHUB_ENV"
-      - uses: RageAgainstThePixel/activate-unity-license@v1
+      - uses: RageAgainstThePixel/activate-unity-license@main
         with:
           license: 'Personal'
           username: ${{ secrets.UNITY_USERNAME }}
           password: ${{ secrets.UNITY_PASSWORD }}
-      - uses: RageAgainstThePixel/create-unity-project@v1
+      - uses: RageAgainstThePixel/create-unity-project@main
         name: Create Test Project
         with:
           project-name: UnityProject
@@ -83,13 +83,13 @@ jobs:
       - run: openupm add com.utilities.buildpipeline
         name: Add Build Pipeline Package
         working-directory:  ${{ env.UNITY_PROJECT_PATH }}
-      - uses: RageAgainstThePixel/unity-action@v2
+      - uses: RageAgainstThePixel/unity-action@main
         name: '${{ matrix.build-target }}-Validate'
         with:
           build-target: ${{ matrix.build-target }}
           log-name: '${{ matrix.build-target }}-Validate'
           args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.ValidateProject -importTMProEssentialsAsset'
-      - uses: RageAgainstThePixel/unity-action@v2
+      - uses: RageAgainstThePixel/unity-action@main
         name: '${{ matrix.build-target }}-Build'
         with:
           build-target: ${{ matrix.build-target }}

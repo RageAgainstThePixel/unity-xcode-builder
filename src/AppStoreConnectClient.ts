@@ -1,4 +1,4 @@
-import core = require('@actions/core');
+import * as core from '@actions/core';
 import { log } from './utilities';
 import { XcodeProject } from './XcodeProject';
 import {
