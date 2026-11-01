@@ -7,6 +7,10 @@ on:
       matrix:
         required: true
         type: string
+      allow-security-alert:
+        required: false
+        type: boolean
+        default: false
     secrets:
       UNITY_USERNAME:
         required: true
@@ -27,13 +31,14 @@ jobs:
       BUILD_DIRECTORY: ''
       UNITY_PROJECT_PATH: ${{ github.workspace }}/UnityProject
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: 'npm install -g openupm-cli'
-      - uses: RageAgainstThePixel/unity-setup@v1
+      - uses: RageAgainstThePixel/unity-setup@v3
         with:
           version-file: 'None'
           build-targets: ${{ matrix.build-target }}
           unity-version: ${{ matrix.unity-version }}
+          allow-security-alert: ${{ inputs.allow-security-alert }}
       - name: Set Build Args
         shell: bash
         run: |
