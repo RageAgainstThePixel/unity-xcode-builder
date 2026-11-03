@@ -138,13 +138,14 @@ jobs:
         with:
           build-target: ${{ matrix.build-target }}
           log-name: ${{ matrix.build-target }}-Validate
-          args: -quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.ValidateProject -importTMProEssentialsAsset
+          args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.ValidateProject -importTMProEssentialsAsset
       - uses: RageAgainstThePixel/unity-action@v4
         name: ${{ matrix.build-target }}-Build
+        timeout-minutes: 30
         with:
           build-target: ${{ matrix.build-target }}
           log-name: ${{ matrix.build-target }}-Build
-          args: -quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -sceneList Assets/Scenes/SampleScene.unity -export -enableAppleAutomaticSigning -bundleIdentifier com.rageagainstthepixel.xcode -versionName ${{ env.VERSION }} -buildOutputDirectory ${{ env.BUILD_DIRECTORY }}
+          args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -sceneList Assets/Scenes/SampleScene.unity -export -enableAppleAutomaticSigning -bundleIdentifier com.rageagainstthepixel.xcode -versionName ${{ env.VERSION }} -buildOutputDirectory ${{ env.BUILD_DIRECTORY }}
       - name: Update Info.Plist with encryption compliance
         run: |
           set -euo pipefail
