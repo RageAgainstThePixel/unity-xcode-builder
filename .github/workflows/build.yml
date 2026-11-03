@@ -122,11 +122,10 @@ jobs:
       - name: Remove run license
         if: ${{ always() && steps.download-run-license.outcome == 'success' }}
         run: rm -rf "${RUNNER_TEMP}/unity-license"
-      - uses: RageAgainstThePixel/create-unity-project@v3
+      - uses: RageAgainstThePixel/create-unity-project@v4
         name: Create Test Project
         with:
           project-name: UnityProject
-          template-name: com.unity.template.3d(-cross-platform)?
       - name: Add Build Pipeline Package
         working-directory: ${{ env.UNITY_PROJECT_PATH }}
         run: |
