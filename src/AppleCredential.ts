@@ -6,8 +6,25 @@ import * as fs from 'fs';
 const security = '/usr/bin/security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 const appStoreConnectKeyDir = `${process.env.HOME}/.appstoreconnect/private_keys`;
-// https://www.apple.com/certificateauthority/
-const developerIdG2IntermediateUrl = 'https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer';
+// Apple's public "Developer ID Certification Authority" G2 intermediate, valid until 2031-09-17, from
+// https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+// SHA-256 F1:6C:D3:C5:4C:7F:83:CE:A4:BF:1A:3E:6A:08:19:C8:AA:A8:E4:A1:52:8F:D1:44:71:5F:35:06:43:D2:DF:3A
+const developerIdG2Intermediate = [
+    'MIIEPjCCAyagAwIBAgIUf7QAP82XSXrLg02SpIp4c8KEXUMwDQYJKoZIhvcNAQELBQAwYjELMAkGA1UEBhMCVVMxEzARBgNVBAoTCkFwcGxl',
+    'IEluYy4xJjAkBgNVBAsTHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9yaXR5MRYwFAYDVQQDEw1BcHBsZSBSb290IENBMB4XDTIxMDkyMjE4',
+    'NTUxMFoXDTMxMDkxNzAwMDAwMFowXjEtMCsGA1UEAwwkRGV2ZWxvcGVyIElEIENlcnRpZmljYXRpb24gQXV0aG9yaXR5MQswCQYDVQQLDAJH',
+    'MjETMBEGA1UECgwKQXBwbGUgSW5jLjELMAkGA1UEBhMCVVMwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDTLJVoIVSRir9lccIY',
+    'TvbNDeGRKHXXA7qVH9MSmVJE3oBGZ/wpiwCFiIowh01Mbkq0x+UC49djTKrM6uzbQi+RfSXpX6RLKlRvF6wwnykoNKR/j+V4410jKiFG0InD',
+    'X/hql51xGxiosgzJAwo1sgKnLfWz3BuDxSchQHKm5zd2Mee7Br90svZwrEysLc3JXkWLz/sI5mLVQJW1N1zMGw7h79yl5Y3JULdAnwojJUVA',
+    'j5Rne+CU6jnTeKU00cLL4DN/LrYsw+Um1SXOqo0qd/yeFJaX4PVfLvLop3GnO6OZTHoio03vcBHV1oaBgvFnM5MzWkCxksSqc5YdxFz/4es3',
+    'AgMBAAGjge8wgewwEgYDVR0TAQH/BAgwBgEB/wIBADAfBgNVHSMEGDAWgBQr0GlHlHYJ/vRrjS5ApvdHTX8IXjBEBggrBgEFBQcBAQQ4MDYw',
+    'NAYIKwYBBQUHMAGGKGh0dHA6Ly9vY3NwLmFwcGxlLmNvbS9vY3NwMDMtYXBwbGVyb290Y2EwLgYDVR0fBCcwJTAjoCGgH4YdaHR0cDovL2Ny',
+    'bC5hcHBsZS5jb20vcm9vdC5jcmwwHQYDVR0OBBYEFPg6DGkRduDtrNHrpln6N9XEVbAeMA4GA1UdDwEB/wQEAwIBBjAQBgoqhkiG92NkBgIG',
+    'BAIFADANBgkqhkiG9w0BAQsFAAOCAQEAwf1DClm/8bG3QxBa1hgyMBRWJuERSGMraXKXSB+OW8peJhX7dCOAM1QzGaEihlrYuEtpqqfOlpbC',
+    'Csc1atBvzoppg2JtSjn1/oNN16LUiB/tiMAP+PkzHrQQt8JcETdENwSwpESdjGgNe30dfsy1k/DWbz0VeoCldNPhj33SiOgxp5jFH9/iglmu',
+    'gIFgRhbsnrmKQKobKuFhhgqMcA/ZSizsTKIFEdZ5jKVjJSEjAm+TW1pXoddFbd/M93+fX9vH7WSnb0Qvb009eHgKVrQ71zrIK2Wik+rbWOqO',
+    '1LnEwDD8MhpNupIMJDmYgjqgmd7n5OS8DryFr1qrXND828wQww=='
+].join('');
 
 export class AppleCredential {
     constructor(
@@ -288,11 +305,7 @@ async function importDeveloperIdG2Intermediate(keychainPath: string): Promise<vo
     const certificateDirectory = await getCertificateDirectory();
     const intermediatePath = `${certificateDirectory}/${uuid.v4()}-developer-id-g2.cer`;
     try {
-        const response = await fetch(developerIdG2IntermediateUrl);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        await fs.promises.writeFile(intermediatePath, Buffer.from(await response.arrayBuffer()));
+        await fs.promises.writeFile(intermediatePath, Buffer.from(developerIdG2Intermediate, 'base64'));
         let output = '';
         const exitCode = await exec.exec(security, ['add-certificates', '-k', keychainPath, intermediatePath], {
             listeners: {
@@ -306,7 +319,7 @@ async function importDeveloperIdG2Intermediate(keychainPath: string): Promise<vo
         }
         core.info('Imported the Developer ID Certification Authority G2 intermediate.');
     } catch (error) {
-        core.warning(`Failed to import the Developer ID G2 intermediate from ${developerIdG2IntermediateUrl}; signing may fail with "unable to build chain".\n${error}`);
+        core.warning(`Failed to import the Developer ID G2 intermediate; signing may fail with "unable to build chain".\n${error}`);
     } finally {
         await fs.promises.rm(intermediatePath, { force: true });
     }
