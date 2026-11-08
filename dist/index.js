@@ -158382,7 +158382,26 @@ async function getExportOptions(projectRef) {
     }
     else {
         exportOptionsPath = exportOptionPlistInput;
+        let exportOptions;
+        try {
+            exportOptions = parse_parse(await external_fs_.promises.readFile(exportOptionsPath, 'utf8'));
+        }
+        catch (error) {
+            throw new Error(`Failed to read export-option-plist at ${exportOptionsPath}!\n${error}`);
+        }
+        projectRef.exportOption = typeof exportOptions.method === 'string' && exportOptions.method.length > 0
+            ? exportOptions.method
+            : 'development';
+        if (projectRef.platform === 'macOS') {
+            projectRef.archiveType = getInput('archive-type') || 'app';
+            if (getInput('export-option') === 'steam') {
+                projectRef.isSteamBuild = true;
+                projectRef.archiveType = 'app';
+            }
+            core_debug(`Export Archive type: ${projectRef.archiveType}`);
+        }
     }
+    core_debug(`Export option: ${projectRef.exportOption}`);
     core_debug(`Export options path: ${exportOptionsPath}`);
     if (!exportOptionsPath) {
         throw new Error(`Invalid path for export-option-plist: ${exportOptionsPath}`);
@@ -158478,7 +158497,7 @@ async function ArchiveXcodeProject(projectRef) {
     return projectRef;
 }
 async function ExportXcodeArchive(projectRef) {
-    const { platform, notarize, isSteamBuild, archiveType, archivePath, exportOptionsPath, exportPath } = projectRef;
+    const { platform, notarize, archiveType, archivePath, exportOptionsPath, exportPath } = projectRef;
     const { manualProvisioningProfileUUID, appStoreConnectIssuerId, appStoreConnectKeyId, appStoreConnectKeyPath } = projectRef.credential;
     core_debug(`Export path: ${exportPath}`);
     setOutput('output-directory', exportPath);
@@ -158511,22 +158530,22 @@ async function ExportXcodeArchive(projectRef) {
             projectRef.executablePath = await getFirstPathWithGlob(`${exportPath}/**/*.app`);
             if (notarize) {
                 await signMacOSAppBundle(projectRef);
-                if (isSteamBuild) {
-                    const isNotarized = await isAppBundleNotarized(projectRef.executablePath);
-                    if (!isNotarized) {
-                        const zipPath = external_path_namespaceObject.join(exportPath, projectRef.executablePath.replace('.app', '.zip'));
-                        await exec_exec('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', projectRef.executablePath, zipPath]);
-                        await notarizeArchive(projectRef, zipPath, projectRef.executablePath);
-                    }
-                }
-                else if (archiveType === 'pkg') {
+                if (archiveType === 'pkg') {
                     projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
                 }
                 else if (archiveType === 'dmg') {
                     throw new Error('DMG export is not supported yet!');
                 }
+                else if (archiveType === 'app') {
+                    const isNotarized = await isAppBundleNotarized(projectRef.executablePath);
+                    if (!isNotarized) {
+                        const zipPath = external_path_namespaceObject.join(exportPath, `${external_path_namespaceObject.basename(projectRef.executablePath, '.app')}.zip`);
+                        await exec_exec('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', projectRef.executablePath, zipPath]);
+                        await notarizeArchive(projectRef, zipPath, projectRef.executablePath);
+                    }
+                }
                 else {
-                    throw new Error(`Invalid archive type: ${archiveType}`);
+                    throw new Error(`Invalid archive type: ${archiveType}! Must be one of app or pkg.`);
                 }
             }
         }
@@ -158555,7 +158574,8 @@ async function isAppBundleNotarized(appPath) {
     await exec_exec('stapler', ['validate', appPath], {
         silent: !isDebug(),
         listeners: {
-            stdout: (data) => { output += data.toString(); }
+            stdout: (data) => { output += data.toString(); },
+            stderr: (data) => { output += data.toString(); }
         },
         ignoreReturnCode: true
     });
@@ -158764,24 +158784,25 @@ async function notarizeArchive(projectRef, archivePath, staplePath) {
         const notaryLogs = await getNotarizationLog(projectRef, notaryResult.id);
         throw new Error(`Notarization failed! Status: ${notaryResult.status}\n${notaryLogs}`);
     }
-    const stapleArgs = [
-        'stapler',
-        'staple',
-        staplePath,
-    ];
-    let stapleOutput = '';
-    try {
-        stapleOutput = await execXcRun(stapleArgs);
-    }
-    catch (error) {
-        throw new Error(`Failed to staple the notarization ticket:\n${error}`);
-    }
-    if (!stapleOutput.includes('The staple and validate action worked!')) {
-        throw new Error(`Failed to staple the notarization ticket!\n${stapleOutput}`);
-    }
-    const notarization = await isAppBundleNotarized(staplePath);
-    if (!notarization) {
-        throw new Error(`Failed to notarize the app bundle!`);
+    const stapleAttempts = 4;
+    for (let attempt = 1;; attempt++) {
+        let failure;
+        try {
+            const stapleOutput = await execXcRun(['stapler', 'staple', staplePath]);
+            if (stapleOutput.includes('The staple and validate action worked!')) {
+                return;
+            }
+            failure = stapleOutput;
+        }
+        catch (error) {
+            failure = error instanceof Error ? error.message : `${error}`;
+        }
+        if (attempt >= stapleAttempts) {
+            throw new Error(`Failed to staple the notarization ticket after ${stapleAttempts} attempts:\n${failure}`);
+        }
+        const delaySeconds = 15 * 2 ** (attempt - 1);
+        warning(`Failed to staple the notarization ticket (attempt ${attempt} of ${stapleAttempts}), retrying in ${delaySeconds}s:\n${failure}`);
+        await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
     }
 }
 async function getNotarizationLog(projectRef, id) {
@@ -158990,8 +159011,19 @@ async function execWithXcBeautify(xcodeBuildArgs) {
     });
     if (exitCode !== 0) {
         await parseBundleLog(errorOutput);
+        logXcodeBuildErrors(errorOutput);
         throw new Error(`xcodebuild exited with code: ${exitCode}`);
     }
+}
+function logXcodeBuildErrors(errorOutput) {
+    const maxLines = 200;
+    const lines = errorOutput.split('\n').filter(line => line.trim().length > 0);
+    if (lines.length === 0) {
+        return;
+    }
+    const tail = lines.slice(-maxLines).join('\n');
+    const header = lines.length > maxLines ? `xcodebuild stderr (last ${maxLines} of ${lines.length} lines):` : 'xcodebuild stderr:';
+    core_error(`${header}\n${tail}`);
 }
 async function execXcRun(args, silence = false) {
     let exitCode = 1;
@@ -159033,7 +159065,8 @@ async function execXcRun(args, silence = false) {
     }
     if (exitCode > 0) {
         await parseBundleLog(errorOutput);
-        throw new Error(output);
+        const details = [output, errorOutput].filter(text => text.trim().length > 0).join('\n');
+        throw new Error(details || `xcrun ${args[0]} exited with code: ${exitCode}`);
     }
     return output;
 }
@@ -159137,6 +159170,7 @@ function _v4(options, buf, offset) {
 const security = '/usr/bin/security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 const appStoreConnectKeyDir = `${process.env.HOME}/.appstoreconnect/private_keys`;
+const developerIdG2IntermediateUrl = 'https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer';
 class AppleCredential {
     constructor(tempPassPhrase, keychainPath, appStoreConnectKeyId, appStoreConnectIssuerId, appStoreConnectKeyPath, appStoreConnectKey, teamId, manualSigningIdentity, manualProvisioningProfileUUID) {
         this.tempPassPhrase = tempPassPhrase;
@@ -159271,6 +159305,9 @@ async function ImportCredentials() {
             await importCertificate(keychainPath, tempCredential, developerIdInstallerCertificateBase64.trim(), developerIdInstallerCertificatePassword.trim());
             installedCertificates = true;
         }
+        if (developerIdApplicationCertificateBase64 || developerIdInstallerCertificateBase64) {
+            await importDeveloperIdG2Intermediate(keychainPath);
+        }
         if (installedCertificates) {
             let output = '';
             info(`[command]${security} find-identity -v ${keychainPath}`);
@@ -159359,7 +159396,7 @@ async function importCertificate(keychainPath, tempCredential, certificateBase64
         'import', certificatePath,
         '-k', keychainPath,
         '-P', certificatePassword,
-        '-A', '-t', 'cert', '-f', 'pkcs12'
+        '-A', '-f', 'pkcs12'
     ]);
     const partitionList = 'apple-tool:,apple:,codesign:';
     if (isDebug()) {
@@ -159374,6 +159411,35 @@ async function importCertificate(keychainPath, tempCredential, certificateBase64
         silent: !isDebug()
     });
     await exec_exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath, 'login.keychain-db']);
+}
+async function importDeveloperIdG2Intermediate(keychainPath) {
+    const certificateDirectory = await getCertificateDirectory();
+    const intermediatePath = `${certificateDirectory}/${dist_node_v4()}-developer-id-g2.cer`;
+    try {
+        const response = await fetch(developerIdG2IntermediateUrl);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        await external_fs_.promises.writeFile(intermediatePath, Buffer.from(await response.arrayBuffer()));
+        let output = '';
+        const exitCode = await exec_exec(security, ['add-certificates', '-k', keychainPath, intermediatePath], {
+            listeners: {
+                stdout: (data) => { output += data.toString(); },
+                stderr: (data) => { output += data.toString(); }
+            },
+            ignoreReturnCode: true
+        });
+        if (exitCode !== 0 && !output.includes('already exists')) {
+            throw new Error(`security add-certificates exited with code ${exitCode}\n${output}`);
+        }
+        info('Imported the Developer ID Certification Authority G2 intermediate.');
+    }
+    catch (error) {
+        warning(`Failed to import the Developer ID G2 intermediate from ${developerIdG2IntermediateUrl}; signing may fail with "unable to build chain".\n${error}`);
+    }
+    finally {
+        await external_fs_.promises.rm(intermediatePath, { force: true });
+    }
 }
 async function unlockTemporaryKeychain(keychainPath, tempCredential) {
     const exitCode = await exec_exec(security, ['unlock-keychain', '-p', tempCredential, keychainPath]);

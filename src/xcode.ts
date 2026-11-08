@@ -588,8 +588,32 @@ async function getExportOptions(projectRef: XcodeProject): Promise<void> {
         await fs.promises.writeFile(exportOptionsPath, plist.build(exportOptions));
     } else {
         exportOptionsPath = exportOptionPlistInput;
+        let exportOptions: Record<string, unknown>;
+
+        try {
+            exportOptions = plist.parse(await fs.promises.readFile(exportOptionsPath, 'utf8')) as Record<string, unknown>;
+        } catch (error) {
+            throw new Error(`Failed to read export-option-plist at ${exportOptionsPath}!\n${error}`);
+        }
+
+        // xcodebuild treats a plist without a method as a development export
+        projectRef.exportOption = typeof exportOptions.method === 'string' && exportOptions.method.length > 0
+            ? exportOptions.method
+            : 'development';
+
+        if (projectRef.platform === 'macOS') {
+            projectRef.archiveType = core.getInput('archive-type') || 'app';
+
+            if (core.getInput('export-option') === 'steam') {
+                projectRef.isSteamBuild = true;
+                projectRef.archiveType = 'app';
+            }
+
+            core.debug(`Export Archive type: ${projectRef.archiveType}`);
+        }
     }
 
+    core.debug(`Export option: ${projectRef.exportOption}`);
     core.debug(`Export options path: ${exportOptionsPath}`);
 
     if (!exportOptionsPath) {
@@ -733,7 +757,6 @@ export async function ExportXcodeArchive(projectRef: XcodeProject): Promise<Xcod
     const {
         platform,
         notarize,
-        isSteamBuild,
         archiveType,
         archivePath,
         exportOptionsPath,
@@ -783,19 +806,22 @@ export async function ExportXcodeArchive(projectRef: XcodeProject): Promise<Xcod
             if (notarize) {
                 await signMacOSAppBundle(projectRef);
 
-                if (isSteamBuild) {
-                    const isNotarized = await isAppBundleNotarized(projectRef.executablePath);
-                    if (!isNotarized) {
-                        const zipPath = path.join(exportPath, projectRef.executablePath.replace('.app', '.zip'));
-                        await exec('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', projectRef.executablePath, zipPath]);
-                        await notarizeArchive(projectRef, zipPath, projectRef.executablePath);
-                    }
-                } else if (archiveType === 'pkg') {
+                // steam exports always use the app archive type
+                if (archiveType === 'pkg') {
                     projectRef.executablePath = await createMacOSInstallerPkg(projectRef);
                 } else if (archiveType === 'dmg') {
                     throw new Error('DMG export is not supported yet!');
+                } else if (archiveType === 'app') {
+                    // steam and plain Developer ID app bundles: zip, notarize, staple the bundle
+                    const isNotarized = await isAppBundleNotarized(projectRef.executablePath);
+
+                    if (!isNotarized) {
+                        const zipPath = path.join(exportPath, `${path.basename(projectRef.executablePath, '.app')}.zip`);
+                        await exec('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', projectRef.executablePath, zipPath]);
+                        await notarizeArchive(projectRef, zipPath, projectRef.executablePath);
+                    }
                 } else {
-                    throw new Error(`Invalid archive type: ${archiveType}`);
+                    throw new Error(`Invalid archive type: ${archiveType}! Must be one of app or pkg.`);
                 }
             }
         }
@@ -824,10 +850,12 @@ async function isAppBundleNotarized(appPath: string): Promise<boolean> {
         core.info(`[command]stapler validate ${appPath}`);
     }
 
+    // stapler can report on either stream
     await exec('stapler', ['validate', appPath], {
         silent: !core.isDebug(),
         listeners: {
-            stdout: (data: Buffer) => { output += data.toString(); }
+            stdout: (data: Buffer) => { output += data.toString(); },
+            stderr: (data: Buffer) => { output += data.toString(); }
         },
         ignoreReturnCode: true
     });
@@ -1077,27 +1105,32 @@ async function notarizeArchive(projectRef: XcodeProject, archivePath: string, st
         throw new Error(`Notarization failed! Status: ${notaryResult.status}\n${notaryLogs}`);
     }
 
-    const stapleArgs = [
-        'stapler',
-        'staple',
-        staplePath,
-    ];
+    // stapler fetches the ticket from Apple's CDN, which drops connections and can lag behind an accepted submission,
+    // so retry with backoff. A successful staple already validates the ticket, so no separate validate follows.
+    const stapleAttempts = 4;
 
-    let stapleOutput = '';
-    try {
-        stapleOutput = await execXcRun(stapleArgs);
-    } catch (error) {
-        throw new Error(`Failed to staple the notarization ticket:\n${error}`);
-    }
+    for (let attempt = 1; ; attempt++) {
+        let failure: string;
 
-    if (!stapleOutput.includes('The staple and validate action worked!')) {
-        throw new Error(`Failed to staple the notarization ticket!\n${stapleOutput}`);
-    }
+        try {
+            const stapleOutput = await execXcRun(['stapler', 'staple', staplePath]);
 
-    const notarization = await isAppBundleNotarized(staplePath);
+            if (stapleOutput.includes('The staple and validate action worked!')) {
+                return;
+            }
 
-    if (!notarization) {
-        throw new Error(`Failed to notarize the app bundle!`);
+            failure = stapleOutput;
+        } catch (error) {
+            failure = error instanceof Error ? error.message : `${error}`;
+        }
+
+        if (attempt >= stapleAttempts) {
+            throw new Error(`Failed to staple the notarization ticket after ${stapleAttempts} attempts:\n${failure}`);
+        }
+
+        const delaySeconds = 15 * 2 ** (attempt - 1);
+        core.warning(`Failed to staple the notarization ticket (attempt ${attempt} of ${stapleAttempts}), retrying in ${delaySeconds}s:\n${failure}`);
+        await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
     }
 }
 
@@ -1326,8 +1359,21 @@ async function execWithXcBeautify(xcodeBuildArgs: string[]) {
 
     if (exitCode !== 0) {
         await parseBundleLog(errorOutput);
+        logXcodeBuildErrors(errorOutput);
         throw new Error(`xcodebuild exited with code: ${exitCode}`);
     }
+}
+
+function logXcodeBuildErrors(errorOutput: string): void {
+    // xcbeautify drops most of stderr, so surface its tail where the failure usually is
+    const maxLines = 200;
+    const lines = errorOutput.split('\n').filter(line => line.trim().length > 0);
+
+    if (lines.length === 0) { return; }
+
+    const tail = lines.slice(-maxLines).join('\n');
+    const header = lines.length > maxLines ? `xcodebuild stderr (last ${maxLines} of ${lines.length} lines):` : 'xcodebuild stderr:';
+    core.error(`${header}\n${tail}`);
 }
 
 async function execXcRun(args: string[], silence: boolean = false): Promise<string> {
@@ -1375,7 +1421,9 @@ async function execXcRun(args: string[], silence: boolean = false): Promise<stri
 
     if (exitCode > 0) {
         await parseBundleLog(errorOutput);
-        throw new Error(output);
+        // some xcrun tools report failures only on stderr
+        const details = [output, errorOutput].filter(text => text.trim().length > 0).join('\n');
+        throw new Error(details || `xcrun ${args[0]} exited with code: ${exitCode}`);
     }
 
     return output;

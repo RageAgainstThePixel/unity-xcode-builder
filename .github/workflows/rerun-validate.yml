@@ -7,8 +7,8 @@ on:
 jobs:
   rerun:
     if: github.event.workflow_run.conclusion == 'failure'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
     permissions:
       actions: write # to rerun the failed jobs
       checks: read # to read the failed jobs' annotations

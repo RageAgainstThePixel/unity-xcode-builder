@@ -199,7 +199,8 @@ jobs:
           team-id: ${{ secrets.APPLE_TEAM_ID }}
           export-option: ${{ env.EXPORT_OPTION }}
           notarize: ${{ env.EXPORT_OPTION != 'app-store-connect' }}
-          archive-type: pkg
+          # developer-id rows notarize an installer pkg on macos-15 and the app bundle on macos-latest
+          archive-type: ${{ matrix.os == 'macos-15' && 'pkg' || 'app' }}
           test-groups: Beta
           developer-id-application-certificate: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT }}
           developer-id-application-certificate-password: ${{ secrets.SIGNING_CERT_PASSWORD }}

@@ -6,6 +6,8 @@ import * as fs from 'fs';
 const security = '/usr/bin/security';
 const temp = process.env['RUNNER_TEMP'] || '.';
 const appStoreConnectKeyDir = `${process.env.HOME}/.appstoreconnect/private_keys`;
+// https://www.apple.com/certificateauthority/
+const developerIdG2IntermediateUrl = 'https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer';
 
 export class AppleCredential {
     constructor(
@@ -165,6 +167,9 @@ export async function ImportCredentials(): Promise<AppleCredential> {
                 developerIdInstallerCertificatePassword.trim());
             installedCertificates = true;
         }
+        if (developerIdApplicationCertificateBase64 || developerIdInstallerCertificateBase64) {
+            await importDeveloperIdG2Intermediate(keychainPath);
+        }
         if (installedCertificates) {
             let output = '';
             core.info(`[command]${security} find-identity -v ${keychainPath}`);
@@ -260,7 +265,7 @@ async function importCertificate(keychainPath: string, tempCredential: string, c
         'import', certificatePath,
         '-k', keychainPath,
         '-P', certificatePassword,
-        '-A', '-t', 'cert', '-f', 'pkcs12'
+        '-A', '-f', 'pkcs12'
     ]);
     const partitionList = 'apple-tool:,apple:,codesign:';
     if (core.isDebug()) {
@@ -275,6 +280,36 @@ async function importCertificate(keychainPath: string, tempCredential: string, c
         silent: !core.isDebug()
     });
     await exec.exec(security, ['list-keychains', '-d', 'user', '-s', keychainPath, 'login.keychain-db']);
+}
+
+// newer Developer ID certificates chain through the G2 intermediate, which some runner images lack,
+// so codesign fails with "unable to build chain". Best effort: images that already have it keep working.
+async function importDeveloperIdG2Intermediate(keychainPath: string): Promise<void> {
+    const certificateDirectory = await getCertificateDirectory();
+    const intermediatePath = `${certificateDirectory}/${uuid.v4()}-developer-id-g2.cer`;
+    try {
+        const response = await fetch(developerIdG2IntermediateUrl);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        await fs.promises.writeFile(intermediatePath, Buffer.from(await response.arrayBuffer()));
+        let output = '';
+        const exitCode = await exec.exec(security, ['add-certificates', '-k', keychainPath, intermediatePath], {
+            listeners: {
+                stdout: (data: Buffer) => { output += data.toString(); },
+                stderr: (data: Buffer) => { output += data.toString(); }
+            },
+            ignoreReturnCode: true
+        });
+        if (exitCode !== 0 && !output.includes('already exists')) {
+            throw new Error(`security add-certificates exited with code ${exitCode}\n${output}`);
+        }
+        core.info('Imported the Developer ID Certification Authority G2 intermediate.');
+    } catch (error) {
+        core.warning(`Failed to import the Developer ID G2 intermediate from ${developerIdG2IntermediateUrl}; signing may fail with "unable to build chain".\n${error}`);
+    } finally {
+        await fs.promises.rm(intermediatePath, { force: true });
+    }
 }
 
 async function unlockTemporaryKeychain(keychainPath: string, tempCredential: string): Promise<void> {
