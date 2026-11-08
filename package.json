@@ -18,10 +18,10 @@
     "@actions/core": "^3.0.1",
     "@actions/exec": "^3.0.0",
     "@actions/github": "^9.1.1",
-    "@rage-against-the-pixel/app-store-connect-api": "^4.5.1",
-    "glob": "^14.0.3",
-    "plist": "^5.0.0",
-    "semver": "^7.8.5",
+    "@rage-against-the-pixel/app-store-connect-api": "^4.6.0",
+    "glob": "^14.0.4",
+    "plist": "^5.1.0",
+    "semver": "^7.8.6",
     "uuid": "^14.0.3"
   },
   "devDependencies": {
